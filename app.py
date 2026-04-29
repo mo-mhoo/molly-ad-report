@@ -43,11 +43,10 @@ def save_config(cfg):
         with open(CONFIG_FILE, "w") as f:
             json.dump(cfg, f, indent=2)
     except Exception:
-        pass  # Streamlit Cloud 環境下無法永久寫檔，設定改在 Secrets 管理
+        pass
 
 # ── Meta API ──────────────────────────────────────────────
 
-# action type 對照表：一般帳號 vs CPAS 帳號
 ACTION_TYPES = {
     "general": {
         "purchase":  "purchase",
@@ -66,9 +65,7 @@ ACTION_TYPES = {
 }
 
 def _fetch_raw_actions(access_token, ad_account_id, since, until):
-    """行銷活動層級彙總所有 action types + 嘗試 CPAS 獨立欄位，用於偵錯。"""
     url = f"https://graph.facebook.com/v25.0/act_{ad_account_id}/insights"
-    # 嘗試 CPAS 可能用到的獨立欄位
     cpas_fields = (
         "campaign_name,spend,actions,action_values,"
         "purchase_roas,website_purchase_roas,"
@@ -85,7 +82,6 @@ def _fetch_raw_actions(access_token, ad_account_id, since, until):
     try:
         data = requests.get(url, params=params, timeout=15).json()
         all_types = {}
-        # 彙總 actions
         for item in data.get("data", []):
             for a in item.get("actions", []):
                 atype = a["action_type"]
@@ -93,7 +89,6 @@ def _fetch_raw_actions(access_token, ad_account_id, since, until):
             for a in item.get("action_values", []):
                 atype = f"[value] {a['action_type']}"
                 all_types[atype] = all_types.get(atype, 0) + float(a["value"])
-            # 顯示獨立欄位是否有值
             for field in ["purchase_roas","website_purchase_roas","omni_purchase",
                           "omni_add_to_cart","catalog_segment_value","catalog_segment_actions"]:
                 if item.get(field) not in (None, "", []):
@@ -421,7 +416,6 @@ st.divider()
 
 cfg = load_config()
 
-# Token 到期提醒
 def check_token_expiry(token):
     if not token:
         return
@@ -434,7 +428,7 @@ def check_token_expiry(token):
         data = resp.json().get("data", {})
         exp_at = data.get("expires_at", 0)
         if exp_at == 0:
-            return  # 永不過期（系統用戶 token）
+            return
         exp_date = date.fromtimestamp(exp_at)
         days_left = (exp_date - date.today()).days
         if days_left <= 0:
@@ -448,11 +442,152 @@ if cfg.get("meta_token"):
     check_token_expiry(cfg["meta_token"])
 
 def parse_account_name(name):
-    """從帳戶名稱解析 client / channel，例如「毛孩時代 蝦皮」→ ('毛孩時代', '蝦皮')"""
     parts = name.strip().split(" ", 1)
     client  = parts[0] if len(parts) > 0 else name
     channel = parts[1] if len(parts) > 1 else ""
     return client, channel
+
+# ── 維度解析 ─────────────────────────────────────────────
+
+ACTIVITY_TYPES = {"常態", "全館活動", "限搶活動"}
+FORMAT_KEYWORDS = ["單圖", "多圖", "比較文", "影片", "原生圖", "輪播", "動態", "IG社群"]
+
+def parse_campaign_audience(campaign_name):
+    parts = [p.strip() for p in str(campaign_name).split('｜')]
+    return parts[1] if len(parts) > 1 else "未標示"
+
+def parse_ad_dims(ad_name):
+    name = str(ad_name)
+    parts = [p.strip() for p in name.split('_')]
+    activity_type, format_type, category = "其他", "未知", "未知"
+    found_format_idx = found_activity_idx = -1
+    for i, part in enumerate(parts):
+        if part in ACTIVITY_TYPES:
+            activity_type = part
+            found_activity_idx = i
+    for i, part in enumerate(parts):
+        if any(kw in part for kw in FORMAT_KEYWORDS):
+            format_type = part
+            found_format_idx = i
+            break
+    ref_idx = max(found_format_idx, found_activity_idx)
+    if ref_idx >= 0 and ref_idx + 1 < len(parts):
+        cand = parts[ref_idx + 1]
+        if not (len(cand) >= 6 and cand[:4].isdigit()):
+            category = cand.split('x')[0]
+    if "代言人" in name:
+        creative_type = "代言人"
+    elif any(kw in name for kw in ["獸醫", "醫生", "醫師", "醫"]):
+        creative_type = "醫生/獸醫"
+    else:
+        creative_type = "一般"
+    return {"活動類型": activity_type, "格式": format_type, "品類": category, "素材類型": creative_type}
+
+def fetch_meta_ad_insights(access_token, ad_account_id, since, until, account_type="general"):
+    url = f"https://graph.facebook.com/v25.0/act_{ad_account_id}/insights"
+    if account_type == "cpas":
+        fields = "campaign_name,ad_name,spend,impressions,inline_link_clicks,catalog_segment_actions,catalog_segment_value"
+    else:
+        fields = "campaign_name,ad_name,spend,impressions,inline_link_clicks,actions,action_values"
+    params = {
+        "level": "ad",
+        "fields": fields,
+        "time_range": json.dumps({"since": str(since), "until": str(until)}),
+        "access_token": access_token,
+        "limit": 500,
+    }
+    resp = requests.get(url, params=params, timeout=30)
+    data = resp.json()
+    if "error" in data:
+        raise Exception(data["error"].get("message", str(data["error"])))
+    def get_action(lst, atype):
+        for a in (lst or []):
+            if a.get("action_type") == atype:
+                return float(a["value"])
+        return 0.0
+    def safe_float(val):
+        try: return float(val)
+        except: return 0.0
+    rows = []
+    for item in data.get("data", []):
+        actions = item.get("actions", [])
+        action_values = item.get("action_values", [])
+        if account_type == "cpas":
+            ca = item.get("catalog_segment_actions", [])
+            cv = item.get("catalog_segment_value", [])
+            purchases = get_action(ca, "purchase")
+            purchase_val = get_action(cv, "purchase")
+        else:
+            purchases = get_action(actions, "purchase")
+            purchase_val = get_action(action_values, "purchase")
+        rows.append({
+            "行銷活動名稱": item.get("campaign_name", ""),
+            "廣告名稱": item.get("ad_name", ""),
+            "花費": safe_float(item.get("spend")),
+            "曝光": safe_float(item.get("impressions")),
+            "點擊": safe_float(item.get("inline_link_clicks")),
+            "購買次數": purchases,
+            "購買轉換值": purchase_val,
+        })
+    return pd.DataFrame(rows) if rows else pd.DataFrame()
+
+def _agg_by_dim(df, dim_col):
+    result = {}
+    for val, grp in df.groupby(dim_col):
+        spend = grp["花費"].sum()
+        purchases = grp["購買次數"].sum()
+        revenue = grp["購買轉換值"].sum()
+        impr = grp["曝光"].sum()
+        clicks = grp["點擊"].sum()
+        result[val] = {
+            "花費": spend,
+            "購買次數": purchases,
+            "ROAS": revenue / spend if spend > 0 else 0,
+            "CPA": spend / purchases if purchases > 0 else 0,
+            "CTR%": clicks / impr * 100 if impr > 0 else 0,
+        }
+    return result
+
+def build_dim_table(df, dim_col, df_comp=None, df_yoy=None):
+    curr = _agg_by_dim(df, dim_col)
+    comp = _agg_by_dim(df_comp, dim_col) if df_comp is not None and not df_comp.empty else {}
+    yoy  = _agg_by_dim(df_yoy,  dim_col) if df_yoy  is not None and not df_yoy.empty  else {}
+    has_wow = bool(comp)
+    has_yoy = bool(yoy)
+
+    rows = []
+    for val, m in sorted(curr.items(), key=lambda x: -x[1]["花費"]):
+        c = comp.get(val, {})
+        y = yoy.get(val, {})
+        row = {
+            dim_col:    val,
+            "花費":     f"${m['花費']:,.0f}",
+            "購買次數": int(m["購買次數"]),
+            "ROAS":     f"{m['ROAS']:.2f}",
+            "CPA":      f"${m['CPA']:,.0f}" if m["CPA"] > 0 else "-",
+            "CTR%":     f"{m['CTR%']:.2f}%",
+        }
+        if has_wow:
+            row["花費 WoW"]  = fmt_change(pct_change(m["花費"], c.get("花費", 0)),  True)  if c else "-"
+            row["ROAS WoW"] = fmt_change(pct_change(m["ROAS"], c.get("ROAS", 0)),  True)  if c else "-"
+            row["CPA WoW"]  = fmt_change(pct_change(m["CPA"],  c.get("CPA",  0)),  False) if c else "-"
+        if has_yoy:
+            row["花費 YoY"]  = fmt_change(pct_change(m["花費"], y.get("花費", 0)),  True)  if y else "-"
+            row["ROAS YoY"] = fmt_change(pct_change(m["ROAS"], y.get("ROAS", 0)),  True)  if y else "-"
+            row["CPA YoY"]  = fmt_change(pct_change(m["CPA"],  y.get("CPA",  0)),  False) if y else "-"
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+def enrich_ad_dims(df):
+    df = df.copy()
+    df["ATL/BTL"]  = df["行銷活動名稱"].apply(classify_type)
+    df["受眾"]     = df["行銷活動名稱"].apply(parse_campaign_audience)
+    _d = df["廣告名稱"].apply(parse_ad_dims)
+    df["活動類型"] = _d.apply(lambda x: x["活動類型"])
+    df["格式"]     = _d.apply(lambda x: x["格式"])
+    df["品類"]     = _d.apply(lambda x: x["品類"])
+    df["素材類型"] = _d.apply(lambda x: x["素材類型"])
+    return df
 
 with st.sidebar:
     st.header("⚙️ 設定")
@@ -581,7 +716,18 @@ if data_source == "Meta API 自動抓取":
                     else:
                         st.session_state.pop("df_yoy", None)
                     st.success(f"✅ 抓到 {len(df_curr)} 個行銷活動")
-                    # Debug: 顯示所有 action types（幫助找出正確的 CPAS 欄位名稱）
+                    st.session_state["dim_since"] = curr_since
+                    st.session_state["dim_until"] = curr_until
+                    st.session_state["dim_token"] = token
+                    st.session_state["dim_acct_id"] = acct
+                    st.session_state["dim_acct_type"] = atype
+                    st.session_state["dim_comp_since"] = comp_since if use_comp else None
+                    st.session_state["dim_comp_until"] = comp_until if use_comp else None
+                    st.session_state["dim_yoy_since"]  = yoy_since  if use_yoy  else None
+                    st.session_state["dim_yoy_until"]  = yoy_until  if use_yoy  else None
+                    st.session_state.pop("df_ads", None)
+                    st.session_state.pop("df_ads_comp", None)
+                    st.session_state.pop("df_ads_yoy", None)
                     raw = _fetch_raw_actions(token, acct, curr_since, curr_until)
                     if raw:
                         st.session_state["raw_actions"] = raw
@@ -593,7 +739,6 @@ if data_source == "Meta API 自動抓取":
     df_yoy  = st.session_state.get("df_yoy")
 
 else:
-    # CSV mode
     load_fn = load_google_csv if platform_sel == "Google" else load_meta_csv
     available_files = list_files(client_sel, channel_sel, platform_sel) if REPORT_DIR.exists() else []
     file_names = ["（選擇檔案）"] + [f.name for f in available_files]
@@ -690,17 +835,44 @@ if df_curr is not None and not df_curr.empty:
         c3.metric("BTL CPA", f"${btl.get('CPA', 0):,.0f}")
         c4.metric("BTL 購買次數", f"{btl.get('購買次數', 0):.0f}")
 
-        # 轉換漏斗指標（所有帳戶都顯示）
         if btl:
+            comp_btl = comp_m.get("BTL", {}) if comp_m else {}
+            yoy_btl  = yoy_m.get("BTL",  {}) if yoy_m  else {}
+
+            def funnel_delta(curr_val, comp_val, yoy_val, higher_is_better=True):
+                parts = []
+                if comp_val:
+                    c = pct_change(curr_val, comp_val)
+                    if c is not None:
+                        parts.append(f"WoW {'+' if c>=0 else ''}{c:.1f}%")
+                if yoy_val:
+                    c = pct_change(curr_val, yoy_val)
+                    if c is not None:
+                        parts.append(f"YoY {'+' if c>=0 else ''}{c:.1f}%")
+                return " | ".join(parts) if parts else None
+
+            def funnel_color(curr_val, comp_val, higher_is_better=True):
+                if not comp_val:
+                    return "off"
+                c = pct_change(curr_val, comp_val)
+                if c is None:
+                    return "off"
+                good = (c >= 0 and higher_is_better) or (c < 0 and not higher_is_better)
+                return "normal" if good else "inverse"
+
             st.markdown("#### 🛒 BTL 轉換漏斗")
             r1, r2, r3, r4, r5 = st.columns(5)
-            r1.metric("購物車次數", f"{btl.get('加購次數', 0):.0f}")
-            r2.metric("購物車成本", f"${btl.get('購物車成本', 0):,.0f}")
-            r3.metric("點擊→成交率", f"{btl.get('點擊到成交率', 0):.2f}%")
-            r4.metric("點擊→購物車率", f"{btl.get('點擊到購物車率', 0):.2f}%")
-            r5.metric("購物車→成交率", f"{btl.get('購物車到成交率', 0):.2f}%")
+            atc  = btl.get('加購次數', 0)
+            cost = btl.get('購物車成本', 0)
+            cr   = btl.get('點擊到成交率', 0)
+            acr  = btl.get('點擊到購物車率', 0)
+            c2p  = btl.get('購物車到成交率', 0)
+            r1.metric("購物車次數",    f"{atc:.0f}",   delta=funnel_delta(atc,  comp_btl.get('加購次數',0),      yoy_btl.get('加購次數',0)),      delta_color=funnel_color(atc,  comp_btl.get('加購次數',0)))
+            r2.metric("購物車成本",    f"${cost:,.0f}", delta=funnel_delta(cost, comp_btl.get('購物車成本',0),    yoy_btl.get('購物車成本',0),  False), delta_color=funnel_color(cost, comp_btl.get('購物車成本',0), False))
+            r3.metric("點擊→成交率",   f"{cr:.2f}%",   delta=funnel_delta(cr,   comp_btl.get('點擊到成交率',0),  yoy_btl.get('點擊到成交率',0)),  delta_color=funnel_color(cr,   comp_btl.get('點擊到成交率',0)))
+            r4.metric("點擊→購物車率", f"{acr:.2f}%",  delta=funnel_delta(acr,  comp_btl.get('點擊到購物車率',0),yoy_btl.get('點擊到購物車率',0)), delta_color=funnel_color(acr,  comp_btl.get('點擊到購物車率',0)))
+            r5.metric("購物車→成交率", f"{c2p:.2f}%",  delta=funnel_delta(c2p,  comp_btl.get('購物車到成交率',0),yoy_btl.get('購物車到成交率',0)), delta_color=funnel_color(c2p,  comp_btl.get('購物車到成交率',0)))
 
-    # Debug：顯示 API 回傳的所有 action types
     raw_actions = st.session_state.get("raw_actions")
     if raw_actions:
         with st.expander("🔍 Debug：API 回傳的所有 Action Types（找不到數據時用）"):
@@ -730,6 +902,91 @@ if df_curr is not None and not df_curr.empty:
             "https://claude.ai/new",
             type="primary",
         )
+
+    if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
+        st.divider()
+        st.subheader("🔍 素材維度分析")
+
+        if st.button("📊 抓取廣告層級數據", key="fetch_ad_dims"):
+            token_d  = st.session_state.get("dim_token", cfg.get("meta_token", ""))
+            acct_d   = st.session_state.get("dim_acct_id", selected_account_id)
+            atype_d  = st.session_state.get("dim_acct_type", selected_account_type)
+            since_d  = st.session_state.get("dim_since")
+            until_d  = st.session_state.get("dim_until")
+            if not token_d or not acct_d or since_d is None:
+                st.error("請先點「從 Meta API 抓取數據」按鈕")
+            else:
+                with st.spinner("正在抓取廣告層級數據..."):
+                    try:
+                        df_ads_new = fetch_meta_ad_insights(token_d, acct_d, since_d, until_d, atype_d)
+                        st.session_state["df_ads"] = df_ads_new
+                        comp_s = st.session_state.get("dim_comp_since")
+                        comp_u = st.session_state.get("dim_comp_until")
+                        if comp_s:
+                            st.session_state["df_ads_comp"] = fetch_meta_ad_insights(token_d, acct_d, comp_s, comp_u, atype_d)
+                        else:
+                            st.session_state.pop("df_ads_comp", None)
+                        yoy_s = st.session_state.get("dim_yoy_since")
+                        yoy_u = st.session_state.get("dim_yoy_until")
+                        if yoy_s:
+                            st.session_state["df_ads_yoy"] = fetch_meta_ad_insights(token_d, acct_d, yoy_s, yoy_u, atype_d)
+                        else:
+                            st.session_state.pop("df_ads_yoy", None)
+                        st.success(f"✅ 抓到 {len(df_ads_new)} 個廣告")
+                    except Exception as e:
+                        st.error(f"API 錯誤：{e}")
+
+        df_ads_raw  = st.session_state.get("df_ads")
+        df_ads_comp = st.session_state.get("df_ads_comp")
+        df_ads_yoy  = st.session_state.get("df_ads_yoy")
+        if df_ads_raw is not None and not df_ads_raw.empty:
+            df_ads      = enrich_ad_dims(df_ads_raw)
+            df_ads_c    = enrich_ad_dims(df_ads_comp) if df_ads_comp is not None and not df_ads_comp.empty else None
+            df_ads_y    = enrich_ad_dims(df_ads_yoy)  if df_ads_yoy  is not None and not df_ads_yoy.empty  else None
+
+            with st.expander("🔽 篩選條件（選擇後自動更新所有維度表格）"):
+                fc = st.columns(6)
+                dim_filter_labels = [("ATL/BTL", "ATL/BTL"), ("受眾", "受眾／新舊客"), ("活動類型", "活動類型"),
+                                     ("格式", "素材格式"), ("品類", "品類"), ("素材類型", "素材類型")]
+                filters = {}
+                for i, (dim, lbl) in enumerate(dim_filter_labels):
+                    opts = sorted(df_ads[dim].dropna().unique().tolist())
+                    filters[dim] = fc[i].multiselect(lbl, opts, default=[], key=f"filter_{dim}")
+
+            def apply_filters(df):
+                if df is None:
+                    return None
+                for dim, sel in filters.items():
+                    if sel:
+                        df = df[df[dim].isin(sel)]
+                return df
+
+            df_f  = apply_filters(df_ads)
+            df_fc = apply_filters(df_ads_c)
+            df_fy = apply_filters(df_ads_y)
+
+            active_filters = [f"{lbl}={','.join(filters[dim])}" for dim, lbl in dim_filter_labels if filters[dim]]
+            if active_filters:
+                st.caption(f"篩選：{' | '.join(active_filters)}　→　{len(df_f)} 個廣告（共 {len(df_ads)} 個）")
+            else:
+                st.caption(f"共 {len(df_f)} 個廣告" + ("　含 WoW 對比" if df_ads_c is not None else "") + ("　含 YoY 對比" if df_ads_y is not None else ""))
+
+            for dim_col, label in [
+                ("ATL/BTL", "📊 ATL/BTL"),
+                ("受眾",    "👥 受眾／新舊客"),
+                ("活動類型","📅 活動類型"),
+                ("格式",    "🖼️ 素材格式"),
+                ("品類",    "📦 品類"),
+                ("素材類型","🎭 素材類型"),
+            ]:
+                st.markdown(f"**{label}**")
+                tbl = build_dim_table(df_f, dim_col, df_fc, df_fy)
+                if not tbl.empty:
+                    st.write(tbl.to_html(escape=False, index=False), unsafe_allow_html=True)
+                else:
+                    st.caption("無資料")
+                st.markdown("")
+
 else:
     if data_source == "Meta API 自動抓取":
         st.info("👆 設定日期範圍後，點「從 Meta API 抓取數據」按鈕")
