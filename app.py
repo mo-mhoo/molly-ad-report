@@ -4,6 +4,7 @@ import requests
 import json
 from datetime import date, timedelta
 from pathlib import Path
+import calendar
 
 st.set_page_config(page_title="廣告週報產生器", page_icon="📊", layout="wide")
 
@@ -278,7 +279,7 @@ def fmt_change(v, higher_is_better=True):
     label = f"{sign}{v:.1f}%"
     return f'<span style="color:{"#16a34a" if good else "#dc2626"}">{label}</span>'
 
-def build_table_html(curr_m, comp_m, yoy_m):
+def build_table_html(curr_m, comp_m, mom_m, yoy_m):
     rows_def = [
         ("ATL", "花費",    "currency", True),
         ("ATL", "CPC",     "currency", False),
@@ -289,11 +290,14 @@ def build_table_html(curr_m, comp_m, yoy_m):
         ("BTL", "AOV",     "currency", True),
     ]
     has_wow = comp_m is not None
+    has_mom = mom_m is not None
     has_yoy = yoy_m is not None
 
     header = "<tr><th>類型</th><th>指標</th><th>實際數值</th>"
     if has_wow:
         header += "<th>WoW</th>"
+    if has_mom:
+        header += "<th>MoM</th>"
     if has_yoy:
         header += "<th>YoY</th>"
     header += "</tr>"
@@ -311,6 +315,9 @@ def build_table_html(curr_m, comp_m, yoy_m):
         if has_wow:
             comp_val = comp_m.get(t, {}).get(metric, 0)
             row += f"<td>{fmt_change(pct_change(val, comp_val), hib)}</td>"
+        if has_mom:
+            mom_val = mom_m.get(t, {}).get(metric, 0)
+            row += f"<td>{fmt_change(pct_change(val, mom_val), hib)}</td>"
         if has_yoy:
             yoy_val = yoy_m.get(t, {}).get(metric, 0)
             row += f"<td>{fmt_change(pct_change(val, yoy_val), hib)}</td>"
@@ -343,16 +350,20 @@ def list_files(client, channel, platform="Meta"):
 
 # ── Claude 分析 ───────────────────────────────────────────
 
-def build_prompt(channel, curr_m, comp_m, yoy_m, prev_actions, platform="Meta"):
+def build_prompt(channel, curr_m, comp_m, mom_m, yoy_m, prev_actions, platform="Meta"):
     btl = curr_m.get("BTL", {})
     atl = curr_m.get("ATL", {})
 
-    def change_str(curr_dict, comp_dict, yoy_dict, key):
+    def change_str(curr_dict, comp_dict, mom_dict, yoy_dict, key):
         parts = []
         if comp_dict:
             c = pct_change(curr_dict.get(key, 0), comp_dict.get(key, 0))
             if c is not None:
                 parts.append(f"WoW {'+' if c>=0 else ''}{c:.1f}%")
+        if mom_dict:
+            c = pct_change(curr_dict.get(key, 0), mom_dict.get(key, 0))
+            if c is not None:
+                parts.append(f"MoM {'+' if c>=0 else ''}{c:.1f}%")
         if yoy_dict:
             c = pct_change(curr_dict.get(key, 0), yoy_dict.get(key, 0))
             if c is not None:
@@ -361,21 +372,23 @@ def build_prompt(channel, curr_m, comp_m, yoy_m, prev_actions, platform="Meta"):
 
     comp_atl = comp_m.get("ATL") if comp_m else None
     comp_btl = comp_m.get("BTL") if comp_m else None
+    mom_atl  = mom_m.get("ATL")  if mom_m  else None
+    mom_btl  = mom_m.get("BTL")  if mom_m  else None
     yoy_atl  = yoy_m.get("ATL")  if yoy_m  else None
     yoy_btl  = yoy_m.get("BTL")  if yoy_m  else None
 
     data_summary = f"""【{channel} 本期廣告數據 - {platform}】
 
 ATL（流量型）：
-- 花費：${atl.get('花費', 0):,.0f}（{change_str(atl, comp_atl, yoy_atl, '花費')}）
-- CPC：${atl.get('CPC', 0):.1f}（{change_str(atl, comp_atl, yoy_atl, 'CPC')}）
+- 花費：${atl.get('花費', 0):,.0f}（{change_str(atl, comp_atl, mom_atl, yoy_atl, '花費')}）
+- CPC：${atl.get('CPC', 0):.1f}（{change_str(atl, comp_atl, mom_atl, yoy_atl, 'CPC')}）
 
 BTL（轉換型）：
-- 花費：${btl.get('花費', 0):,.0f}（{change_str(btl, comp_btl, yoy_btl, '花費')}）
-- ROAS：{btl.get('ROAS', 0):.2f}（{change_str(btl, comp_btl, yoy_btl, 'ROAS')}）
-- 廣告收益：${btl.get('廣告收益', 0):,.0f}（{change_str(btl, comp_btl, yoy_btl, '廣告收益')}）
-- CPA：${btl.get('CPA', 0):,.0f}（{change_str(btl, comp_btl, yoy_btl, 'CPA')}）
-- AOV：${btl.get('AOV', 0):,.0f}（{change_str(btl, comp_btl, yoy_btl, 'AOV')}）"""
+- 花費：${btl.get('花費', 0):,.0f}（{change_str(btl, comp_btl, mom_btl, yoy_btl, '花費')}）
+- ROAS：{btl.get('ROAS', 0):.2f}（{change_str(btl, comp_btl, mom_btl, yoy_btl, 'ROAS')}）
+- 廣告收益：${btl.get('廣告收益', 0):,.0f}（{change_str(btl, comp_btl, mom_btl, yoy_btl, '廣告收益')}）
+- CPA：${btl.get('CPA', 0):,.0f}（{change_str(btl, comp_btl, mom_btl, yoy_btl, 'CPA')}）
+- AOV：${btl.get('AOV', 0):,.0f}（{change_str(btl, comp_btl, mom_btl, yoy_btl, 'AOV')}）"""
 
     prev_section = f"\n\n【上週行動記錄】\n{prev_actions.strip()}" if prev_actions.strip() else ""
 
@@ -407,6 +420,14 @@ def prev_week_range(since, until):
 
 def yoy_range(since, until):
     return date(since.year - 1, since.month, since.day), date(until.year - 1, until.month, until.day)
+
+def mom_range(since, until):
+    def sub_month(d):
+        month = d.month - 1 if d.month > 1 else 12
+        year = d.year if d.month > 1 else d.year - 1
+        last_day = calendar.monthrange(year, month)[1]
+        return date(year, month, min(d.day, last_day))
+    return sub_month(since), sub_month(until)
 
 # ── UI ───────────────────────────────────────────────────
 
@@ -548,16 +569,19 @@ def _agg_by_dim(df, dim_col):
         }
     return result
 
-def build_dim_table(df, dim_col, df_comp=None, df_yoy=None):
+def build_dim_table(df, dim_col, df_comp=None, df_mom=None, df_yoy=None):
     curr = _agg_by_dim(df, dim_col)
     comp = _agg_by_dim(df_comp, dim_col) if df_comp is not None and not df_comp.empty else {}
+    mom  = _agg_by_dim(df_mom,  dim_col) if df_mom  is not None and not df_mom.empty  else {}
     yoy  = _agg_by_dim(df_yoy,  dim_col) if df_yoy  is not None and not df_yoy.empty  else {}
     has_wow = bool(comp)
+    has_mom = bool(mom)
     has_yoy = bool(yoy)
 
     rows = []
     for val, m in sorted(curr.items(), key=lambda x: -x[1]["花費"]):
         c = comp.get(val, {})
+        mo = mom.get(val, {})
         y = yoy.get(val, {})
         row = {
             dim_col:    val,
@@ -571,6 +595,10 @@ def build_dim_table(df, dim_col, df_comp=None, df_yoy=None):
             row["花費 WoW"]  = fmt_change(pct_change(m["花費"], c.get("花費", 0)),  True)  if c else "-"
             row["ROAS WoW"] = fmt_change(pct_change(m["ROAS"], c.get("ROAS", 0)),  True)  if c else "-"
             row["CPA WoW"]  = fmt_change(pct_change(m["CPA"],  c.get("CPA",  0)),  False) if c else "-"
+        if has_mom:
+            row["花費 MoM"]  = fmt_change(pct_change(m["花費"], mo.get("花費", 0)),  True)  if mo else "-"
+            row["ROAS MoM"] = fmt_change(pct_change(m["ROAS"], mo.get("ROAS", 0)),  True)  if mo else "-"
+            row["CPA MoM"]  = fmt_change(pct_change(m["CPA"],  mo.get("CPA",  0)),  False) if mo else "-"
         if has_yoy:
             row["花費 YoY"]  = fmt_change(pct_change(m["花費"], y.get("花費", 0)),  True)  if y else "-"
             row["ROAS YoY"] = fmt_change(pct_change(m["ROAS"], y.get("ROAS", 0)),  True)  if y else "-"
@@ -670,28 +698,46 @@ with st.sidebar:
 acct_title = f"{client_sel} × {channel_sel}" if client_sel else ""
 st.subheader(f"📁 {acct_title} × {platform_sel}" if acct_title else f"📁 {platform_sel}")
 
-df_curr = df_comp = df_yoy = None
+df_curr = df_comp = df_mom = df_yoy = None
 
 if data_source == "Meta API 自動抓取":
-    default_since, default_until = last_week_range()
-    default_comp_since, default_comp_until = prev_week_range(default_since, default_until)
-    default_yoy_since, default_yoy_until = yoy_range(default_since, default_until)
+    today = date.today()
+    preset_options = ["過去7天", "今日", "本月至今", "自訂"]
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.markdown("**本期**")
-        curr_since = st.date_input("開始", default_since, key="api_curr_s")
-        curr_until = st.date_input("結束", default_until, key="api_curr_e")
+        preset = st.selectbox("快速選擇", preset_options, key="date_preset", label_visibility="collapsed")
+        if preset == "過去7天":
+            p_since, p_until = today - timedelta(days=6), today
+        elif preset == "今日":
+            p_since = p_until = today
+        elif preset == "本月至今":
+            p_since, p_until = date(today.year, today.month, 1), today - timedelta(days=1)
+        else:
+            p_since, p_until = today - timedelta(days=6), today
+        curr_since = st.date_input("開始", p_since, key=f"api_curr_s_{preset}")
+        curr_until = st.date_input("結束", p_until, key=f"api_curr_e_{preset}")
+
+    default_comp_since, default_comp_until = prev_week_range(curr_since, curr_until)
+    default_mom_since,  default_mom_until  = mom_range(curr_since, curr_until)
+    default_yoy_since,  default_yoy_until  = yoy_range(curr_since, curr_until)
+
     with col2:
         st.markdown("**對比期（WoW）**")
-        comp_since = st.date_input("開始", default_comp_since, key="api_comp_s")
-        comp_until = st.date_input("結束", default_comp_until, key="api_comp_e")
-        use_comp = st.checkbox("啟用 WoW 對比", value=True)
+        comp_since = st.date_input("開始", default_comp_since, key=f"api_comp_s_{curr_since}_{curr_until}")
+        comp_until = st.date_input("結束", default_comp_until, key=f"api_comp_e_{curr_since}_{curr_until}")
+        use_comp = st.checkbox("啟用 WoW", value=False)
     with col3:
+        st.markdown("**上月同期（MoM）**")
+        mom_since = st.date_input("開始", default_mom_since, key=f"api_mom_s_{curr_since}_{curr_until}")
+        mom_until = st.date_input("結束", default_mom_until, key=f"api_mom_e_{curr_since}_{curr_until}")
+        use_mom = st.checkbox("啟用 MoM", value=True)
+    with col4:
         st.markdown("**去年同期（YoY）**")
-        yoy_since = st.date_input("開始", default_yoy_since, key="api_yoy_s")
-        yoy_until = st.date_input("結束", default_yoy_until, key="api_yoy_e")
-        use_yoy = st.checkbox("啟用 YoY 對比", value=False)
+        yoy_since = st.date_input("開始", default_yoy_since, key=f"api_yoy_s_{curr_since}_{curr_until}")
+        yoy_until = st.date_input("結束", default_yoy_until, key=f"api_yoy_e_{curr_since}_{curr_until}")
+        use_yoy = st.checkbox("啟用 YoY", value=True)
 
     if st.button("🔄 從 Meta API 抓取數據", type="primary"):
         token = cfg.get("meta_token", "")
@@ -710,6 +756,11 @@ if data_source == "Meta API 自動抓取":
                         st.session_state["df_comp"] = df_comp
                     else:
                         st.session_state.pop("df_comp", None)
+                    if use_mom:
+                        df_mom = fetch_meta_insights(token, acct, mom_since, mom_until, atype)
+                        st.session_state["df_mom"] = df_mom
+                    else:
+                        st.session_state.pop("df_mom", None)
                     if use_yoy:
                         df_yoy = fetch_meta_insights(token, acct, yoy_since, yoy_until, atype)
                         st.session_state["df_yoy"] = df_yoy
@@ -723,10 +774,13 @@ if data_source == "Meta API 自動抓取":
                     st.session_state["dim_acct_type"] = atype
                     st.session_state["dim_comp_since"] = comp_since if use_comp else None
                     st.session_state["dim_comp_until"] = comp_until if use_comp else None
+                    st.session_state["dim_mom_since"]  = mom_since  if use_mom  else None
+                    st.session_state["dim_mom_until"]  = mom_until  if use_mom  else None
                     st.session_state["dim_yoy_since"]  = yoy_since  if use_yoy  else None
                     st.session_state["dim_yoy_until"]  = yoy_until  if use_yoy  else None
                     st.session_state.pop("df_ads", None)
                     st.session_state.pop("df_ads_comp", None)
+                    st.session_state.pop("df_ads_mom", None)
                     st.session_state.pop("df_ads_yoy", None)
                     raw = _fetch_raw_actions(token, acct, curr_since, curr_until)
                     if raw:
@@ -736,6 +790,7 @@ if data_source == "Meta API 自動抓取":
 
     df_curr = st.session_state.get("df_curr")
     df_comp = st.session_state.get("df_comp")
+    df_mom  = st.session_state.get("df_mom")
     df_yoy  = st.session_state.get("df_yoy")
 
 else:
@@ -797,7 +852,8 @@ if df_curr is not None and not df_curr.empty:
     if platform_sel == "Google":
         curr_m = {"Google": calc_google_metrics(df_curr)}
         comp_m = {"Google": calc_google_metrics(df_comp)} if df_comp is not None else None
-        yoy_m  = {"Google": calc_google_metrics(df_yoy)}  if df_yoy is not None else None
+        mom_m  = {"Google": calc_google_metrics(df_mom)}  if df_mom  is not None else None
+        yoy_m  = {"Google": calc_google_metrics(df_yoy)}  if df_yoy  is not None else None
 
         st.subheader("📈 Google Ads 關鍵指標")
         g = curr_m["Google"]
@@ -822,44 +878,61 @@ if df_curr is not None and not df_curr.empty:
     else:
         curr_m = calc_meta_metrics(df_curr)
         comp_m = calc_meta_metrics(df_comp) if df_comp is not None else None
-        yoy_m  = calc_meta_metrics(df_yoy)  if df_yoy is not None else None
+        mom_m  = calc_meta_metrics(df_mom)  if df_mom  is not None else None
+        yoy_m  = calc_meta_metrics(df_yoy)  if df_yoy  is not None else None
 
         st.subheader("📈 Meta Ads 關鍵指標（ATL / BTL）")
-        st.write(build_table_html(curr_m, comp_m, yoy_m), unsafe_allow_html=True)
+        st.write(build_table_html(curr_m, comp_m, mom_m, yoy_m), unsafe_allow_html=True)
 
         btl = curr_m.get("BTL", {})
         atl = curr_m.get("ATL", {})
+        comp_atl = comp_m.get("ATL", {}) if comp_m else {}
+        comp_btl = comp_m.get("BTL", {}) if comp_m else {}
+        mom_atl  = mom_m.get("ATL",  {}) if mom_m  else {}
+        mom_btl  = mom_m.get("BTL",  {}) if mom_m  else {}
+        yoy_atl  = yoy_m.get("ATL",  {}) if yoy_m  else {}
+        yoy_btl  = yoy_m.get("BTL",  {}) if yoy_m  else {}
+
+        def funnel_delta(curr_val, comp_val, mom_val, yoy_val, higher_is_better=True):
+            parts = []
+            if comp_val:
+                c = pct_change(curr_val, comp_val)
+                if c is not None:
+                    parts.append(f"WoW {'+' if c>=0 else ''}{c:.1f}%")
+            if mom_val:
+                c = pct_change(curr_val, mom_val)
+                if c is not None:
+                    parts.append(f"MoM {'+' if c>=0 else ''}{c:.1f}%")
+            if yoy_val:
+                c = pct_change(curr_val, yoy_val)
+                if c is not None:
+                    parts.append(f"YoY {'+' if c>=0 else ''}{c:.1f}%")
+            return " | ".join(parts) if parts else None
+
+        def funnel_color(curr_val, comp_val, higher_is_better=True):
+            if not comp_val:
+                return "off"
+            c = pct_change(curr_val, comp_val)
+            if c is None:
+                return "off"
+            good = (c >= 0 and higher_is_better) or (c < 0 and not higher_is_better)
+            return "normal" if good else "inverse"
+
         c1, c2, c3, c4 = st.columns(4)
-        c1.metric("ATL 花費", f"${atl.get('花費', 0):,.0f}")
-        c2.metric("BTL ROAS", f"{btl.get('ROAS', 0):.2f}")
-        c3.metric("BTL CPA", f"${btl.get('CPA', 0):,.0f}")
-        c4.metric("BTL 購買次數", f"{btl.get('購買次數', 0):.0f}")
+        c1.metric("ATL 花費",    f"${atl.get('花費', 0):,.0f}",
+                  delta=funnel_delta(atl.get('花費',0), comp_atl.get('花費',0), mom_atl.get('花費',0), yoy_atl.get('花費',0)),
+                  delta_color=funnel_color(atl.get('花費',0), comp_atl.get('花費',0)))
+        c2.metric("BTL ROAS",   f"{btl.get('ROAS', 0):.2f}",
+                  delta=funnel_delta(btl.get('ROAS',0), comp_btl.get('ROAS',0), mom_btl.get('ROAS',0), yoy_btl.get('ROAS',0)),
+                  delta_color=funnel_color(btl.get('ROAS',0), comp_btl.get('ROAS',0)))
+        c3.metric("BTL CPA",    f"${btl.get('CPA', 0):,.0f}",
+                  delta=funnel_delta(btl.get('CPA',0), comp_btl.get('CPA',0), mom_btl.get('CPA',0), yoy_btl.get('CPA',0), False),
+                  delta_color=funnel_color(btl.get('CPA',0), comp_btl.get('CPA',0), False))
+        c4.metric("BTL 購買次數", f"{btl.get('購買次數', 0):.0f}",
+                  delta=funnel_delta(btl.get('購買次數',0), comp_btl.get('購買次數',0), mom_btl.get('購買次數',0), yoy_btl.get('購買次數',0)),
+                  delta_color=funnel_color(btl.get('購買次數',0), comp_btl.get('購買次數',0)))
 
         if btl:
-            comp_btl = comp_m.get("BTL", {}) if comp_m else {}
-            yoy_btl  = yoy_m.get("BTL",  {}) if yoy_m  else {}
-
-            def funnel_delta(curr_val, comp_val, yoy_val, higher_is_better=True):
-                parts = []
-                if comp_val:
-                    c = pct_change(curr_val, comp_val)
-                    if c is not None:
-                        parts.append(f"WoW {'+' if c>=0 else ''}{c:.1f}%")
-                if yoy_val:
-                    c = pct_change(curr_val, yoy_val)
-                    if c is not None:
-                        parts.append(f"YoY {'+' if c>=0 else ''}{c:.1f}%")
-                return " | ".join(parts) if parts else None
-
-            def funnel_color(curr_val, comp_val, higher_is_better=True):
-                if not comp_val:
-                    return "off"
-                c = pct_change(curr_val, comp_val)
-                if c is None:
-                    return "off"
-                good = (c >= 0 and higher_is_better) or (c < 0 and not higher_is_better)
-                return "normal" if good else "inverse"
-
             st.markdown("#### 🛒 BTL 轉換漏斗")
             r1, r2, r3, r4, r5 = st.columns(5)
             atc  = btl.get('加購次數', 0)
@@ -867,11 +940,11 @@ if df_curr is not None and not df_curr.empty:
             cr   = btl.get('點擊到成交率', 0)
             acr  = btl.get('點擊到購物車率', 0)
             c2p  = btl.get('購物車到成交率', 0)
-            r1.metric("購物車次數",    f"{atc:.0f}",   delta=funnel_delta(atc,  comp_btl.get('加購次數',0),      yoy_btl.get('加購次數',0)),      delta_color=funnel_color(atc,  comp_btl.get('加購次數',0)))
-            r2.metric("購物車成本",    f"${cost:,.0f}", delta=funnel_delta(cost, comp_btl.get('購物車成本',0),    yoy_btl.get('購物車成本',0),  False), delta_color=funnel_color(cost, comp_btl.get('購物車成本',0), False))
-            r3.metric("點擊→成交率",   f"{cr:.2f}%",   delta=funnel_delta(cr,   comp_btl.get('點擊到成交率',0),  yoy_btl.get('點擊到成交率',0)),  delta_color=funnel_color(cr,   comp_btl.get('點擊到成交率',0)))
-            r4.metric("點擊→購物車率", f"{acr:.2f}%",  delta=funnel_delta(acr,  comp_btl.get('點擊到購物車率',0),yoy_btl.get('點擊到購物車率',0)), delta_color=funnel_color(acr,  comp_btl.get('點擊到購物車率',0)))
-            r5.metric("購物車→成交率", f"{c2p:.2f}%",  delta=funnel_delta(c2p,  comp_btl.get('購物車到成交率',0),yoy_btl.get('購物車到成交率',0)), delta_color=funnel_color(c2p,  comp_btl.get('購物車到成交率',0)))
+            r1.metric("購物車次數",    f"{atc:.0f}",    delta=funnel_delta(atc,  comp_btl.get('加購次數',0),       mom_btl.get('加購次數',0),       yoy_btl.get('加購次數',0)),       delta_color=funnel_color(atc,  comp_btl.get('加購次數',0)))
+            r2.metric("購物車成本",    f"${cost:,.0f}", delta=funnel_delta(cost, comp_btl.get('購物車成本',0),     mom_btl.get('購物車成本',0),     yoy_btl.get('購物車成本',0),  False), delta_color=funnel_color(cost, comp_btl.get('購物車成本',0), False))
+            r3.metric("點擊→成交率",   f"{cr:.2f}%",    delta=funnel_delta(cr,   comp_btl.get('點擊到成交率',0),   mom_btl.get('點擊到成交率',0),   yoy_btl.get('點擊到成交率',0)),   delta_color=funnel_color(cr,   comp_btl.get('點擊到成交率',0)))
+            r4.metric("點擊→購物車率", f"{acr:.2f}%",   delta=funnel_delta(acr,  comp_btl.get('點擊到購物車率',0), mom_btl.get('點擊到購物車率',0), yoy_btl.get('點擊到購物車率',0)), delta_color=funnel_color(acr,  comp_btl.get('點擊到購物車率',0)))
+            r5.metric("購物車→成交率", f"{c2p:.2f}%",   delta=funnel_delta(c2p,  comp_btl.get('購物車到成交率',0), mom_btl.get('購物車到成交率',0), yoy_btl.get('購物車到成交率',0)), delta_color=funnel_color(c2p,  comp_btl.get('購物車到成交率',0)))
 
     raw_actions = st.session_state.get("raw_actions")
     if raw_actions:
@@ -891,7 +964,7 @@ if df_curr is not None and not df_curr.empty:
 
     if st.button("⚡ 生成 Prompt", type="primary"):
         prompt_text = build_prompt(
-            channel_sel, curr_m, comp_m, yoy_m, prev_actions, platform_sel
+            channel_sel, curr_m, comp_m, mom_m, yoy_m, prev_actions, platform_sel
         )
         st.success("✅ Prompt 已生成！複製後貼入 Claude 即可。")
         st.divider()
@@ -926,6 +999,12 @@ if df_curr is not None and not df_curr.empty:
                             st.session_state["df_ads_comp"] = fetch_meta_ad_insights(token_d, acct_d, comp_s, comp_u, atype_d)
                         else:
                             st.session_state.pop("df_ads_comp", None)
+                        mom_s = st.session_state.get("dim_mom_since")
+                        mom_u = st.session_state.get("dim_mom_until")
+                        if mom_s:
+                            st.session_state["df_ads_mom"] = fetch_meta_ad_insights(token_d, acct_d, mom_s, mom_u, atype_d)
+                        else:
+                            st.session_state.pop("df_ads_mom", None)
                         yoy_s = st.session_state.get("dim_yoy_since")
                         yoy_u = st.session_state.get("dim_yoy_until")
                         if yoy_s:
@@ -938,11 +1017,13 @@ if df_curr is not None and not df_curr.empty:
 
         df_ads_raw  = st.session_state.get("df_ads")
         df_ads_comp = st.session_state.get("df_ads_comp")
+        df_ads_mom  = st.session_state.get("df_ads_mom")
         df_ads_yoy  = st.session_state.get("df_ads_yoy")
         if df_ads_raw is not None and not df_ads_raw.empty:
-            df_ads      = enrich_ad_dims(df_ads_raw)
-            df_ads_c    = enrich_ad_dims(df_ads_comp) if df_ads_comp is not None and not df_ads_comp.empty else None
-            df_ads_y    = enrich_ad_dims(df_ads_yoy)  if df_ads_yoy  is not None and not df_ads_yoy.empty  else None
+            df_ads   = enrich_ad_dims(df_ads_raw)
+            df_ads_c = enrich_ad_dims(df_ads_comp) if df_ads_comp is not None and not df_ads_comp.empty else None
+            df_ads_m = enrich_ad_dims(df_ads_mom)  if df_ads_mom  is not None and not df_ads_mom.empty  else None
+            df_ads_y = enrich_ad_dims(df_ads_yoy)  if df_ads_yoy  is not None and not df_ads_yoy.empty  else None
 
             with st.expander("🔽 篩選條件（選擇後自動更新所有維度表格）"):
                 fc = st.columns(6)
@@ -963,13 +1044,19 @@ if df_curr is not None and not df_curr.empty:
 
             df_f  = apply_filters(df_ads)
             df_fc = apply_filters(df_ads_c)
+            df_fm = apply_filters(df_ads_m)
             df_fy = apply_filters(df_ads_y)
 
             active_filters = [f"{lbl}={','.join(filters[dim])}" for dim, lbl in dim_filter_labels if filters[dim]]
             if active_filters:
                 st.caption(f"篩選：{' | '.join(active_filters)}　→　{len(df_f)} 個廣告（共 {len(df_ads)} 個）")
             else:
-                st.caption(f"共 {len(df_f)} 個廣告" + ("　含 WoW 對比" if df_ads_c is not None else "") + ("　含 YoY 對比" if df_ads_y is not None else ""))
+                extras = "".join([
+                    "　含 WoW 對比" if df_ads_c is not None else "",
+                    "　含 MoM 對比" if df_ads_m is not None else "",
+                    "　含 YoY 對比" if df_ads_y is not None else "",
+                ])
+                st.caption(f"共 {len(df_f)} 個廣告{extras}")
 
             for dim_col, label in [
                 ("ATL/BTL", "📊 ATL/BTL"),
@@ -978,9 +1065,10 @@ if df_curr is not None and not df_curr.empty:
                 ("格式",    "🖼️ 素材格式"),
                 ("品類",    "📦 品類"),
                 ("素材類型","🎭 素材類型"),
+                ("廣告名稱","📝 廣告名稱"),
             ]:
                 st.markdown(f"**{label}**")
-                tbl = build_dim_table(df_f, dim_col, df_fc, df_fy)
+                tbl = build_dim_table(df_f, dim_col, df_fc, df_fm, df_fy)
                 if not tbl.empty:
                     st.write(tbl.to_html(escape=False, index=False), unsafe_allow_html=True)
                 else:
