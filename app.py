@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import requests
 import json
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime, timezone
 from pathlib import Path
 import calendar
 
@@ -44,10 +44,11 @@ def save_config(cfg):
         with open(CONFIG_FILE, "w") as f:
             json.dump(cfg, f, indent=2)
     except Exception:
-        pass
+        pass  # Streamlit Cloud 環境下無法永久寫檔，設定改在 Secrets 管理
 
 # ── Meta API ──────────────────────────────────────────────
 
+# action type 對照表：一般帳號 vs CPAS 帳號
 ACTION_TYPES = {
     "general": {
         "purchase":  "purchase",
@@ -66,7 +67,9 @@ ACTION_TYPES = {
 }
 
 def _fetch_raw_actions(access_token, ad_account_id, since, until):
+    """行銷活動層級彙總所有 action types + 嘗試 CPAS 獨立欄位，用於偵錯。"""
     url = f"https://graph.facebook.com/v25.0/act_{ad_account_id}/insights"
+    # 嘗試 CPAS 可能用到的獨立欄位
     cpas_fields = (
         "campaign_name,spend,actions,action_values,"
         "purchase_roas,website_purchase_roas,"
@@ -83,6 +86,7 @@ def _fetch_raw_actions(access_token, ad_account_id, since, until):
     try:
         data = requests.get(url, params=params, timeout=15).json()
         all_types = {}
+        # 彙總 actions
         for item in data.get("data", []):
             for a in item.get("actions", []):
                 atype = a["action_type"]
@@ -90,6 +94,7 @@ def _fetch_raw_actions(access_token, ad_account_id, since, until):
             for a in item.get("action_values", []):
                 atype = f"[value] {a['action_type']}"
                 all_types[atype] = all_types.get(atype, 0) + float(a["value"])
+            # 顯示獨立欄位是否有值
             for field in ["purchase_roas","website_purchase_roas","omni_purchase",
                           "omni_add_to_cart","catalog_segment_value","catalog_segment_actions"]:
                 if item.get(field) not in (None, "", []):
@@ -437,6 +442,7 @@ st.divider()
 
 cfg = load_config()
 
+# Token 到期提醒
 def check_token_expiry(token):
     if not token:
         return
@@ -449,7 +455,7 @@ def check_token_expiry(token):
         data = resp.json().get("data", {})
         exp_at = data.get("expires_at", 0)
         if exp_at == 0:
-            return
+            return  # 永不過期（系統用戶 token）
         exp_date = date.fromtimestamp(exp_at)
         days_left = (exp_date - date.today()).days
         if days_left <= 0:
@@ -463,6 +469,7 @@ if cfg.get("meta_token"):
     check_token_expiry(cfg["meta_token"])
 
 def parse_account_name(name):
+    """從帳戶名稱解析 client / channel，例如「毛孩時代 蝦皮」→ ('毛孩時代', '蝦皮')"""
     parts = name.strip().split(" ", 1)
     client  = parts[0] if len(parts) > 0 else name
     channel = parts[1] if len(parts) > 1 else ""
@@ -606,6 +613,126 @@ def build_dim_table(df, dim_col, df_comp=None, df_mom=None, df_yoy=None):
         rows.append(row)
     return pd.DataFrame(rows)
 
+def fetch_campaigns_with_budget(access_token, ad_account_id):
+    url = f"https://graph.facebook.com/v25.0/act_{ad_account_id}/campaigns"
+    params = {
+        "fields": "id,name,status,daily_budget,lifetime_budget,budget_rebalance_flag,smart_promotion_type",
+        "filtering": json.dumps([{"field": "effective_status", "operator": "IN", "value": ["ACTIVE", "PAUSED"]}]),
+        "access_token": access_token,
+        "limit": 100,
+    }
+    resp = requests.get(url, params=params, timeout=30)
+    data = resp.json()
+    if "error" in data:
+        raise Exception(data["error"].get("message", str(data["error"])))
+    return data.get("data", [])
+
+def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_increase):
+    budget_value = 100 + int(pct_increase)
+    spec = [{
+        "time_start": int(time_start),
+        "time_end": int(time_end),
+        "budget_value": budget_value,
+        "budget_value_type": "MULTIPLIER",
+    }]
+    payload = {"access_token": access_token, "budget_schedule_specs": json.dumps(spec)}
+
+    # 先嘗試 campaign 層級
+    result = requests.post(f"https://graph.facebook.com/v25.0/{campaign_id}", data=payload, timeout=30).json()
+    if "error" not in result:
+        return {"success": True, "level": "campaign"}
+
+    # error_subcode 3858199：帶著 daily_budget 再試一次（ASC 活動需要）
+    if result.get("error", {}).get("error_subcode") == 3858199:
+        camp_info = requests.get(
+            f"https://graph.facebook.com/v25.0/{campaign_id}",
+            params={"fields": "daily_budget", "access_token": access_token},
+            timeout=15,
+        ).json()
+        daily_budget = camp_info.get("daily_budget")
+        if daily_budget:
+            payload2 = {**payload, "daily_budget": daily_budget}
+            result2 = requests.post(f"https://graph.facebook.com/v25.0/{campaign_id}", data=payload2, timeout=30).json()
+            if "error" not in result2:
+                return {"success": True, "level": "campaign"}
+            result = result2  # 用新的錯誤繼續往下
+
+        # adset 層級 fallback
+        adsets = requests.get(
+            f"https://graph.facebook.com/v25.0/{campaign_id}/adsets",
+            params={"fields": "id,name,daily_budget,lifetime_budget", "access_token": access_token, "limit": 50},
+            timeout=15,
+        ).json().get("data", [])
+        if not adsets:
+            return {"error": {"message": "找不到任何廣告組合"}}
+
+        ok, fail, invalid = 0, [], 0
+        for a in adsets:
+            r = requests.post(f"https://graph.facebook.com/v25.0/{a['id']}", data=payload, timeout=30).json()
+            if "error" not in r:
+                ok += 1
+            elif "Invalid parameter" in r.get("error", {}).get("message", ""):
+                invalid += 1
+            else:
+                fail.append(f"{a['name']}: {r['error']['message']}")
+
+        if ok:
+            msg = f"已套用至 {ok} 個廣告組合（adset 層級）"
+            if fail:
+                msg += f"；失敗 {len(fail)} 個"
+            return {"success": True, "note": msg}
+
+        err_msg = result.get("error", {}).get("message", "")
+        return {"error": {"message": err_msg or (fail[0] if fail else "預算排程設定失敗")}}
+
+    return result
+
+def date_to_ts(d, is_start=False):
+    TZ_TAIPEI = timezone(timedelta(hours=8))
+    if is_start and d <= date.today():
+        now = datetime.now(tz=TZ_TAIPEI).replace(second=0, microsecond=0)
+        remainder = now.minute % 15
+        next_15 = now + timedelta(minutes=(15 - remainder) if remainder else 15)
+        return int(next_15.timestamp())
+    return int(datetime(d.year, d.month, d.day, 0, 0, 0, tzinfo=TZ_TAIPEI).timestamp())
+
+# ── 快速加減碼 & 批次上刊 API ─────────────────────────────────
+
+def adjust_campaign_budget(access_token, campaign_id, multiplier_pct):
+    camp = requests.get(
+        f"https://graph.facebook.com/v25.0/{campaign_id}",
+        params={"fields": "daily_budget", "access_token": access_token},
+        timeout=15,
+    ).json()
+    daily_budget = camp.get("daily_budget")
+    if not daily_budget:
+        return {"error": {"message": "終身預算活動不支援直接調整"}}
+    old_b = int(daily_budget)
+    new_b = max(1, int(old_b * multiplier_pct / 100))
+    result = requests.post(
+        f"https://graph.facebook.com/v25.0/{campaign_id}",
+        data={"daily_budget": str(new_b), "access_token": access_token},
+        timeout=30,
+    ).json()
+    if "error" not in result:
+        return {"success": True, "old_budget": old_b, "new_budget": new_b}
+    return result
+
+def create_ad_in_adset(access_token, ad_account_id, ad_name, adset_id, creative_id, status="PAUSED"):
+    url = f"https://graph.facebook.com/v25.0/act_{ad_account_id}/ads"
+    payload = {
+        "access_token": access_token,
+        "name": ad_name,
+        "adset_id": adset_id,
+        "creative": json.dumps({"creative_id": creative_id}),
+        "status": status,
+    }
+    resp = requests.post(url, data=payload, timeout=30)
+    data = resp.json()
+    if "error" in data:
+        raise Exception(data["error"].get("message", str(data["error"])))
+    return data.get("id")
+
 def enrich_ad_dims(df):
     df = df.copy()
     df["ATL/BTL"]  = df["行銷活動名稱"].apply(classify_type)
@@ -619,6 +746,25 @@ def enrich_ad_dims(df):
 
 with st.sidebar:
     st.header("⚙️ 設定")
+
+    # ── 廣告帳戶（最頂端）──────────────────────────────────────
+    accounts = cfg.get("meta_accounts", [])
+    if accounts:
+        def acct_label(a):
+            tag = "【CPAS】" if a.get("type") == "cpas" else "【一般】"
+            return f"{tag} {a['name']}"
+        acct_labels = [acct_label(a) for a in accounts]
+        st.markdown("**廣告帳戶**")
+        selected_acct_idx = st.selectbox("選擇帳戶", range(len(acct_labels)), format_func=lambda i: acct_labels[i], key="acct_sel", label_visibility="collapsed")
+        selected_account_id   = accounts[selected_acct_idx]["id"]
+        selected_account_type = accounts[selected_acct_idx].get("type", "general")
+        client_sel, channel_sel = parse_account_name(accounts[selected_acct_idx]["name"])
+    else:
+        selected_account_id   = cfg.get("meta_account_id", "")
+        selected_account_type = "general"
+        client_sel, channel_sel = "", ""
+
+    st.divider()
     platform_sel = st.selectbox("平台", ["Meta", "Google"])
 
     st.divider()
@@ -645,23 +791,7 @@ with st.sidebar:
             st.success("Token 已儲存")
 
         st.divider()
-        st.markdown("**廣告帳戶管理**")
-        accounts = cfg.get("meta_accounts", [])
-        if accounts:
-            def acct_label(a):
-                tag = "【CPAS】" if a.get("type") == "cpas" else "【一般】"
-                return f"{tag} {a['name']}"
-            acct_labels = [acct_label(a) for a in accounts]
-            selected_acct_idx = st.selectbox("選擇帳戶", range(len(acct_labels)), format_func=lambda i: acct_labels[i], key="acct_sel")
-            selected_account_id   = accounts[selected_acct_idx]["id"]
-            selected_account_type = accounts[selected_acct_idx].get("type", "general")
-            client_sel, channel_sel = parse_account_name(accounts[selected_acct_idx]["name"])
-        else:
-            st.info("尚未新增帳戶")
-            selected_account_id   = cfg.get("meta_account_id", "")
-            selected_account_type = "general"
-            client_sel, channel_sel = "", ""
-
+        st.markdown("**帳戶管理**")
         with st.expander("➕ 新增帳戶"):
             new_name = st.text_input("帳戶名稱（例：毛孩時代官網）", key="new_acct_name")
             new_id   = st.text_input("廣告帳戶 ID", key="new_acct_id")
@@ -782,6 +912,7 @@ if data_source == "Meta API 自動抓取":
                     st.session_state.pop("df_ads_comp", None)
                     st.session_state.pop("df_ads_mom", None)
                     st.session_state.pop("df_ads_yoy", None)
+                    # Debug: 顯示所有 action types（幫助找出正確的 CPAS 欄位名稱）
                     raw = _fetch_raw_actions(token, acct, curr_since, curr_until)
                     if raw:
                         st.session_state["raw_actions"] = raw
@@ -794,6 +925,7 @@ if data_source == "Meta API 自動抓取":
     df_yoy  = st.session_state.get("df_yoy")
 
 else:
+    # CSV mode
     load_fn = load_google_csv if platform_sel == "Google" else load_meta_csv
     available_files = list_files(client_sel, channel_sel, platform_sel) if REPORT_DIR.exists() else []
     file_names = ["（選擇檔案）"] + [f.name for f in available_files]
@@ -946,6 +1078,7 @@ if df_curr is not None and not df_curr.empty:
             r4.metric("點擊→購物車率", f"{acr:.2f}%",   delta=funnel_delta(acr,  comp_btl.get('點擊到購物車率',0), mom_btl.get('點擊到購物車率',0), yoy_btl.get('點擊到購物車率',0)), delta_color=funnel_color(acr,  comp_btl.get('點擊到購物車率',0)))
             r5.metric("購物車→成交率", f"{c2p:.2f}%",   delta=funnel_delta(c2p,  comp_btl.get('購物車到成交率',0), mom_btl.get('購物車到成交率',0), yoy_btl.get('購物車到成交率',0)), delta_color=funnel_color(c2p,  comp_btl.get('購物車到成交率',0)))
 
+    # Debug：顯示 API 回傳的所有 action types
     raw_actions = st.session_state.get("raw_actions")
     if raw_actions:
         with st.expander("🔍 Debug：API 回傳的所有 Action Types（找不到數據時用）"):
@@ -1020,10 +1153,10 @@ if df_curr is not None and not df_curr.empty:
         df_ads_mom  = st.session_state.get("df_ads_mom")
         df_ads_yoy  = st.session_state.get("df_ads_yoy")
         if df_ads_raw is not None and not df_ads_raw.empty:
-            df_ads   = enrich_ad_dims(df_ads_raw)
-            df_ads_c = enrich_ad_dims(df_ads_comp) if df_ads_comp is not None and not df_ads_comp.empty else None
-            df_ads_m = enrich_ad_dims(df_ads_mom)  if df_ads_mom  is not None and not df_ads_mom.empty  else None
-            df_ads_y = enrich_ad_dims(df_ads_yoy)  if df_ads_yoy  is not None and not df_ads_yoy.empty  else None
+            df_ads      = enrich_ad_dims(df_ads_raw)
+            df_ads_c    = enrich_ad_dims(df_ads_comp) if df_ads_comp is not None and not df_ads_comp.empty else None
+            df_ads_m    = enrich_ad_dims(df_ads_mom)  if df_ads_mom  is not None and not df_ads_mom.empty  else None
+            df_ads_y    = enrich_ad_dims(df_ads_yoy)  if df_ads_yoy  is not None and not df_ads_yoy.empty  else None
 
             with st.expander("🔽 篩選條件（選擇後自動更新所有維度表格）"):
                 fc = st.columns(6)
@@ -1080,6 +1213,134 @@ else:
         st.info("👆 設定日期範圍後，點「從 Meta API 抓取數據」按鈕")
     else:
         st.info("👆 請先選擇「本期報表」或上傳 CSV 檔案")
+
+if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
+    st.divider()
+    st.subheader("📅 預算排程")
+
+    if st.button("載入行銷活動清單", key="load_campaigns"):
+        _token = cfg.get("meta_token", "")
+        _acct  = selected_account_id
+        if not _token or not _acct:
+            st.error("請先設定 Token 和帳戶")
+        else:
+            with st.spinner("載入中..."):
+                try:
+                    st.session_state["campaigns"] = fetch_campaigns_with_budget(_token, _acct)
+                except Exception as e:
+                    st.error(f"錯誤：{e}")
+
+    campaigns = st.session_state.get("campaigns", [])
+    if campaigns:
+        camp_map = {}
+        skipped = []
+        for c in campaigns:
+            is_cbo = c.get("budget_rebalance_flag") or c.get("daily_budget")
+            if not is_cbo:
+                skipped.append(c["name"])
+                continue
+            budget_str = f"日預算 ${int(c['daily_budget']):,}" if c.get("daily_budget") else "終身預算"
+            status_str = "🟢" if c["status"] == "ACTIVE" else "⏸"
+            camp_map[f"{status_str} {c['name']}  ({budget_str})"] = c
+
+        if skipped:
+            st.caption(f"⚠️ 以下活動使用廣告組合層級預算，不支援排程，已略過：{', '.join(skipped)}")
+
+        selected_labels = st.multiselect("選擇行銷活動（可多選，僅顯示有行銷活動層級預算者）", list(camp_map.keys()), key="sel_camps")
+
+        sc1, sc2, sc3, sc4 = st.columns(4)
+        with sc1:
+            sched_start = st.date_input("開始日期", date.today(), key="sched_start")
+        with sc2:
+            sched_end   = st.date_input("結束日期", date.today() + timedelta(days=1), key="sched_end")
+        with sc3:
+            sched_pct   = st.number_input("調整幅度 (%)", min_value=1, max_value=10000, value=20, step=5, key="sched_pct")
+        with sc4:
+            sched_dir = st.radio("方向", ["加碼 ⬆️", "減碼 ⬇️"], key="sched_dir", horizontal=True)
+
+        sched_actual_pct = sched_pct if "加碼" in sched_dir else -sched_pct
+
+        if selected_labels:
+            dir_label = f"提升 {sched_pct}%" if "加碼" in sched_dir else f"降低 {sched_pct}%"
+            st.info(f"將為 **{len(selected_labels)}** 個行銷活動建立排程：{sched_start} 00:00 ～ {sched_end} 00:00（台灣時間），預算{dir_label}")
+
+            if st.button("✅ 確認建立排程", type="primary", key="confirm_sched"):
+                _token = cfg.get("meta_token", "")
+                ts_start = date_to_ts(sched_start, is_start=True)
+                ts_end   = date_to_ts(sched_end)
+                for lbl in selected_labels:
+                    c = camp_map[lbl]
+                    result = create_budget_schedule(_token, c["id"], ts_start, ts_end, sched_actual_pct)
+                    if result.get("success") or result.get("id"):
+                        note = result.get("note", "")
+                        if note:
+                            st.success(f"✅ {c['name']}：{note}")
+                        else:
+                            st.success(f"✅ {c['name']} 排程建立成功")
+                    else:
+                        err_msg = result.get("error", {}).get("message", str(result))
+                        st.error(f"❌ {c['name']}：{err_msg}")
+
+
+if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
+
+    # ── 快速加減碼 ──────────────────────────────────────────────
+    st.divider()
+    st.subheader("⚡ 快速加減碼")
+    st.caption("直接修改日預算（立即生效，非排程）")
+
+    if st.button("載入活動清單", key="load_camps_adj"):
+        _token = cfg.get("meta_token", "")
+        _acct  = selected_account_id
+        if not _token or not _acct:
+            st.error("請先設定 Token 和帳戶")
+        else:
+            with st.spinner("載入中..."):
+                try:
+                    st.session_state["adj_campaigns"] = fetch_campaigns_with_budget(_token, _acct)
+                except Exception as e:
+                    st.error(f"錯誤：{e}")
+
+    adj_campaigns = st.session_state.get("adj_campaigns", [])
+    if adj_campaigns:
+        adj_camp_map = {}
+        for c in adj_campaigns:
+            if not c.get("daily_budget"):
+                continue
+            budget_str = f"${int(c['daily_budget']):,}"
+            status_icon = "🟢" if c["status"] == "ACTIVE" else "⏸"
+            adj_camp_map[f"{status_icon} {c['name']}  (日預算 {budget_str})"] = c
+
+        selected_adj_labels = st.multiselect(
+            "選擇要調整的活動", list(adj_camp_map.keys()), key="sel_adj_camps"
+        )
+        adj_pct = st.number_input("調整幅度 (%)", min_value=1, max_value=200, value=25, step=5, key="adj_pct")
+
+        if selected_adj_labels:
+            ac1, ac2 = st.columns(2)
+            with ac1:
+                if st.button(f"⬆️ 加碼 {adj_pct}%", type="primary", key="adj_inc"):
+                    _token = cfg.get("meta_token", "")
+                    for lbl in selected_adj_labels:
+                        c = adj_camp_map[lbl]
+                        res = adjust_campaign_budget(_token, c["id"], 100 + adj_pct)
+                        if res.get("success"):
+                            st.success(f"✅ {c['name']}：${res['old_budget']:,} → ${res['new_budget']:,}")
+                        else:
+                            st.error(f"❌ {c['name']}：{res.get('error', {}).get('message', str(res))}")
+            with ac2:
+                if st.button(f"⬇️ 減碼 {adj_pct}%", key="adj_dec"):
+                    _token = cfg.get("meta_token", "")
+                    for lbl in selected_adj_labels:
+                        c = adj_camp_map[lbl]
+                        res = adjust_campaign_budget(_token, c["id"], 100 - adj_pct)
+                        if res.get("success"):
+                            st.success(f"✅ {c['name']}：${res['old_budget']:,} → ${res['new_budget']:,}")
+                        else:
+                            st.error(f"❌ {c['name']}：{res.get('error', {}).get('message', str(res))}")
+    else:
+        st.info("請先點「載入活動清單」")
+
 
 st.markdown("---")
 st.caption("Powered by Claude Sonnet 4.6 · 毛孩時代 & 御熹堂廣告週報自動化")
