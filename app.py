@@ -1289,7 +1289,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
     st.subheader("⚡ 快速加減碼")
     st.caption("直接修改日預算（立即生效，非排程）")
 
-    if st.button("載入活動清單", key="load_camps_adj"):
+    if st.button("🔄 載入／重新整理", key="load_camps_adj"):
         _token = cfg.get("meta_token", "")
         _acct  = selected_account_id
         if not _token or not _acct:
@@ -1303,43 +1303,63 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
 
     adj_campaigns = st.session_state.get("adj_campaigns", [])
     if adj_campaigns:
-        adj_camp_map = {}
-        for c in adj_campaigns:
+        _token = cfg.get("meta_token", "")
+        QUICK_PRESETS = [("−25%", -25), ("−10%", -10), ("+10%", 10), ("+25%", 25), ("+50%", 50)]
+
+        # 表頭
+        h0, h1, h2, h3, h4, h5, h6 = st.columns([4, 1, 1, 1, 1, 1, 2])
+        h0.caption("活動名稱"); h1.caption("−25%"); h2.caption("−10%")
+        h3.caption("+10%"); h4.caption("+25%"); h5.caption("+50%"); h6.caption("自訂 %")
+
+        for i, c in enumerate(adj_campaigns):
             if not c.get("daily_budget"):
                 continue
-            budget_str = f"${int(c['daily_budget']):,}"
-            status_icon = "🟢" if c["status"] == "ACTIVE" else "⏸"
-            adj_camp_map[f"{status_icon} {c['name']}  (日預算 {budget_str})"] = c
+            cur = int(c["daily_budget"])
+            icon = "🟢" if c["status"] == "ACTIVE" else "⏸"
+            short_name = c["name"][:28] + "…" if len(c["name"]) > 28 else c["name"]
 
-        selected_adj_labels = st.multiselect(
-            "選擇要調整的活動", list(adj_camp_map.keys()), key="sel_adj_camps"
-        )
-        adj_pct = st.number_input("調整幅度 (%)", min_value=1, max_value=200, value=25, step=5, key="adj_pct")
+            row = st.columns([4, 1, 1, 1, 1, 1, 2])
+            row[0].write(f"{icon} {short_name}  **${cur:,}**")
 
-        if selected_adj_labels:
-            ac1, ac2 = st.columns(2)
-            with ac1:
-                if st.button(f"⬆️ 加碼 {adj_pct}%", type="primary", key="adj_inc"):
-                    _token = cfg.get("meta_token", "")
-                    for lbl in selected_adj_labels:
-                        c = adj_camp_map[lbl]
-                        res = adjust_campaign_budget(_token, c["id"], 100 + adj_pct)
-                        if res.get("success"):
-                            st.success(f"✅ {c['name']}：${res['old_budget']:,} → ${res['new_budget']:,}")
-                        else:
-                            st.error(f"❌ {c['name']}：{res.get('error', {}).get('message', str(res))}")
-            with ac2:
-                if st.button(f"⬇️ 減碼 {adj_pct}%", key="adj_dec"):
-                    _token = cfg.get("meta_token", "")
-                    for lbl in selected_adj_labels:
-                        c = adj_camp_map[lbl]
-                        res = adjust_campaign_budget(_token, c["id"], 100 - adj_pct)
-                        if res.get("success"):
-                            st.success(f"✅ {c['name']}：${res['old_budget']:,} → ${res['new_budget']:,}")
-                        else:
-                            st.error(f"❌ {c['name']}：{res.get('error', {}).get('message', str(res))}")
+            for col_idx, (label, pct) in enumerate(QUICK_PRESETS):
+                if row[col_idx + 1].button(label, key=f"qadj_{i}_{pct}"):
+                    new_b = max(1, int(cur * (100 + pct) / 100))
+                    res = adjust_campaign_budget(_token, c["id"], 100 + pct)
+                    if res.get("success"):
+                        st.success(f"✅ {c['name']}：${cur:,} → ${res['new_budget']:,}（{label}）")
+                        st.session_state["adj_campaigns"] = fetch_campaigns_with_budget(_token, selected_account_id)
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {c['name']}：{res.get('error', {}).get('message', str(res))}")
+
+            # 自訂欄
+            custom_pct = row[6].number_input(
+                "自訂", min_value=-99, max_value=10000, value=20, step=5,
+                key=f"custom_pct_{i}", label_visibility="collapsed"
+            )
+            # 自訂按鈕放在下一行，避免擠版面
+
+        st.divider()
+        # 自訂批次調整
+        adj_camp_map = {
+            f"{'🟢' if c['status']=='ACTIVE' else '⏸'} {c['name']}  (${int(c['daily_budget']):,})": c
+            for c in adj_campaigns if c.get("daily_budget")
+        }
+        sel_custom = st.multiselect("選擇活動套用自訂幅度", list(adj_camp_map.keys()), key="sel_custom_camps")
+        custom_val = st.number_input("幅度 (%，負數為減碼）", min_value=-99, max_value=10000, value=20, step=5, key="custom_val")
+        if sel_custom:
+            direction = "加碼" if custom_val >= 0 else "減碼"
+            cc1, cc2 = st.columns([1, 5])
+            if cc1.button(f"{'⬆️' if custom_val>=0 else '⬇️'} 確認{direction} {abs(custom_val)}%", type="primary", key="apply_custom"):
+                for lbl in sel_custom:
+                    c = adj_camp_map[lbl]
+                    res = adjust_campaign_budget(_token, c["id"], 100 + custom_val)
+                    if res.get("success"):
+                        st.success(f"✅ {c['name']}：${res['old_budget']:,} → ${res['new_budget']:,}")
+                    else:
+                        st.error(f"❌ {c['name']}：{res.get('error', {}).get('message', str(res))}")
     else:
-        st.info("請先點「載入活動清單」")
+        st.info("請先點「載入／重新整理」")
 
 
 st.markdown("---")
