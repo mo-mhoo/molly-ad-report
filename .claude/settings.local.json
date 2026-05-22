@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(claude-api)",
+      "Skill(claude-api:*)",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('C:/AI小摸/ad_agent.py'\\).read\\(\\)\\); print\\('語法檢查通過'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('ad_agent.py'\\).read\\(\\)\\); print\\('語法檢查通過'\\)\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('ad_agent.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('ad_agent.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "Bash(py -c \"import ast; ast.parse\\(open\\('C:/AI小摸/ad_agent.py'\\).read\\(\\)\\); print\\('OK'\\)\")",
+      "PowerShell(python --version)",
+      "PowerShell(python3 --version)",
+      "PowerShell(Get-Command python -ErrorAction SilentlyContinue)",
+      "WebFetch(domain:molly-ad-report.streamlit.app)",
+      "mcp__Claude_in_Chrome__tabs_context_mcp",
+      "mcp__Claude_in_Chrome__browser_batch",
+      "Skill(update-config)",
+      "Skill(update-config:*)",
+      "Read(//c/Users/Molly Ho/AppData/Roaming/Claude/local-agent-mode-sessions/skills-plugin/fd795215-3870-4613-a399-4548edc9fca8/924488f0-c1b8-4be8-8e15-060940bac51c/skills/xlsx/**)",
+      "Bash(python -c ' *)",
+      "PowerShell(python -c \"import pandas as pd; print\\('pandas ok'\\)\")",
+      "Bash(gh repo *)",
+      "WebFetch(domain:github.com)",
+      "Bash(git config *)",
+      "WebFetch(domain:api.github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(pip install *)",
+      "Bash(pip3 install *)",
+      "Read(//usr/local/**)",
+      "Read(//c/Users/Molly Ho/AppData/Local/Programs/**)",
+      "Bash(python3 -m pip install google-generativeai python-dotenv -q)",
+      "Bash(python3 -c \"import google.generativeai as genai; print\\('ok'\\)\")",
+      "Read(//c/Program Files/**)",
+      "Bash(ls \"/c/Python*\")",
+      "Bash(git add *)"
+    ]
+  }
+}
