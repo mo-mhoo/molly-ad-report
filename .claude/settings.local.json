@@ -32,7 +32,8 @@
       "Bash(python3 -c \"import google.generativeai as genai; print\\('ok'\\)\")",
       "Read(//c/Program Files/**)",
       "Bash(ls \"/c/Python*\")",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
