@@ -23,6 +23,7 @@ SYSTEM_PROMPT = """你是一位專業的數位廣告 AI 顧問，深耕 Facebook
 3. **受眾分析** — 協助定義目標受眾特徵，建立精準的受眾分群策略
 4. **A/B 測試建議** — 根據現有數據設計有統計意義的測試方案
 5. **市場案例分享** — 分享同業成功廣告策略，提供可直接複製的框架
+6. **Meta → Pmax 文案轉換** — 將 Meta（Facebook/Instagram）廣告文案轉換成 Google Performance Max 格式，嚴格符合標題 ≤30 字元、描述 ≤90 字元規範
 
 工作原則：
 - 給出具體可執行的建議，避免空泛回答
@@ -225,6 +226,45 @@ TOOLS: list[dict] = [
             },
             "required": ["industry", "marketing_goal"]
         }
+    },
+    {
+        "name": "convert_meta_to_pmax",
+        "description": "將 Meta（Facebook/Instagram）廣告文案轉換成 Google Performance Max 格式，包含標題、描述、長標題，並嚴格符合字元限制",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "meta_headlines": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Meta 廣告主標題列表（可多個）"
+                },
+                "meta_descriptions": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Meta 廣告描述/內文列表（可多個）"
+                },
+                "meta_ctas": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Meta 廣告 CTA 列表（選填）"
+                },
+                "product_name": {
+                    "type": "string",
+                    "description": "品牌或產品名稱，用於生成長標題與確保品牌一致性"
+                },
+                "num_headlines": {
+                    "type": "integer",
+                    "description": "要生成的 Pmax 標題數量（3–15，預設 10）",
+                    "default": 10
+                },
+                "num_descriptions": {
+                    "type": "integer",
+                    "description": "要生成的 Pmax 描述數量（1–5，預設 4）",
+                    "default": 4
+                }
+            },
+            "required": ["meta_headlines", "meta_descriptions"]
+        }
     }
 ]
 
@@ -382,6 +422,65 @@ def _suggest_ab_tests(
 - **風險評估：** 可能的負面影響""", max_tokens=2500)
 
 
+def _convert_meta_to_pmax(
+    meta_headlines: list,
+    meta_descriptions: list,
+    meta_ctas: Optional[list] = None,
+    product_name: str = "",
+    num_headlines: int = 10,
+    num_descriptions: int = 4,
+) -> str:
+    num_headlines = max(3, min(15, num_headlines))
+    num_descriptions = max(1, min(5, num_descriptions))
+
+    ctas_section = f"\nMeta CTA：{', '.join(meta_ctas)}" if meta_ctas else ""
+    product_section = f"\n品牌/產品名稱：{product_name}" if product_name else ""
+
+    return _call_claude(f"""請將以下 Meta 廣告文案轉換成 Google Performance Max（Pmax）格式。
+
+## Meta 原始文案
+主標題：
+{chr(10).join(f'- {h}' for h in meta_headlines)}
+
+描述/內文：
+{chr(10).join(f'- {d}' for d in meta_descriptions)}{ctas_section}{product_section}
+
+## Pmax 輸出規格（嚴格遵守）
+- **標題（Headline）**：{num_headlines} 個，每個 **≤ 30 字元**（含空格、標點）
+- **描述（Description）**：{num_descriptions} 個，每個 **≤ 90 字元**（含空格、標點）
+- **長標題（Long Headline）**：1 個，**≤ 90 字元**，適合單獨展示、不依賴其他文案
+
+## 轉換原則
+1. 保留 Meta 文案的核心賣點與語氣，不是逐字翻譯
+2. 標題要精煉：去除語氣詞（啊、哦、吧）、拆開長句、保留數字/USP
+3. 描述可合併多條 Meta 內文的要點，句子需完整
+4. 標題之間語意需多樣，涵蓋：功能、優惠、情感、問句、品牌等不同角度
+5. **輸出前請自我檢查每條字元數**，超標的需重新縮短
+
+## 輸出格式
+以 Markdown 表格輸出：
+
+### 標題（Headlines）
+| # | 文案 | 字元數 | 角度 |
+|---|------|--------|------|
+| 1 | ... | N | 功能/優惠/情感/問句/品牌 |
+...
+
+### 描述（Descriptions）
+| # | 文案 | 字元數 |
+|---|------|--------|
+| 1 | ... | N |
+...
+
+### 長標題（Long Headline）
+| 文案 | 字元數 |
+|------|--------|
+| ... | N |
+
+### 轉換備注
+說明哪些 Meta 特有元素（emoji、hashtag、長句）被如何處理""", max_tokens=3000)
+
+
 def _get_market_cases(
     industry: str,
     marketing_goal: str,
@@ -420,6 +519,7 @@ TOOL_MAP = {
     "analyze_audience": _analyze_audience,
     "suggest_ab_tests": _suggest_ab_tests,
     "get_market_cases": _get_market_cases,
+    "convert_meta_to_pmax": _convert_meta_to_pmax,
 }
 
 TOOL_LABELS = {
@@ -428,6 +528,7 @@ TOOL_LABELS = {
     "analyze_audience": "受眾分群分析",
     "suggest_ab_tests": "A/B 測試建議",
     "get_market_cases": "市場案例查詢",
+    "convert_meta_to_pmax": "Meta → Pmax 文案轉換",
 }
 
 
@@ -512,6 +613,7 @@ DEMO_QUERIES = [
     "我是賣 B2B SaaS 工具的，想在 Google 做廣告開發新客，幫我分析目標受眾並建立分群策略，月預算約 15 萬",
     "我的 Facebook 圖片廣告 CTR 很低，只有 0.5%，幫我設計 A/B 測試方案",
     "分享電商品牌在 Facebook 提升 ROAS 的成功案例，我們是成長期企業",
+    '幫我把這個 Meta 廣告轉成 Pmax 格式：主標題「關節痛？這瓶讓你重新動起來！」、描述「添加日本專利膠原蛋白，臨床實證改善關節活動度，30天有感差異。限時優惠買2送1。」、CTA「立即購買」',
 ]
 
 
@@ -520,7 +622,7 @@ def main() -> None:
     print("  🚀 數位廣告 AI Agent")
     print("  功能：文案生成 | 投放分析 | 受眾分析 | A/B 測試 | 市場案例")
     print("=" * 60)
-    print("\n💡 示例問題（輸入數字 1-5 快速體驗，或直接輸入問題）：")
+    print("\n💡 示例問題（輸入數字 1-6 快速體驗，或直接輸入問題）：")
     for i, q in enumerate(DEMO_QUERIES, 1):
         print(f"  {i}. {q[:55]}…")
     print("\n  輸入 quit 結束\n")
@@ -537,7 +639,7 @@ def main() -> None:
                 break
 
             # Allow shortcut: "1" ~ "5" to use demo queries
-            if raw in ("1", "2", "3", "4", "5"):
+            if raw in ("1", "2", "3", "4", "5", "6"):
                 user_input = DEMO_QUERIES[int(raw) - 1]
                 print(f"（示例問題 {raw}）\n")
             else:
