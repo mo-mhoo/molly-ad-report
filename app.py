@@ -1815,90 +1815,116 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
     adj_insights  = st.session_state.get("adj_insights", {})
     if adj_campaigns:
         _token = cfg.get("meta_token", "")
-        QUICK_PRESETS = [("−25%", -25), ("−10%", -10), ("+10%", 10), ("+25%", 25), ("+50%", 50)]
 
-        # 表頭：活動名稱 | ROAS | 訂單 | -25% | -10% | +10% | +25% | +50% | 自訂%
-        COL_W = [3.5, 0.9, 0.8, 1, 1, 1, 1, 1, 1.5]
-        hcols = st.columns(COL_W)
-        hcols[0].caption("活動名稱")
-        hcols[1].caption("今日 ROAS")
-        hcols[2].caption("訂單")
-        hcols[3].caption("−25%"); hcols[4].caption("−10%")
-        hcols[5].caption("+10%"); hcols[6].caption("+25%"); hcols[7].caption("+50%")
-        hcols[8].caption("自訂 %")
+        show_paused_adj = st.checkbox("顯示暫停的活動 ⏸", value=False, key="show_paused_adj")
 
-        for i, c in enumerate(adj_campaigns):
+        adj_rows = []
+        for c in adj_campaigns:
             if not c.get("daily_budget"):
                 continue
-            cur = int(c["daily_budget"])
-            icon = "🟢" if c["status"] == "ACTIVE" else "⏸"
-            short_name = c["name"][:26] + "…" if len(c["name"]) > 26 else c["name"]
-
+            if c["status"] != "ACTIVE" and not show_paused_adj:
+                continue
             ins = adj_insights.get(c["id"], {})
-            roas_val  = ins.get("roas")
+            roas_val   = ins.get("roas")
+            spend_val  = ins.get("spend", 0)
             orders_val = ins.get("orders", 0)
+            adj_rows.append({
+                "狀": "🟢" if c["status"] == "ACTIVE" else "⏸",
+                "活動名稱": c["name"],
+                "日預算": int(c["daily_budget"]),
+                "今日花費": int(round(spend_val)) if spend_val else 0,
+                "今日ROAS": round(roas_val, 1) if roas_val is not None else None,
+                "訂單": int(orders_val) if orders_val else 0,
+                "_id": c["id"],
+                "_status": c["status"],
+            })
 
-            # ROAS 顏色標記
-            if roas_val is None:
-                roas_str = "—"
-            elif roas_val >= 3.0:
-                roas_str = f"🟢 {roas_val:.1f}"
-            elif roas_val >= 1.5:
-                roas_str = f"🟡 {roas_val:.1f}"
-            else:
-                roas_str = f"🔴 {roas_val:.1f}"
-            orders_str = str(orders_val) if orders_val else "—"
+        if not adj_rows:
+            st.info("沒有符合條件的活動")
+        else:
+            df_adj = pd.DataFrame(adj_rows)
+            display_cols = ["狀", "活動名稱", "日預算", "今日花費", "今日ROAS", "訂單"]
 
-            row = st.columns(COL_W)
-            row[0].write(f"{icon} {short_name}  **${cur:,}**")
-            row[1].write(roas_str)
-            row[2].write(orders_str)
+            # 快速選取按鈕
+            ab1, ab2, ab3 = st.columns(3)
+            if ab1.button("全選", key="adj_all", use_container_width=True):
+                st.session_state["adj_pre"] = list(range(len(df_adj)))
+                st.rerun()
+            if ab2.button("取消全選", key="adj_none", use_container_width=True):
+                st.session_state["adj_pre"] = []
+                st.rerun()
+            if ab3.button("選🟢有花費", key="adj_spend", use_container_width=True):
+                st.session_state["adj_pre"] = [i for i, r in enumerate(adj_rows) if r["今日花費"] > 0]
+                st.rerun()
 
-            for col_idx, (label, pct) in enumerate(QUICK_PRESETS):
-                if row[col_idx + 3].button(label, key=f"qadj_{i}_{pct}"):
-                    res = adjust_campaign_budget(_token, c["id"], 100 + pct)
-                    if res.get("success"):
-                        st.success(f"✅ {c['name']}：${cur:,} → ${res['new_budget']:,}（{label}）")
+            pre_sel_adj = st.session_state.get("adj_pre", [])
+
+            gb2 = GridOptionsBuilder.from_dataframe(df_adj[display_cols])
+            gb2.configure_selection(selection_mode="multiple", use_checkbox=True,
+                                    pre_selected_rows=pre_sel_adj)
+            gb2.configure_column("狀", width=60, checkboxSelection=True, headerCheckboxSelection=True)
+            gb2.configure_column("活動名稱", minWidth=160, flex=2)
+            gb2.configure_column("日預算",   width=90,  type=["numericColumn"])
+            gb2.configure_column("今日花費", width=90,  type=["numericColumn"])
+            gb2.configure_column("今日ROAS", width=90)
+            gb2.configure_column("訂單",     width=70,  type=["numericColumn"])
+            gb2.configure_grid_options(rowHeight=40, domLayout="autoHeight")
+            go2 = gb2.build()
+
+            grid_adj = AgGrid(
+                df_adj[display_cols], gridOptions=go2,
+                update_mode=GridUpdateMode.SELECTION_CHANGED,
+                theme="streamlit", key="adj_aggrid",
+                height=min(420, 60 + len(df_adj) * 40),
+            )
+
+            sel_adj = grid_adj.get("selected_rows")
+            if sel_adj is None or (isinstance(sel_adj, pd.DataFrame) and sel_adj.empty):
+                sel_adj = []
+            elif isinstance(sel_adj, pd.DataFrame):
+                sel_adj = sel_adj.to_dict("records")
+
+            if sel_adj:
+                sel_names = {r["活動名稱"] for r in sel_adj}
+                sel_camps = [c for c in adj_campaigns if c["name"] in sel_names and c.get("daily_budget")]
+                st.markdown(f"**已選 {len(sel_camps)} 個活動**")
+
+                # 快捷幅度按鈕（立即套用）
+                PRESETS = [("−25%", -25), ("−10%", -10), ("+10%", 10), ("+25%", 25), ("+50%", 50)]
+                pc = st.columns(5)
+                for i, (label, pct) in enumerate(PRESETS):
+                    if pc[i].button(label, key=f"adj_preset_{pct}", use_container_width=True):
+                        for camp in sel_camps:
+                            res = adjust_campaign_budget(_token, camp["id"], 100 + pct)
+                            if res.get("success"):
+                                st.success(f"✅ {camp['name']}：${res['old_budget']:,} → ${res['new_budget']:,}（{label}）")
+                            else:
+                                st.error(f"❌ {camp['name']}：{res.get('error', {}).get('message', str(res))}")
                         st.session_state["adj_campaigns"] = fetch_campaigns_with_budget(_token, selected_account_id)
                         st.session_state["adj_insights"]  = fetch_today_campaign_insights(_token, selected_account_id)
                         st.rerun()
-                    else:
-                        st.error(f"❌ {c['name']}：{res.get('error', {}).get('message', str(res))}")
 
-            # 自訂欄
-            row[8].number_input(
-                "自訂", min_value=-99, max_value=10000, value=20, step=5,
-                key=f"custom_pct_{i}", label_visibility="collapsed"
-            )
-
-        st.divider()
-        # 自訂批次調整
-        def _camp_label(c):
-            ins = adj_insights.get(c["id"], {})
-            roas_v = ins.get("roas")
-            r_str = f" ROAS:{roas_v:.1f}" if roas_v else ""
-            ord_v = ins.get("orders", 0)
-            o_str = f" 訂單:{ord_v}" if ord_v else ""
-            icon2 = "🟢" if c["status"] == "ACTIVE" else "⏸"
-            return f"{icon2} {c['name']}  (${int(c['daily_budget']):,}{r_str}{o_str})"
-
-        adj_camp_map = {
-            _camp_label(c): c
-            for c in adj_campaigns if c.get("daily_budget")
-        }
-        sel_custom = st.multiselect("選擇活動套用自訂幅度", list(adj_camp_map.keys()), key="sel_custom_camps")
-        custom_val = st.number_input("幅度 (%，負數為減碼）", min_value=-99, max_value=10000, value=20, step=5, key="custom_val")
-        if sel_custom:
-            direction = "加碼" if custom_val >= 0 else "減碼"
-            cc1, cc2 = st.columns([1, 5])
-            if cc1.button(f"{'⬆️' if custom_val>=0 else '⬇️'} 確認{direction} {abs(custom_val)}%", type="primary", key="apply_custom"):
-                for lbl in sel_custom:
-                    c = adj_camp_map[lbl]
-                    res = adjust_campaign_budget(_token, c["id"], 100 + custom_val)
-                    if res.get("success"):
-                        st.success(f"✅ {c['name']}：${res['old_budget']:,} → ${res['new_budget']:,}")
-                    else:
-                        st.error(f"❌ {c['name']}：{res.get('error', {}).get('message', str(res))}")
+                # 自訂幅度 + 確認
+                ca1, ca2 = st.columns([3, 2])
+                with ca1:
+                    adj_pct = st.number_input("調整幅度 (%)", min_value=1, max_value=10000, value=20, step=5, key="adj_pct_input")
+                with ca2:
+                    adj_dir = st.radio("方向", ["加碼 ⬆️", "減碼 ⬇️"], horizontal=True, key="adj_dir")
+                final_pct = adj_pct if "加碼" in adj_dir else -int(adj_pct)
+                sign = "+" if final_pct >= 0 else ""
+                if st.button(f"{'⬆️' if final_pct >= 0 else '⬇️'} 確認套用 {sign}{final_pct}% 到 {len(sel_camps)} 個活動",
+                             type="primary", use_container_width=True, key="adj_confirm"):
+                    for camp in sel_camps:
+                        res = adjust_campaign_budget(_token, camp["id"], 100 + final_pct)
+                        if res.get("success"):
+                            st.success(f"✅ {camp['name']}：${res['old_budget']:,} → ${res['new_budget']:,}")
+                        else:
+                            st.error(f"❌ {camp['name']}：{res.get('error', {}).get('message', str(res))}")
+                    st.session_state["adj_campaigns"] = fetch_campaigns_with_budget(_token, selected_account_id)
+                    st.session_state["adj_insights"]  = fetch_today_campaign_insights(_token, selected_account_id)
+                    st.rerun()
+            else:
+                st.info("請在上方表格勾選要調整的活動")
     else:
         st.info("請先點「載入／重新整理」")
 
