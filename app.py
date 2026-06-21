@@ -5,6 +5,7 @@ import json
 from datetime import date, timedelta, datetime, timezone
 from pathlib import Path
 import calendar
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
 st.set_page_config(page_title="廣告週報產生器", page_icon="📊", layout="wide")
 
@@ -627,8 +628,59 @@ def fetch_campaigns_with_budget(access_token, ad_account_id):
         raise Exception(data["error"].get("message", str(data["error"])))
     return data.get("data", [])
 
+def _end_ts(s):
+    """排程結束時間 → Unix timestamp（支援整數字串和 ISO 格式）"""
+    v = s.get("time_end", 0)
+    try:
+        return int(v)
+    except (ValueError, TypeError):
+        return int(datetime.strptime(str(v), "%Y-%m-%dT%H:%M:%S%z").timestamp())
+
+def parse_meta_ts(ts_val, tz_tw):
+    """Meta API 回傳 Unix 整數或 ISO 字串，統一轉成台灣時間 datetime"""
+    try:
+        return datetime.fromtimestamp(int(ts_val), tz=tz_tw)
+    except (ValueError, TypeError):
+        dt = datetime.strptime(str(ts_val), "%Y-%m-%dT%H:%M:%S%z")
+        return dt.astimezone(tz_tw)
+
+def fetch_campaign_schedules(access_token, campaign_id):
+    """取得單一活動的所有預算排程"""
+    resp = requests.get(
+        f"https://graph.facebook.com/v25.0/{campaign_id}/budget_schedules",
+        params={
+            "fields": "id,time_start,time_end,budget_value,budget_value_type,status",
+            "access_token": access_token,
+            "limit": 50,
+        },
+        timeout=15,
+    ).json()
+    return resp.get("data", [])
+
+def delete_budget_schedule(access_token, schedule_id):
+    """刪除單一預算排程"""
+    resp = requests.delete(
+        f"https://graph.facebook.com/v25.0/{schedule_id}",
+        params={"access_token": access_token},
+        timeout=15,
+    ).json()
+    return resp
+
 def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_increase):
-    budget_value = 100 + int(pct_increase)
+    # 先刪除時段重疊的舊排程（避免堆疊）
+    existing = fetch_campaign_schedules(access_token, campaign_id)
+    for s in existing:
+        try:
+            s_start = int(s["time_start"]) if str(s["time_start"]).isdigit() else int(datetime.strptime(str(s["time_start"]), "%Y-%m-%dT%H:%M:%S%z").timestamp())
+            s_end   = int(s["time_end"])   if str(s["time_end"]).isdigit()   else int(datetime.strptime(str(s["time_end"]),   "%Y-%m-%dT%H:%M:%S%z").timestamp())
+        except Exception:
+            continue
+        # 只要有重疊就刪
+        if s_start < int(time_end) and s_end > int(time_start):
+            delete_budget_schedule(access_token, s["id"])
+
+    # MULTIPLIER = 增加百分比：300 = +300%（Meta 花費達 4x）；負數 = 減碼
+    budget_value = int(pct_increase)
     spec = [{
         "time_start": int(time_start),
         "time_end": int(time_end),
@@ -698,10 +750,73 @@ def date_to_ts(d, is_start=False):
 
 # ── 快速加減碼 & 批次上刊 API ─────────────────────────────────
 
+def fetch_today_campaign_insights(access_token, ad_account_id, date_preset="today"):
+    """抓各活動的 ROAS、訂單數、花費（支援一般及 CPAS 帳戶）"""
+    url = f"https://graph.facebook.com/v25.0/act_{ad_account_id}/insights"
+    params = {
+        "fields": "campaign_id,spend,purchase_roas,actions,action_values,catalog_segment_actions,catalog_segment_value",
+        "level": "campaign",
+        "date_preset": date_preset,
+        "access_token": access_token,
+        "limit": 200,
+    }
+    try:
+        resp = requests.get(url, params=params, timeout=30).json()
+    except Exception:
+        return {}
+    result = {}
+    for row in resp.get("data", []):
+        cid = row.get("campaign_id")
+        if not cid:
+            continue
+
+        def _get_action(lst, atype):
+            for a in (lst or []):
+                if a.get("action_type") == atype:
+                    try:
+                        return float(a["value"])
+                    except Exception:
+                        pass
+            return 0.0
+
+        # 訂單數與購買金額：一般用 actions/action_values，CPAS 用 catalog_segment_actions/value
+        orders = 0
+        purchase_val = 0.0
+        for a_type, v_type in [("actions", "action_values"), ("catalog_segment_actions", "catalog_segment_value")]:
+            p = _get_action(row.get(a_type, []), "purchase")
+            v = _get_action(row.get(v_type, []), "purchase")
+            if p > 0:
+                orders += int(p)
+                purchase_val += v
+
+        # ROAS：優先用 purchase_roas 欄位，否則用購買金額 / 花費計算
+        roas = None
+        for r in row.get("purchase_roas", []):
+            try:
+                roas = float(r["value"])
+                break
+            except Exception:
+                pass
+        if roas is None and purchase_val > 0:
+            try:
+                spend_val = float(row.get("spend", 0))
+                if spend_val > 0:
+                    roas = round(purchase_val / spend_val, 2)
+            except Exception:
+                pass
+
+        try:
+            spend = float(row.get("spend", 0))
+        except Exception:
+            spend = 0.0
+
+        result[cid] = {"roas": roas, "orders": orders, "spend": spend}
+    return result
+
 def adjust_campaign_budget(access_token, campaign_id, multiplier_pct):
     camp = requests.get(
         f"https://graph.facebook.com/v25.0/{campaign_id}",
-        params={"fields": "daily_budget", "access_token": access_token},
+        params={"fields": "daily_budget,smart_promotion_type,objective,special_ad_categories", "access_token": access_token},
         timeout=15,
     ).json()
     daily_budget = camp.get("daily_budget")
@@ -709,14 +824,35 @@ def adjust_campaign_budget(access_token, campaign_id, multiplier_pct):
         return {"error": {"message": "終身預算活動不支援直接調整"}}
     old_b = int(daily_budget)
     new_b = max(1, int(old_b * multiplier_pct / 100))
+
+    payload = {"daily_budget": str(new_b), "access_token": access_token}
+
     result = requests.post(
         f"https://graph.facebook.com/v25.0/{campaign_id}",
-        data={"daily_budget": str(new_b), "access_token": access_token},
+        data=payload,
         timeout=30,
     ).json()
     if "error" not in result:
         return {"success": True, "old_budget": old_b, "new_budget": new_b}
-    return result
+
+    # ASC 活動：帶 special_ad_categories 再試一次
+    if camp.get("smart_promotion_type"):
+        sac = camp.get("special_ad_categories", [])
+        payload2 = {**payload, "special_ad_categories": json.dumps(sac) if sac else "[]"}
+        result2 = requests.post(
+            f"https://graph.facebook.com/v25.0/{campaign_id}",
+            data=payload2,
+            timeout=30,
+        ).json()
+        if "error" not in result2:
+            return {"success": True, "old_budget": old_b, "new_budget": new_b}
+        # 回傳完整錯誤供診斷
+        err = result2.get("error", {})
+        return {"error": {"message": f"[ASC] {err.get('message','')} (code:{err.get('code')} sub:{err.get('error_subcode')})"}}
+
+    err = result.get("error", {})
+    return {"error": {"message": f"{err.get('message','')} (code:{err.get('code')} sub:{err.get('error_subcode')})"}}
+
 
 def create_ad_in_adset(access_token, ad_account_id, ad_name, adset_id, creative_id, status="PAUSED"):
     url = f"https://graph.facebook.com/v25.0/act_{ad_account_id}/ads"
@@ -1218,68 +1354,289 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
     st.divider()
     st.subheader("📅 預算排程")
 
-    if st.button("載入行銷活動清單", key="load_campaigns"):
-        _token = cfg.get("meta_token", "")
-        _acct  = selected_account_id
-        if not _token or not _acct:
-            st.error("請先設定 Token 和帳戶")
-        else:
-            with st.spinner("載入中..."):
-                try:
-                    st.session_state["campaigns"] = fetch_campaigns_with_budget(_token, _acct)
-                except Exception as e:
-                    st.error(f"錯誤：{e}")
+    tab_new, tab_del = st.tabs(["➕ 新增排程", "🗑️ 刪除排程"])
 
-    campaigns = st.session_state.get("campaigns", [])
-    if campaigns:
-        camp_map = {}
-        skipped = []
-        for c in campaigns:
-            is_cbo = c.get("budget_rebalance_flag") or c.get("daily_budget")
-            if not is_cbo:
-                skipped.append(c["name"])
-                continue
-            budget_str = f"日預算 ${int(c['daily_budget']):,}" if c.get("daily_budget") else "終身預算"
-            status_str = "🟢" if c["status"] == "ACTIVE" else "⏸"
-            camp_map[f"{status_str} {c['name']}  ({budget_str})"] = c
+    # ── Tab 1：新增排程（含查看今日排程）──────────────────────────
+    with tab_new:
+        if st.button("🔄 載入活動與成效", key="load_campaigns"):
+            _token = cfg.get("meta_token", "")
+            _acct  = selected_account_id
+            if not _token or not _acct:
+                st.error("請先設定 Token 和帳戶")
+            else:
+                with st.spinner("載入中（含 7 天成效與今日排程）..."):
+                    try:
+                        camps = fetch_campaigns_with_budget(_token, _acct)
+                        st.session_state["campaigns"]        = camps
+                        st.session_state["sched_insights"]   = fetch_today_campaign_insights(_token, _acct, "today")
+                        ins_7d_raw = fetch_today_campaign_insights(_token, _acct, "last_7d")
+                        st.session_state["sched_insights_7d"]= ins_7d_raw
+                        st.session_state["debug_7d_keys"]    = list(ins_7d_raw.keys())[:5]
+                        # 抓今日有效排程（結束時間 > 現在）
+                        now_ts = datetime.now(timezone.utc).timestamp()
+                        today_scheds = {}
+                        for c in camps:
+                            scheds = fetch_campaign_schedules(_token, c["id"])
+                            active = [s for s in scheds if _end_ts(s) > now_ts]
+                            if active:
+                                # 取第一個進行中排程的幅度
+                                bv = int(active[0].get("budget_value", 100))
+                                today_scheds[c["id"]] = f"+{bv}%" if bv >= 0 else f"{bv}%"
+                        st.session_state["today_scheds"] = today_scheds
+                    except Exception as e:
+                        st.error(f"錯誤：{e}")
 
-        if skipped:
-            st.caption(f"⚠️ 以下活動使用廣告組合層級預算，不支援排程，已略過：{', '.join(skipped)}")
+        campaigns       = st.session_state.get("campaigns", [])
+        sched_insights  = st.session_state.get("sched_insights", {})
+        sched_ins_7d    = st.session_state.get("sched_insights_7d", {})
+        today_scheds    = st.session_state.get("today_scheds", {})
 
-        selected_labels = st.multiselect("選擇行銷活動（可多選，僅顯示有行銷活動層級預算者）", list(camp_map.keys()), key="sel_camps")
+        if campaigns:
+            # ── 排程參數
+            sc1, sc2, sc3, sc4 = st.columns(4)
+            with sc1:
+                sched_start = st.date_input("開始日期", date.today(), key="sched_start")
+            with sc2:
+                sched_end   = st.date_input("結束日期", date.today() + timedelta(days=1), key="sched_end")
+            with sc3:
+                sched_pct = st.number_input("調整幅度 (%)", min_value=1, max_value=10000, value=20, step=5, key="sched_pct")
+            with sc4:
+                sched_dir = st.radio("方向", ["加碼 ⬆️", "減碼 ⬇️"], key="sched_dir", horizontal=True)
+            sched_actual_pct = sched_pct if "加碼" in sched_dir else -sched_pct
 
-        sc1, sc2, sc3, sc4 = st.columns(4)
-        with sc1:
-            sched_start = st.date_input("開始日期", date.today(), key="sched_start")
-        with sc2:
-            sched_end   = st.date_input("結束日期", date.today() + timedelta(days=1), key="sched_end")
-        with sc3:
-            sched_pct   = st.number_input("調整幅度 (%)", min_value=1, max_value=10000, value=20, step=5, key="sched_pct")
-        with sc4:
-            sched_dir = st.radio("方向", ["加碼 ⬆️", "減碼 ⬇️"], key="sched_dir", horizontal=True)
+            # ── 建立表格資料
+            rows, camp_id_list = [], []
+            for c in campaigns:
+                if not c.get("daily_budget"):
+                    continue
+                ins    = sched_insights.get(c["id"], {})
+                ins_7d = sched_ins_7d.get(c["id"], {})
+                daily_b = int(c["daily_budget"])
+                projected = round(daily_b * (1 + sched_actual_pct / 100))
+                sched_tag = today_scheds.get(c["id"], "—")
+                rows.append({
+                    "選取":     False,
+                    "狀":       "🟢" if c["status"] == "ACTIVE" else "⏸",
+                    "活動名稱": c["name"],
+                    "日預算":   daily_b,
+                    "今日花費": round(ins.get("spend", 0)),
+                    "今日ROAS": ins.get("roas"),
+                    "7天ROAS":  ins_7d.get("roas"),
+                    "今日排程": sched_tag,
+                    "排程後預計": projected,
+                })
+                camp_id_list.append(c["id"])
 
-        sched_actual_pct = sched_pct if "加碼" in sched_dir else -sched_pct
+            # 排序：🟢有花費 → 🟢無花費 → ⏸；有花費層內按今日ROAS desc（None 最後），再按 7天ROAS desc
+            def _sort_key(pair):
+                row = pair[0]
+                return (
+                    row["狀"] == "⏸",
+                    row["今日花費"] == 0,
+                    row["今日ROAS"] is None,
+                    -(row["今日ROAS"] or 0),
+                    row["7天ROAS"] is None,
+                    -(row["7天ROAS"] or 0),
+                )
+            combined = sorted(zip(rows, camp_id_list), key=_sort_key)
+            rows, camp_id_list = (list(z) for z in zip(*combined)) if combined else ([], [])
 
-        if selected_labels:
-            dir_label = f"提升 {sched_pct}%" if "加碼" in sched_dir else f"降低 {sched_pct}%"
-            st.info(f"將為 **{len(selected_labels)}** 個行銷活動建立排程：{sched_start} 00:00 ～ {sched_end} 00:00（台灣時間），預算{dir_label}")
+            # ── 快速選取按鈕
+            qb1, qb2, qb3, qb4 = st.columns([1, 1, 1.5, 4])
+            with qb1:
+                if st.button("全選", key="sel_all"):
+                    st.session_state["sched_sel"] = {cid: True for cid in camp_id_list}
+                    st.rerun()
+            with qb2:
+                if st.button("取消全選", key="sel_none"):
+                    st.session_state["sched_sel"] = {cid: False for cid in camp_id_list}
+                    st.rerun()
+            with qb3:
+                if st.button("選🟢有花費", key="sel_spend"):
+                    st.session_state["sched_sel"] = {
+                        camp_id_list[i]: rows[i]["今日花費"] > 0
+                        for i in range(len(rows))
+                    }
+                    st.rerun()
 
-            if st.button("✅ 確認建立排程", type="primary", key="confirm_sched"):
-                _token = cfg.get("meta_token", "")
-                ts_start = date_to_ts(sched_start, is_start=True)
-                ts_end   = date_to_ts(sched_end)
-                for lbl in selected_labels:
-                    c = camp_map[lbl]
-                    result = create_budget_schedule(_token, c["id"], ts_start, ts_end, sched_actual_pct)
-                    if result.get("success") or result.get("id"):
-                        note = result.get("note", "")
-                        if note:
-                            st.success(f"✅ {c['name']}：{note}")
+            # 套用選取狀態（供 AgGrid pre_selected_rows 使用）
+            sel_state = st.session_state.get("sched_sel", {})
+            for i, row in enumerate(rows):
+                row["選取"] = sel_state.get(camp_id_list[i], False)
+
+            pct_sign = f"+{sched_actual_pct}%" if sched_actual_pct > 0 else f"{sched_actual_pct}%"
+            # 加上 _cid 隱藏欄讓選取後能對應回 campaign_id
+            for i, row in enumerate(rows):
+                row["_cid"] = camp_id_list[i]
+                row["排程後預計"] = f"${row['排程後預計']}"
+                row["今日ROAS"] = f"{row['今日ROAS']:.1f}" if row["今日ROAS"] is not None else "—"
+                row["7天ROAS"]  = f"{row['7天ROAS']:.1f}"  if row["7天ROAS"]  is not None else "—"
+            df_sched = pd.DataFrame(rows)
+
+            gb = GridOptionsBuilder.from_dataframe(df_sched)
+            gb.configure_selection(
+                selection_mode="multiple",
+                use_checkbox=True,
+                pre_selected_rows=[i for i, row in enumerate(rows) if row["選取"]],
+            )
+            gb.configure_column("選取",   hide=True)
+            gb.configure_column("_cid",   hide=True)
+            # 第一個可見欄加 checkbox + header 全選
+            gb.configure_column("狀", width=60, header_name="狀",
+                                checkboxSelection=True, headerCheckboxSelection=True)
+            gb.configure_column("活動名稱", flex=1,   header_name="活動名稱")
+            gb.configure_column("日預算",   width=90, header_name="日預算")
+            gb.configure_column("今日花費", width=90, header_name="今日花費")
+            gb.configure_column("今日ROAS", width=90, header_name="今日ROAS")
+            gb.configure_column("7天ROAS",  width=90, header_name="7天ROAS")
+            gb.configure_column("今日排程", width=90, header_name="今日排程")
+            gb.configure_column("排程後預計", width=140, header_name=f"排程後預計（{pct_sign}）")
+            go = gb.build()
+
+            grid_resp = AgGrid(
+                df_sched,
+                gridOptions=go,
+                update_mode=GridUpdateMode.SELECTION_CHANGED,
+                fit_columns_on_grid_load=False,
+                height=min(420, 48 + 36 * len(rows)),
+                theme="streamlit",
+                key="sched_aggrid",
+            )
+
+            sel_rows = grid_resp.get("selected_rows")
+            if sel_rows is None or (isinstance(sel_rows, pd.DataFrame) and sel_rows.empty):
+                sel_rows = []
+            elif isinstance(sel_rows, pd.DataFrame):
+                sel_rows = sel_rows.to_dict("records")
+            selected_camp_ids   = [r["_cid"]   for r in sel_rows]
+            selected_camp_names = [r["活動名稱"] for r in sel_rows]
+
+            if selected_camp_ids:
+                dir_label = f"提升 {sched_pct}%" if sched_actual_pct > 0 else f"降低 {sched_pct}%"
+                st.info(f"已選 **{len(selected_camp_ids)}** 個活動，排程 {sched_start} ～ {sched_end}，預算{dir_label}")
+                if st.button("✅ 確認建立排程", type="primary", key="confirm_sched"):
+                    _token   = cfg.get("meta_token", "")
+                    ts_start = date_to_ts(sched_start, is_start=True)
+                    ts_end   = date_to_ts(sched_end)
+                    for cid, cname in zip(selected_camp_ids, selected_camp_names):
+                        result = create_budget_schedule(_token, cid, ts_start, ts_end, sched_actual_pct)
+                        if result.get("success") or result.get("id"):
+                            note = result.get("note", "")
+                            st.success(f"✅ {cname}：{note if note else '排程建立成功'}")
+                            # 立即更新今日排程欄（不需重新整頁載入）
+                            pct_sign = f"+{sched_actual_pct}%" if sched_actual_pct > 0 else f"{sched_actual_pct}%"
+                            st.session_state.setdefault("today_scheds", {})[cid] = pct_sign
                         else:
-                            st.success(f"✅ {c['name']} 排程建立成功")
-                    else:
-                        err_msg = result.get("error", {}).get("message", str(result))
-                        st.error(f"❌ {c['name']}：{err_msg}")
+                            err_msg = result.get("error", {}).get("message", str(result))
+                            st.error(f"❌ {cname}：{err_msg}")
+        else:
+            st.info("請先點「載入活動與成效」")
+
+    # ── Tab 2：刪除排程 ─────────────────────────────────────────
+    with tab_del:
+        if st.button("🔄 載入排程", key="load_del_scheds"):
+            _token = cfg.get("meta_token", "")
+            _acct  = selected_account_id
+            if not _token or not _acct:
+                st.error("請先設定 Token 和帳戶")
+            else:
+                with st.spinner("載入中..."):
+                    try:
+                        camps = fetch_campaigns_with_budget(_token, _acct)
+                        now_ts = datetime.now(timezone.utc).timestamp()
+                        del_scheds = {}
+                        for c in camps:
+                            scheds = fetch_campaign_schedules(_token, c["id"])
+                            if scheds:
+                                del_scheds[c["id"]] = {
+                                    "campaign": c,
+                                    "active":  [s for s in scheds if _end_ts(s) > now_ts],
+                                    "expired": [s for s in scheds if _end_ts(s) <= now_ts],
+                                }
+                        st.session_state["del_scheds"] = del_scheds
+                    except Exception as e:
+                        st.error(f"錯誤：{e}")
+
+        del_scheds = st.session_state.get("del_scheds", {})
+        if del_scheds:
+            tz_tw = timezone(timedelta(hours=8))
+            _token = cfg.get("meta_token", "")
+
+            # 統計過期排程數
+            all_expired = [(cid, s) for cid, data in del_scheds.items() for s in data["expired"]]
+            if all_expired:
+                exp_count = len(all_expired)
+                st.warning(f"共有 **{exp_count}** 筆過期排程")
+                if st.button(f"🗑️ 一鍵刪除所有過期排程（{exp_count} 筆）", type="primary", key="del_all_expired"):
+                    ok, fail = 0, 0
+                    for _, s in all_expired:
+                        res = delete_budget_schedule(_token, s["id"])
+                        if res.get("success"):
+                            ok += 1
+                        else:
+                            fail += 1
+                    st.success(f"✅ 已刪除 {ok} 筆" + (f"，失敗 {fail} 筆" if fail else ""))
+                    # 重新載入
+                    camps2 = fetch_campaigns_with_budget(_token, selected_account_id)
+                    ds2 = {}
+                    for c2 in camps2:
+                        ss = fetch_campaign_schedules(_token, c2["id"])
+                        if ss:
+                            ds2[c2["id"]] = {
+                                "campaign": c2,
+                                "active":  [x for x in ss if _end_ts(x) > now_ts],
+                                "expired": [x for x in ss if _end_ts(x) <= now_ts],
+                            }
+                    st.session_state["del_scheds"] = ds2
+                    st.rerun()
+            else:
+                st.success("✅ 沒有過期排程")
+
+            st.divider()
+
+            # 各活動排程列表
+            for cid, data in del_scheds.items():
+                c = data["campaign"]
+                active_list  = data["active"]
+                expired_list = data["expired"]
+                if not active_list and not expired_list:
+                    continue
+                icon = "🟢" if c["status"] == "ACTIVE" else "⏸"
+                label = f"{icon} {c['name']}（進行中 {len(active_list)} / 過期 {len(expired_list)}）"
+                with st.expander(label):
+                    for s in active_list + expired_list:
+                        t_start = parse_meta_ts(s["time_start"], tz_tw).strftime("%Y/%m/%d %H:%M")
+                        t_end   = parse_meta_ts(s["time_end"],   tz_tw).strftime("%Y/%m/%d %H:%M")
+                        bv = int(s.get("budget_value", 100))
+                        pct_str = f"+{bv}%" if bv >= 0 else f"{bv}%"
+                        now_ts2 = datetime.now(timezone.utc).timestamp()
+                        is_active = _end_ts(s) > now_ts2
+                        badge = "🟡 進行中" if is_active else "⬜ 已結束"
+                        col_info, col_btn = st.columns([6, 1])
+                        col_info.write(f"{badge}　**{t_start} ～ {t_end}**　`{pct_str}`")
+                        if col_btn.button("刪除", key=f"del_sched_{s['id']}"):
+                            res = delete_budget_schedule(_token, s["id"])
+                            if res.get("success"):
+                                st.success("已刪除")
+                                camps2 = fetch_campaigns_with_budget(_token, selected_account_id)
+                                now_ts3 = datetime.now(timezone.utc).timestamp()
+                                ds2 = {}
+                                for c2 in camps2:
+                                    ss = fetch_campaign_schedules(_token, c2["id"])
+                                    if ss:
+                                        ds2[c2["id"]] = {
+                                            "campaign": c2,
+                                            "active":  [x for x in ss if _end_ts(x) > now_ts3],
+                                            "expired": [x for x in ss if _end_ts(x) <= now_ts3],
+                                        }
+                                st.session_state["del_scheds"] = ds2
+                                st.rerun()
+                            else:
+                                st.error(f"刪除失敗：{res}")
+        elif "del_scheds" in st.session_state:
+            st.info("目前沒有任何排程")
+        else:
+            st.info("請先點「載入排程」")
 
 
 if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
@@ -1298,51 +1655,83 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             with st.spinner("載入中..."):
                 try:
                     st.session_state["adj_campaigns"] = fetch_campaigns_with_budget(_token, _acct)
+                    st.session_state["adj_insights"]  = fetch_today_campaign_insights(_token, _acct)
                 except Exception as e:
                     st.error(f"錯誤：{e}")
 
     adj_campaigns = st.session_state.get("adj_campaigns", [])
+    adj_insights  = st.session_state.get("adj_insights", {})
     if adj_campaigns:
         _token = cfg.get("meta_token", "")
         QUICK_PRESETS = [("−25%", -25), ("−10%", -10), ("+10%", 10), ("+25%", 25), ("+50%", 50)]
 
-        # 表頭
-        h0, h1, h2, h3, h4, h5, h6 = st.columns([4, 1, 1, 1, 1, 1, 2])
-        h0.caption("活動名稱"); h1.caption("−25%"); h2.caption("−10%")
-        h3.caption("+10%"); h4.caption("+25%"); h5.caption("+50%"); h6.caption("自訂 %")
+        # 表頭：活動名稱 | ROAS | 訂單 | -25% | -10% | +10% | +25% | +50% | 自訂%
+        COL_W = [3.5, 0.9, 0.8, 1, 1, 1, 1, 1, 1.5]
+        hcols = st.columns(COL_W)
+        hcols[0].caption("活動名稱")
+        hcols[1].caption("今日 ROAS")
+        hcols[2].caption("訂單")
+        hcols[3].caption("−25%"); hcols[4].caption("−10%")
+        hcols[5].caption("+10%"); hcols[6].caption("+25%"); hcols[7].caption("+50%")
+        hcols[8].caption("自訂 %")
 
         for i, c in enumerate(adj_campaigns):
             if not c.get("daily_budget"):
                 continue
             cur = int(c["daily_budget"])
             icon = "🟢" if c["status"] == "ACTIVE" else "⏸"
-            short_name = c["name"][:28] + "…" if len(c["name"]) > 28 else c["name"]
+            short_name = c["name"][:26] + "…" if len(c["name"]) > 26 else c["name"]
 
-            row = st.columns([4, 1, 1, 1, 1, 1, 2])
+            ins = adj_insights.get(c["id"], {})
+            roas_val  = ins.get("roas")
+            orders_val = ins.get("orders", 0)
+
+            # ROAS 顏色標記
+            if roas_val is None:
+                roas_str = "—"
+            elif roas_val >= 3.0:
+                roas_str = f"🟢 {roas_val:.1f}"
+            elif roas_val >= 1.5:
+                roas_str = f"🟡 {roas_val:.1f}"
+            else:
+                roas_str = f"🔴 {roas_val:.1f}"
+            orders_str = str(orders_val) if orders_val else "—"
+
+            row = st.columns(COL_W)
             row[0].write(f"{icon} {short_name}  **${cur:,}**")
+            row[1].write(roas_str)
+            row[2].write(orders_str)
 
             for col_idx, (label, pct) in enumerate(QUICK_PRESETS):
-                if row[col_idx + 1].button(label, key=f"qadj_{i}_{pct}"):
-                    new_b = max(1, int(cur * (100 + pct) / 100))
+                if row[col_idx + 3].button(label, key=f"qadj_{i}_{pct}"):
                     res = adjust_campaign_budget(_token, c["id"], 100 + pct)
                     if res.get("success"):
                         st.success(f"✅ {c['name']}：${cur:,} → ${res['new_budget']:,}（{label}）")
                         st.session_state["adj_campaigns"] = fetch_campaigns_with_budget(_token, selected_account_id)
+                        st.session_state["adj_insights"]  = fetch_today_campaign_insights(_token, selected_account_id)
                         st.rerun()
                     else:
                         st.error(f"❌ {c['name']}：{res.get('error', {}).get('message', str(res))}")
 
             # 自訂欄
-            custom_pct = row[6].number_input(
+            row[8].number_input(
                 "自訂", min_value=-99, max_value=10000, value=20, step=5,
                 key=f"custom_pct_{i}", label_visibility="collapsed"
             )
-            # 自訂按鈕放在下一行，避免擠版面
 
         st.divider()
         # 自訂批次調整
+        def _camp_label(c):
+            ins = adj_insights.get(c["id"], {})
+            roas_v = ins.get("roas")
+            r_str = f" ROAS:{roas_v:.1f}" if roas_v else ""
+            ord_v = ins.get("orders", 0)
+            o_str = f" 訂單:{ord_v}" if ord_v else ""
+            icon2 = "🟢" if c["status"] == "ACTIVE" else "⏸"
+            return f"{icon2} {c['name']}  (${int(c['daily_budget']):,}{r_str}{o_str})"
+
         adj_camp_map = {
-            f"{'🟢' if c['status']=='ACTIVE' else '⏸'} {c['name']}  (${int(c['daily_budget']):,})": c
+            _camp_label(c): c
             for c in adj_campaigns if c.get("daily_budget")
         }
         sel_custom = st.multiselect("選擇活動套用自訂幅度", list(adj_camp_map.keys()), key="sel_custom_camps")
