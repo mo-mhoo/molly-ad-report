@@ -1806,68 +1806,102 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
         else:
             with st.spinner("載入中..."):
                 try:
-                    st.session_state["adj_campaigns"] = fetch_campaigns_with_budget(_token, _acct)
-                    st.session_state["adj_insights"]  = fetch_today_campaign_insights(_token, _acct)
+                    st.session_state["adj_campaigns"]    = fetch_campaigns_with_budget(_token, _acct)
+                    st.session_state["adj_insights"]     = fetch_today_campaign_insights(_token, _acct)
+                    st.session_state["adj_insights_7d"]  = fetch_today_campaign_insights(_token, _acct, "last_7d")
                 except Exception as e:
                     st.error(f"錯誤：{e}")
 
-    adj_campaigns = st.session_state.get("adj_campaigns", [])
-    adj_insights  = st.session_state.get("adj_insights", {})
+    adj_campaigns   = st.session_state.get("adj_campaigns", [])
+    adj_insights    = st.session_state.get("adj_insights", {})
+    adj_insights_7d = st.session_state.get("adj_insights_7d", {})
     if adj_campaigns:
         _token = cfg.get("meta_token", "")
 
         show_paused_adj = st.checkbox("顯示暫停的活動 ⏸", value=False, key="show_paused_adj")
 
-        adj_rows = []
+        adj_rows, adj_id_list = [], []
         for c in adj_campaigns:
             if not c.get("daily_budget"):
                 continue
             if c["status"] != "ACTIVE" and not show_paused_adj:
                 continue
-            ins = adj_insights.get(c["id"], {})
-            roas_val   = ins.get("roas")
-            spend_val  = ins.get("spend", 0)
-            orders_val = ins.get("orders", 0)
+            ins    = adj_insights.get(c["id"], {})
+            ins_7d = adj_insights_7d.get(c["id"], {})
+            spend_today  = round(ins.get("spend", 0))
+            orders_today = ins.get("orders", 0)
+            pv_today     = ins.get("purchase_val", 0)
+            cpa_today    = round(spend_today / orders_today) if orders_today > 0 else None
             adj_rows.append({
-                "狀": "🟢" if c["status"] == "ACTIVE" else "⏸",
+                "狀":       "🟢" if c["status"] == "ACTIVE" else "⏸",
                 "活動名稱": c["name"],
-                "日預算": int(c["daily_budget"]),
-                "今日花費": int(round(spend_val)) if spend_val else 0,
-                "今日ROAS": round(roas_val, 1) if roas_val is not None else None,
-                "訂單": int(orders_val) if orders_val else 0,
-                "_id": c["id"],
-                "_status": c["status"],
+                "日預算":   int(c["daily_budget"]),
+                "今日花費": spend_today,
+                "今日ROAS": ins.get("roas"),
+                "7天ROAS":  ins_7d.get("roas"),
+                "今日購買": orders_today,
+                "今日CPA":  cpa_today,
+                "轉換價值": round(pv_today) if pv_today else None,
             })
+            adj_id_list.append(c["id"])
 
         if not adj_rows:
             st.info("沒有符合條件的活動")
         else:
+            # 排序：⏸ 最後；同層 🟢有花費 > 🟢無花費；有花費按今日ROAS desc，再7天ROAS desc
+            def _adj_sort_key(pair):
+                row = pair[0]
+                return (
+                    row["狀"] == "⏸",
+                    row["今日花費"] == 0,
+                    row["今日ROAS"] is None,
+                    -(row["今日ROAS"] or 0),
+                    row["7天ROAS"] is None,
+                    -(row["7天ROAS"] or 0),
+                )
+            combined_adj = sorted(zip(adj_rows, adj_id_list), key=_adj_sort_key)
+            adj_rows, adj_id_list = (list(z) for z in zip(*combined_adj)) if combined_adj else ([], [])
+
+            # 格式化欄位（ROAS 轉字串）
+            for row in adj_rows:
+                row["今日ROAS"] = f"{row['今日ROAS']:.1f}" if row["今日ROAS"] is not None else "—"
+                row["7天ROAS"]  = f"{row['7天ROAS']:.1f}"  if row["7天ROAS"]  is not None else "—"
+                row["今日CPA"]  = f"${row['今日CPA']:,}"    if row["今日CPA"]  is not None else "—"
+                row["轉換價值"] = f"${row['轉換價值']:,}"   if row["轉換價值"] is not None else "—"
+
             df_adj = pd.DataFrame(adj_rows)
-            display_cols = ["狀", "活動名稱", "日預算", "今日花費", "今日ROAS", "訂單"]
+            display_cols = ["狀", "活動名稱", "日預算", "今日花費", "今日ROAS", "7天ROAS", "今日購買", "今日CPA", "轉換價值"]
 
             # 快速選取按鈕
             ab1, ab2, ab3 = st.columns(3)
             if ab1.button("全選", key="adj_all", use_container_width=True):
-                st.session_state["adj_pre"] = list(range(len(df_adj)))
+                st.session_state["adj_sel"] = {cid: True for cid in adj_id_list}
                 st.rerun()
             if ab2.button("取消全選", key="adj_none", use_container_width=True):
-                st.session_state["adj_pre"] = []
+                st.session_state["adj_sel"] = {cid: False for cid in adj_id_list}
                 st.rerun()
             if ab3.button("選🟢有花費", key="adj_spend", use_container_width=True):
-                st.session_state["adj_pre"] = [i for i, r in enumerate(adj_rows) if r["今日花費"] > 0]
+                st.session_state["adj_sel"] = {
+                    adj_id_list[i]: adj_rows[i]["今日花費"] > 0
+                    for i in range(len(adj_rows))
+                }
                 st.rerun()
 
-            pre_sel_adj = st.session_state.get("adj_pre", [])
+            sel_state_adj = st.session_state.get("adj_sel", {})
+            pre_sel_adj = [i for i, cid in enumerate(adj_id_list) if sel_state_adj.get(cid, False)]
 
             gb2 = GridOptionsBuilder.from_dataframe(df_adj[display_cols])
             gb2.configure_selection(selection_mode="multiple", use_checkbox=True,
                                     pre_selected_rows=pre_sel_adj)
-            gb2.configure_column("狀", width=60, checkboxSelection=True, headerCheckboxSelection=True)
+            gb2.configure_column("狀",       width=60,  checkboxSelection=True, headerCheckboxSelection=True)
             gb2.configure_column("活動名稱", minWidth=160, flex=2)
-            gb2.configure_column("日預算",   width=90,  type=["numericColumn"])
-            gb2.configure_column("今日花費", width=90,  type=["numericColumn"])
-            gb2.configure_column("今日ROAS", width=90)
-            gb2.configure_column("訂單",     width=70,  type=["numericColumn"])
+            gb2.configure_column("日預算",   width=85,  type=["numericColumn"])
+            gb2.configure_column("今日花費", width=85,  type=["numericColumn"])
+            gb2.configure_column("今日ROAS", width=85)
+            gb2.configure_column("7天ROAS",  width=80)
+            gb2.configure_column("今日購買", width=75)
+            gb2.configure_column("今日CPA",  width=80)
+            gb2.configure_column("轉換價值", width=90)
             gb2.configure_grid_options(rowHeight=40, domLayout="autoHeight")
             go2 = gb2.build()
 
@@ -1900,8 +1934,9 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                                 st.success(f"✅ {camp['name']}：${res['old_budget']:,} → ${res['new_budget']:,}（{label}）")
                             else:
                                 st.error(f"❌ {camp['name']}：{res.get('error', {}).get('message', str(res))}")
-                        st.session_state["adj_campaigns"] = fetch_campaigns_with_budget(_token, selected_account_id)
-                        st.session_state["adj_insights"]  = fetch_today_campaign_insights(_token, selected_account_id)
+                        st.session_state["adj_campaigns"]   = fetch_campaigns_with_budget(_token, selected_account_id)
+                        st.session_state["adj_insights"]    = fetch_today_campaign_insights(_token, selected_account_id)
+                        st.session_state["adj_insights_7d"] = fetch_today_campaign_insights(_token, selected_account_id, "last_7d")
                         st.rerun()
 
                 # 自訂幅度 + 確認
@@ -1920,8 +1955,9 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                             st.success(f"✅ {camp['name']}：${res['old_budget']:,} → ${res['new_budget']:,}")
                         else:
                             st.error(f"❌ {camp['name']}：{res.get('error', {}).get('message', str(res))}")
-                    st.session_state["adj_campaigns"] = fetch_campaigns_with_budget(_token, selected_account_id)
-                    st.session_state["adj_insights"]  = fetch_today_campaign_insights(_token, selected_account_id)
+                    st.session_state["adj_campaigns"]   = fetch_campaigns_with_budget(_token, selected_account_id)
+                    st.session_state["adj_insights"]    = fetch_today_campaign_insights(_token, selected_account_id)
+                    st.session_state["adj_insights_7d"] = fetch_today_campaign_insights(_token, selected_account_id, "last_7d")
                     st.rerun()
             else:
                 st.info("請在上方表格勾選要調整的活動")
