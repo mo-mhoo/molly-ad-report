@@ -1423,32 +1423,65 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             # ── 排程時段設定（2 列排列，手機不擠）
             HOURS = [f"{h:02d}:00" for h in range(24)]
             st.markdown("**排程時段**")
-            ts1, ts2 = st.columns(2)
-            with ts1:
-                slot_s_date = st.date_input("開始日期", date.today(), key="slot_s_date")
-            with ts2:
-                slot_s_hour = st.selectbox("開始時間", HOURS, index=0, key="slot_s_hour")
-            ts3, ts4 = st.columns(2)
-            with ts3:
-                slot_e_date = st.date_input("結束日期", date.today() + timedelta(days=1), key="slot_e_date")
-            with ts4:
-                slot_e_hour = st.selectbox("結束時間", HOURS, index=0, key="slot_e_hour")
-            if st.button("＋ 加入批次清單", key="add_slot", use_container_width=True):
-                ts_s = date_hour_to_ts(slot_s_date, slot_s_hour)
-                ts_e = date_hour_to_ts(slot_e_date, slot_e_hour)
-                if ts_s >= ts_e:
-                    st.error("結束時間必須晚於開始時間")
-                else:
-                    slots = st.session_state.get("sched_slots", [])
-                    if not any(s["_ts_start"] == ts_s and s["_ts_end"] == ts_e for s in slots):
-                        slots.append({
-                            "開始": f"{slot_s_date} {slot_s_hour}",
-                            "結束": f"{slot_e_date} {slot_e_hour}",
-                            "_ts_start": ts_s,
-                            "_ts_end":   ts_e,
-                        })
+
+            # 快速加整天（日期範圍）
+            with st.expander("⚡ 快速加整天（日期範圍）", expanded=False):
+                qc1, qc2 = st.columns(2)
+                with qc1:
+                    quick_s = st.date_input("從", date.today(), key="quick_s")
+                with qc2:
+                    quick_e = st.date_input("到", date.today(), key="quick_e")
+                if st.button("＋ 批次加整天（每天 00:00–次日 00:00）", key="add_quick_days", use_container_width=True):
+                    if quick_e < quick_s:
+                        st.error("結束日期不能早於開始日期")
+                    else:
+                        slots = st.session_state.get("sched_slots", [])
+                        added = 0
+                        d = quick_s
+                        while d <= quick_e:
+                            ts_s = date_hour_to_ts(d, "00:00")
+                            ts_e = date_hour_to_ts(d + timedelta(days=1), "00:00")
+                            if not any(s["_ts_start"] == ts_s and s["_ts_end"] == ts_e for s in slots):
+                                slots.append({
+                                    "開始": f"{d} 00:00",
+                                    "結束": f"{d + timedelta(days=1)} 00:00",
+                                    "_ts_start": ts_s,
+                                    "_ts_end":   ts_e,
+                                })
+                                added += 1
+                            d += timedelta(days=1)
                         st.session_state["sched_slots"] = slots
+                        st.success(f"已加入 {added} 個整天時段")
                         st.rerun()
+
+            # 自訂時段
+            with st.expander("🕐 自訂時段", expanded=False):
+                ts1, ts2 = st.columns(2)
+                with ts1:
+                    slot_s_date = st.date_input("開始日期", date.today(), key="slot_s_date")
+                with ts2:
+                    slot_s_hour = st.selectbox("開始時間", HOURS, index=0, key="slot_s_hour")
+                ts3, ts4 = st.columns(2)
+                with ts3:
+                    slot_e_date = st.date_input("結束日期", date.today() + timedelta(days=1), key="slot_e_date")
+                with ts4:
+                    slot_e_hour = st.selectbox("結束時間", HOURS, index=0, key="slot_e_hour")
+                if st.button("＋ 加入批次清單", key="add_slot", use_container_width=True):
+                    ts_s = date_hour_to_ts(slot_s_date, slot_s_hour)
+                    ts_e = date_hour_to_ts(slot_e_date, slot_e_hour)
+                    if ts_s >= ts_e:
+                        st.error("結束時間必須晚於開始時間")
+                    else:
+                        slots = st.session_state.get("sched_slots", [])
+                        if not any(s["_ts_start"] == ts_s and s["_ts_end"] == ts_e for s in slots):
+                            slots.append({
+                                "開始": f"{slot_s_date} {slot_s_hour}",
+                                "結束": f"{slot_e_date} {slot_e_hour}",
+                                "_ts_start": ts_s,
+                                "_ts_end":   ts_e,
+                            })
+                            st.session_state["sched_slots"] = slots
+                            st.rerun()
 
             # 批次時段清單（選用）
             sched_slots = st.session_state.get("sched_slots", [])
