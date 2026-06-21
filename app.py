@@ -620,13 +620,17 @@ def fetch_campaigns_with_budget(access_token, ad_account_id):
         "fields": "id,name,status,daily_budget,lifetime_budget,budget_rebalance_flag,smart_promotion_type",
         "filtering": json.dumps([{"field": "effective_status", "operator": "IN", "value": ["ACTIVE", "PAUSED"]}]),
         "access_token": access_token,
-        "limit": 100,
+        "limit": 200,
     }
-    resp = requests.get(url, params=params, timeout=30)
-    data = resp.json()
-    if "error" in data:
-        raise Exception(data["error"].get("message", str(data["error"])))
-    return data.get("data", [])
+    all_camps = []
+    while url:
+        resp = requests.get(url, params=params, timeout=30).json()
+        if "error" in resp:
+            raise Exception(resp["error"].get("message", str(resp["error"])))
+        all_camps.extend(resp.get("data", []))
+        url    = resp.get("paging", {}).get("next")
+        params = {}   # next URL 已含所有參數，清空避免重複
+    return all_camps
 
 def _end_ts(s):
     """排程結束時間 → Unix timestamp（支援整數字串和 ISO 格式）"""
@@ -667,6 +671,14 @@ def delete_budget_schedule(access_token, schedule_id):
     return resp
 
 def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_increase):
+    # 若開始時間已過，自動推到下一個 15 分鐘整點
+    TZ_TAIPEI = timezone(timedelta(hours=8))
+    now_ts = int(datetime.now(TZ_TAIPEI).timestamp())
+    if int(time_start) <= now_ts:
+        now_tw = datetime.now(tz=TZ_TAIPEI).replace(second=0, microsecond=0)
+        rem = now_tw.minute % 15
+        time_start = int((now_tw + timedelta(minutes=(15 - rem) if rem else 15)).timestamp())
+
     # 先刪除時段重疊的舊排程（避免堆疊）
     existing = fetch_campaign_schedules(access_token, campaign_id)
     for s in existing:
@@ -748,6 +760,12 @@ def date_to_ts(d, is_start=False):
         return int(next_15.timestamp())
     return int(datetime(d.year, d.month, d.day, 0, 0, 0, tzinfo=TZ_TAIPEI).timestamp())
 
+def date_hour_to_ts(d, hour_str):
+    """date + 'HH:00' → Unix timestamp（台灣時間）"""
+    TZ_TAIPEI = timezone(timedelta(hours=8))
+    h = int(hour_str.split(":")[0])
+    return int(datetime(d.year, d.month, d.day, h, 0, 0, tzinfo=TZ_TAIPEI).timestamp())
+
 # ── 快速加減碼 & 批次上刊 API ─────────────────────────────────
 
 def fetch_today_campaign_insights(access_token, ad_account_id, date_preset="today"):
@@ -810,7 +828,7 @@ def fetch_today_campaign_insights(access_token, ad_account_id, date_preset="toda
         except Exception:
             spend = 0.0
 
-        result[cid] = {"roas": roas, "orders": orders, "spend": spend}
+        result[cid] = {"roas": roas, "orders": orders, "spend": spend, "purchase_val": purchase_val}
     return result
 
 def adjust_campaign_budget(access_token, campaign_id, multiplier_pct):
@@ -1392,38 +1410,116 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
         today_scheds    = st.session_state.get("today_scheds", {})
 
         if campaigns:
-            # ── 排程參數
-            sc1, sc2, sc3, sc4 = st.columns(4)
-            with sc1:
-                sched_start = st.date_input("開始日期", date.today(), key="sched_start")
-            with sc2:
-                sched_end   = st.date_input("結束日期", date.today() + timedelta(days=1), key="sched_end")
-            with sc3:
+            # ── 調整幅度 & 方向（2 欄，手機友好）
+            pc1, pc2 = st.columns(2)
+            with pc1:
                 sched_pct = st.number_input("調整幅度 (%)", min_value=1, max_value=10000, value=20, step=5, key="sched_pct")
-            with sc4:
+            with pc2:
                 sched_dir = st.radio("方向", ["加碼 ⬆️", "減碼 ⬇️"], key="sched_dir", horizontal=True)
             sched_actual_pct = sched_pct if "加碼" in sched_dir else -sched_pct
 
+            # ── 排程時段設定（2 列排列，手機不擠）
+            HOURS = [f"{h:02d}:00" for h in range(24)]
+            st.markdown("**排程時段**")
+            ts1, ts2 = st.columns(2)
+            with ts1:
+                slot_s_date = st.date_input("開始日期", date.today(), key="slot_s_date")
+            with ts2:
+                slot_s_hour = st.selectbox("開始時間", HOURS, index=0, key="slot_s_hour")
+            ts3, ts4 = st.columns(2)
+            with ts3:
+                slot_e_date = st.date_input("結束日期", date.today() + timedelta(days=1), key="slot_e_date")
+            with ts4:
+                slot_e_hour = st.selectbox("結束時間", HOURS, index=0, key="slot_e_hour")
+            if st.button("＋ 加入批次清單", key="add_slot", use_container_width=True):
+                ts_s = date_hour_to_ts(slot_s_date, slot_s_hour)
+                ts_e = date_hour_to_ts(slot_e_date, slot_e_hour)
+                if ts_s >= ts_e:
+                    st.error("結束時間必須晚於開始時間")
+                else:
+                    slots = st.session_state.get("sched_slots", [])
+                    if not any(s["_ts_start"] == ts_s and s["_ts_end"] == ts_e for s in slots):
+                        slots.append({
+                            "開始": f"{slot_s_date} {slot_s_hour}",
+                            "結束": f"{slot_e_date} {slot_e_hour}",
+                            "_ts_start": ts_s,
+                            "_ts_end":   ts_e,
+                        })
+                        st.session_state["sched_slots"] = slots
+                        st.rerun()
+
+            # 批次時段清單（選用）
+            sched_slots = st.session_state.get("sched_slots", [])
+            sel_slot_rows = []
+            if sched_slots:
+                st.caption("批次時段（Shift 多選後可刪除；勾選的時段才會套用）")
+                df_slots = pd.DataFrame(sched_slots)
+                gb_s = GridOptionsBuilder.from_dataframe(df_slots)
+                gb_s.configure_selection(selection_mode="multiple", use_checkbox=True)
+                gb_s.configure_column("開始", checkboxSelection=True, headerCheckboxSelection=True, width=200)
+                gb_s.configure_column("結束", width=200)
+                gb_s.configure_column("_ts_start", hide=True)
+                gb_s.configure_column("_ts_end",   hide=True)
+                slot_resp = AgGrid(
+                    df_slots,
+                    gridOptions=gb_s.build(),
+                    update_mode=GridUpdateMode.SELECTION_CHANGED,
+                    height=min(200, 48 + 36 * len(sched_slots)),
+                    theme="streamlit",
+                    fit_columns_on_grid_load=True,
+                    key="slots_aggrid",
+                )
+                _sr = slot_resp.get("selected_rows")
+                if _sr is None or (isinstance(_sr, pd.DataFrame) and _sr.empty):
+                    sel_slot_rows = []
+                elif isinstance(_sr, pd.DataFrame):
+                    sel_slot_rows = _sr.to_dict("records")
+                else:
+                    sel_slot_rows = list(_sr)
+
+                db1, db2 = st.columns([1.5, 6])
+                with db1:
+                    if st.button("🗑 刪除選取", key="del_slots") and sel_slot_rows:
+                        sel_keys = {(r["_ts_start"], r["_ts_end"]) for r in sel_slot_rows}
+                        st.session_state["sched_slots"] = [s for s in sched_slots if (s["_ts_start"], s["_ts_end"]) not in sel_keys]
+                        st.rerun()
+                with db2:
+                    if st.button("清除全部", key="clear_slots"):
+                        st.session_state["sched_slots"] = []
+                        st.rerun()
+
+            st.divider()
+
             # ── 建立表格資料
+            show_paused = st.checkbox("顯示暫停的活動 ⏸", value=False, key="show_paused")
             rows, camp_id_list = [], []
             for c in campaigns:
                 if not c.get("daily_budget"):
                     continue
+                if c["status"] != "ACTIVE" and not show_paused:
+                    continue
                 ins    = sched_insights.get(c["id"], {})
                 ins_7d = sched_ins_7d.get(c["id"], {})
-                daily_b = int(c["daily_budget"])
-                projected = round(daily_b * (1 + sched_actual_pct / 100))
-                sched_tag = today_scheds.get(c["id"], "—")
+                daily_b      = int(c["daily_budget"])
+                projected    = round(daily_b * (1 + sched_actual_pct / 100))
+                sched_tag    = today_scheds.get(c["id"], "—")
+                spend_today  = round(ins.get("spend", 0))
+                orders_today = ins.get("orders", 0)
+                pv_today     = ins.get("purchase_val", 0)
+                cpa_today    = round(spend_today / orders_today) if orders_today > 0 else None
                 rows.append({
                     "選取":     False,
                     "狀":       "🟢" if c["status"] == "ACTIVE" else "⏸",
                     "活動名稱": c["name"],
                     "日預算":   daily_b,
-                    "今日花費": round(ins.get("spend", 0)),
+                    "今日花費": spend_today,
                     "今日ROAS": ins.get("roas"),
                     "7天ROAS":  ins_7d.get("roas"),
                     "今日排程": sched_tag,
                     "排程後預計": projected,
+                    "今日購買": orders_today,
+                    "今日CPA":  cpa_today,
+                    "轉換價值": round(pv_today) if pv_today else None,
                 })
                 camp_id_list.append(c["id"])
 
@@ -1489,8 +1585,11 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             gb.configure_column("今日花費", width=90, header_name="今日花費")
             gb.configure_column("今日ROAS", width=90, header_name="今日ROAS")
             gb.configure_column("7天ROAS",  width=90, header_name="7天ROAS")
-            gb.configure_column("今日排程", width=90, header_name="今日排程")
-            gb.configure_column("排程後預計", width=140, header_name=f"排程後預計（{pct_sign}）")
+            gb.configure_column("今日排程", width=90,  header_name="今日排程")
+            gb.configure_column("排程後預計", width=130, header_name=f"排程後預計（{pct_sign}）")
+            gb.configure_column("今日購買",  width=80,  header_name="今日購買")
+            gb.configure_column("今日CPA",   width=80,  header_name="今日CPA")
+            gb.configure_column("轉換價值",  width=90,  header_name="轉換價值")
             go = gb.build()
 
             grid_resp = AgGrid(
@@ -1511,24 +1610,42 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             selected_camp_ids   = [r["_cid"]   for r in sel_rows]
             selected_camp_names = [r["活動名稱"] for r in sel_rows]
 
-            if selected_camp_ids:
+            n_camps = len(selected_camp_ids)
+            pct_sign = f"+{sched_actual_pct}%" if sched_actual_pct > 0 else f"{sched_actual_pct}%"
+
+            if n_camps > 0:
+                # 決定要套用的時段：有勾選批次清單 → 用清單；否則用上方單一時段
+                if sel_slot_rows:
+                    slots_to_apply = [{"開始": r["開始"], "結束": r["結束"],
+                                       "_ts_start": int(r["_ts_start"]), "_ts_end": int(r["_ts_end"])}
+                                      for r in sel_slot_rows]
+                    slot_desc = f"**{len(slots_to_apply)}** 個時段"
+                else:
+                    ts_s = date_hour_to_ts(slot_s_date, slot_s_hour)
+                    ts_e = date_hour_to_ts(slot_e_date, slot_e_hour)
+                    slots_to_apply = [{"開始": f"{slot_s_date} {slot_s_hour}",
+                                       "結束": f"{slot_e_date} {slot_e_hour}",
+                                       "_ts_start": ts_s, "_ts_end": ts_e}]
+                    slot_desc = f"`{slot_s_date} {slot_s_hour} → {slot_e_date} {slot_e_hour}`"
+
                 dir_label = f"提升 {sched_pct}%" if sched_actual_pct > 0 else f"降低 {sched_pct}%"
-                st.info(f"已選 **{len(selected_camp_ids)}** 個活動，排程 {sched_start} ～ {sched_end}，預算{dir_label}")
+                total = n_camps * len(slots_to_apply)
+                st.info(f"已選 **{n_camps}** 個活動 × {slot_desc} = **{total}** 筆排程，預算{dir_label}")
+
                 if st.button("✅ 確認建立排程", type="primary", key="confirm_sched"):
-                    _token   = cfg.get("meta_token", "")
-                    ts_start = date_to_ts(sched_start, is_start=True)
-                    ts_end   = date_to_ts(sched_end)
-                    for cid, cname in zip(selected_camp_ids, selected_camp_names):
-                        result = create_budget_schedule(_token, cid, ts_start, ts_end, sched_actual_pct)
-                        if result.get("success") or result.get("id"):
-                            note = result.get("note", "")
-                            st.success(f"✅ {cname}：{note if note else '排程建立成功'}")
-                            # 立即更新今日排程欄（不需重新整頁載入）
-                            pct_sign = f"+{sched_actual_pct}%" if sched_actual_pct > 0 else f"{sched_actual_pct}%"
-                            st.session_state.setdefault("today_scheds", {})[cid] = pct_sign
-                        else:
-                            err_msg = result.get("error", {}).get("message", str(result))
-                            st.error(f"❌ {cname}：{err_msg}")
+                    _token = cfg.get("meta_token", "")
+                    for slot in slots_to_apply:
+                        slot_label = f"{slot['開始']}→{slot['結束']}"
+                        for cid, cname in zip(selected_camp_ids, selected_camp_names):
+                            result = create_budget_schedule(_token, cid, slot["_ts_start"], slot["_ts_end"], sched_actual_pct)
+                            if result.get("success") or result.get("id"):
+                                note = result.get("note", "")
+                                label = f"【{slot_label}】" if len(slots_to_apply) > 1 else ""
+                                st.success(f"✅ {cname}{label}{note if note else '排程建立成功'}")
+                                st.session_state.setdefault("today_scheds", {})[cid] = pct_sign
+                            else:
+                                err_msg = result.get("error", {}).get("message", str(result))
+                                st.error(f"❌ {cname}【{slot_label}】{err_msg}")
         else:
             st.info("請先點「載入活動與成效」")
 
