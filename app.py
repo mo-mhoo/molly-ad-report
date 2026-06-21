@@ -1585,18 +1585,21 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             combined = sorted(zip(rows, camp_id_list), key=_sort_key)
             rows, camp_id_list = (list(z) for z in zip(*combined)) if combined else ([], [])
 
-            # ── 快速選取按鈕
-            # 快速選取按鈕（遞增版本號強制 AgGrid 重新渲染）
-            def _sched_btn(label, sel_dict, key):
-                if st.button(label, key=key, use_container_width=True):
-                    st.session_state["sched_sel"]   = sel_dict
-                    st.session_state["sched_sel_v"] = st.session_state.get("sched_sel_v", 0) + 1
-                    st.rerun()
-
-            _sched_btn("全選",       {cid: True  for cid in camp_id_list},              "sel_all")
-            _sched_btn("取消全選",   {cid: False for cid in camp_id_list},              "sel_none")
-            _sched_btn("選🟢有花費", {camp_id_list[i]: rows[i]["今日花費"] > 0
-                                      for i in range(len(rows))},                        "sel_spend")
+            # ── 快速選取按鈕（遞增版本號強制 AgGrid 重新渲染）
+            qb1, qb2, qb3 = st.columns(3)
+            if qb1.button("全選", key="sel_all", use_container_width=True):
+                st.session_state["sched_sel"]   = {cid: True for cid in camp_id_list}
+                st.session_state["sched_sel_v"] = st.session_state.get("sched_sel_v", 0) + 1
+                st.rerun()
+            if qb2.button("取消全選", key="sel_none", use_container_width=True):
+                st.session_state["sched_sel"]   = {cid: False for cid in camp_id_list}
+                st.session_state["sched_sel_v"] = st.session_state.get("sched_sel_v", 0) + 1
+                st.rerun()
+            if qb3.button("選🟢有花費", key="sel_spend", use_container_width=True):
+                st.session_state["sched_sel"]   = {camp_id_list[i]: rows[i]["今日花費"] > 0
+                                                    for i in range(len(rows))}
+                st.session_state["sched_sel_v"] = st.session_state.get("sched_sel_v", 0) + 1
+                st.rerun()
 
             # 套用選取狀態（供 AgGrid pre_selected_rows 使用）
             sel_state = st.session_state.get("sched_sel", {})
@@ -1880,17 +1883,21 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             df_adj = pd.DataFrame(adj_rows)
             display_cols = ["狀", "活動名稱", "日預算", "今日花費", "今日ROAS", "7天ROAS", "今日購買", "今日CPA", "轉換價值"]
 
-            # 快速選取按鈕（點擊時遞增版本號，強制 AgGrid 重新渲染）
-            def _adj_btn(label, sel_dict, key):
-                if st.button(label, key=key, use_container_width=True):
-                    st.session_state["adj_sel"]   = sel_dict
-                    st.session_state["adj_sel_v"] = st.session_state.get("adj_sel_v", 0) + 1
-                    st.rerun()
-
-            _adj_btn("全選",       {cid: True  for cid in adj_id_list},                    "adj_all")
-            _adj_btn("取消全選",   {cid: False for cid in adj_id_list},                    "adj_none")
-            _adj_btn("選🟢有花費", {adj_id_list[i]: adj_rows[i]["今日花費"] > 0
-                                    for i in range(len(adj_rows))},                         "adj_spend")
+            # 快速選取按鈕（遞增版本號強制 AgGrid 重新渲染）
+            ab1, ab2, ab3 = st.columns(3)
+            if ab1.button("全選", key="adj_all", use_container_width=True):
+                st.session_state["adj_sel"]   = {cid: True for cid in adj_id_list}
+                st.session_state["adj_sel_v"] = st.session_state.get("adj_sel_v", 0) + 1
+                st.rerun()
+            if ab2.button("取消全選", key="adj_none", use_container_width=True):
+                st.session_state["adj_sel"]   = {cid: False for cid in adj_id_list}
+                st.session_state["adj_sel_v"] = st.session_state.get("adj_sel_v", 0) + 1
+                st.rerun()
+            if ab3.button("選🟢有花費", key="adj_spend", use_container_width=True):
+                st.session_state["adj_sel"]   = {adj_id_list[i]: adj_rows[i]["今日花費"] > 0
+                                                  for i in range(len(adj_rows))}
+                st.session_state["adj_sel_v"] = st.session_state.get("adj_sel_v", 0) + 1
+                st.rerun()
 
             sel_state_adj = st.session_state.get("adj_sel", {})
             pre_sel_adj = [i for i, cid in enumerate(adj_id_list) if sel_state_adj.get(cid, False)]
