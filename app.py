@@ -780,8 +780,10 @@ def fetch_today_campaign_insights(access_token, ad_account_id, date_preset="toda
     }
     try:
         resp = requests.get(url, params=params, timeout=30).json()
-    except Exception:
-        return {}
+    except Exception as e:
+        raise Exception(f"Insights API 請求失敗: {e}")
+    if "error" in resp:
+        raise Exception(resp["error"].get("message", str(resp["error"])))
     result = {}
     for row in resp.get("data", []):
         cid = row.get("campaign_id")
