@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import requests
 import json
+import math
 from datetime import date, timedelta, datetime, timezone
 from pathlib import Path
 import calendar
@@ -631,6 +632,18 @@ def fetch_campaigns_with_budget(access_token, ad_account_id):
         url    = resp.get("paging", {}).get("next")
         params = {}   # next URL 已含所有參數，清空避免重複
     return all_camps
+
+def _fmt_roas(v):
+    """安全格式化 ROAS：None/NaN/Inf 都回傳 '—'"""
+    if v is None:
+        return "—"
+    try:
+        f = float(v)
+        if math.isnan(f) or math.isinf(f):
+            return "—"
+        return f"{f:.1f}"
+    except (TypeError, ValueError):
+        return "—"
 
 def _end_ts(s):
     """排程結束時間 → Unix timestamp（支援整數字串和 ISO 格式）"""
@@ -1600,8 +1613,8 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             for i, row in enumerate(rows):
                 row["_cid"] = camp_id_list[i]
                 row["排程後預計"] = f"${row['排程後預計']}"
-                row["今日ROAS"] = f"{row['今日ROAS']:.1f}" if row["今日ROAS"] is not None else "—"
-                row["7天ROAS"]  = f"{row['7天ROAS']:.1f}"  if row["7天ROAS"]  is not None else "—"
+                row["今日ROAS"] = _fmt_roas(row["今日ROAS"])
+                row["7天ROAS"]  = _fmt_roas(row["7天ROAS"])
             df_sched = pd.DataFrame(rows)
 
             gb = GridOptionsBuilder.from_dataframe(df_sched)
@@ -1864,8 +1877,8 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
 
             # 格式化欄位（ROAS 轉字串）
             for row in adj_rows:
-                row["今日ROAS"] = f"{row['今日ROAS']:.1f}" if row["今日ROAS"] is not None else "—"
-                row["7天ROAS"]  = f"{row['7天ROAS']:.1f}"  if row["7天ROAS"]  is not None else "—"
+                row["今日ROAS"] = _fmt_roas(row["今日ROAS"])
+                row["7天ROAS"]  = _fmt_roas(row["7天ROAS"])
                 row["今日CPA"]  = f"${row['今日CPA']:,}"    if row["今日CPA"]  is not None else "—"
                 row["轉換價值"] = f"${row['轉換價值']:,}"   if row["轉換價值"] is not None else "—"
 
