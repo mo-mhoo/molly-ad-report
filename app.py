@@ -1573,17 +1573,17 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             rows, camp_id_list = (list(z) for z in zip(*combined)) if combined else ([], [])
 
             # ── 快速選取按鈕
-            qb1, qb2, qb3, qb4 = st.columns([1, 1, 1.5, 4])
+            qb1, qb2, qb3 = st.columns(3)
             with qb1:
-                if st.button("全選", key="sel_all"):
+                if st.button("全選", key="sel_all", use_container_width=True):
                     st.session_state["sched_sel"] = {cid: True for cid in camp_id_list}
                     st.rerun()
             with qb2:
-                if st.button("取消全選", key="sel_none"):
+                if st.button("取消全選", key="sel_none", use_container_width=True):
                     st.session_state["sched_sel"] = {cid: False for cid in camp_id_list}
                     st.rerun()
             with qb3:
-                if st.button("選🟢有花費", key="sel_spend"):
+                if st.button("選🟢有花費", key="sel_spend", use_container_width=True):
                     st.session_state["sched_sel"] = {
                         camp_id_list[i]: rows[i]["今日花費"] > 0
                         for i in range(len(rows))
@@ -1612,19 +1612,19 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             )
             gb.configure_column("選取",   hide=True)
             gb.configure_column("_cid",   hide=True)
-            # 第一個可見欄加 checkbox + header 全選
-            gb.configure_column("狀", width=60, header_name="狀",
+            gb.configure_column("狀", width=55, header_name="狀",
                                 checkboxSelection=True, headerCheckboxSelection=True)
-            gb.configure_column("活動名稱", flex=1,   header_name="活動名稱")
-            gb.configure_column("日預算",   width=90, header_name="日預算")
-            gb.configure_column("今日花費", width=90, header_name="今日花費")
-            gb.configure_column("今日ROAS", width=90, header_name="今日ROAS")
-            gb.configure_column("7天ROAS",  width=90, header_name="7天ROAS")
-            gb.configure_column("今日排程", width=90,  header_name="今日排程")
-            gb.configure_column("排程後預計", width=130, header_name=f"排程後預計（{pct_sign}）")
-            gb.configure_column("今日購買",  width=80,  header_name="今日購買")
-            gb.configure_column("今日CPA",   width=80,  header_name="今日CPA")
-            gb.configure_column("轉換價值",  width=90,  header_name="轉換價值")
+            gb.configure_column("活動名稱", minWidth=140, width=140, header_name="活動名稱")
+            gb.configure_column("日預算",   width=80,  header_name="日預算")
+            gb.configure_column("今日花費", width=80,  header_name="今日花費")
+            gb.configure_column("今日ROAS", width=80,  header_name="今日ROAS")
+            gb.configure_column("7天ROAS",  width=75,  header_name="7天ROAS")
+            gb.configure_column("今日排程", width=80,  header_name="今日排程")
+            gb.configure_column("排程後預計", width=110, header_name=f"排程後預計（{pct_sign}）")
+            gb.configure_column("今日購買",  width=75,  header_name="今日購買")
+            gb.configure_column("今日CPA",   width=75,  header_name="今日CPA")
+            gb.configure_column("轉換價值",  width=80,  header_name="轉換價值")
+            gb.configure_grid_options(suppressSizeColumnsToFit=True, rowHeight=40)
             go = gb.build()
 
             grid_resp = AgGrid(
@@ -1632,7 +1632,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 gridOptions=go,
                 update_mode=GridUpdateMode.SELECTION_CHANGED,
                 fit_columns_on_grid_load=False,
-                height=min(420, 48 + 36 * len(rows)),
+                height=min(420, 48 + 40 * len(rows)),
                 theme="streamlit",
                 key="sched_aggrid",
             )
