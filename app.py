@@ -1623,21 +1623,20 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             )
             gb.configure_column("選取",   hide=True)
             gb.configure_column("_cid",   hide=True)
-            gb.configure_column("狀", width=55, header_name="狀",
-                                checkboxSelection=True, headerCheckboxSelection=True)
-            gb.configure_column("活動名稱", minWidth=150, width=150, header_name="活動名稱")
-            gb.configure_column("今日花費", width=82,  header_name="今日花費")
-            gb.configure_column("今日ROAS", width=82,  header_name="今日ROAS")
-            gb.configure_column("7天ROAS",  width=78,  header_name="7天ROAS")
-            gb.configure_column("今日排程", width=82,  header_name="今日排程")
-            # 次要欄位預設隱藏
-            gb.configure_column("日預算",     width=80,  header_name="日預算",  hide=True)
-            gb.configure_column("排程後預計", width=110, header_name=f"排程後預計（{pct_sign}）", hide=True)
-            gb.configure_column("今日購買",   width=75,  header_name="今日購買", hide=True)
-            gb.configure_column("今日CPA",    width=75,  header_name="今日CPA",  hide=True)
-            gb.configure_column("轉換價值",   width=80,  header_name="轉換價值", hide=True)
-            gb.configure_grid_options(suppressSizeColumnsToFit=True, rowHeight=40)
+            gb.configure_column("狀",         width=55,  header_name="狀", checkboxSelection=True, headerCheckboxSelection=True)
+            gb.configure_column("活動名稱",   width=160, header_name="活動名稱")
+            gb.configure_column("日預算",     width=82,  header_name="日預算")
+            gb.configure_column("今日花費",   width=82,  header_name="今日花費")
+            gb.configure_column("今日ROAS",   width=82,  header_name="今日ROAS")
+            gb.configure_column("7天ROAS",    width=78,  header_name="7天ROAS")
+            gb.configure_column("今日排程",   width=82,  header_name="今日排程")
+            gb.configure_column("排程後預計", width=110, header_name=f"排程後預計（{pct_sign}）")
+            gb.configure_column("今日購買",   width=78,  header_name="今日購買")
+            gb.configure_column("今日CPA",    width=78,  header_name="今日CPA")
+            gb.configure_column("轉換價值",   width=85,  header_name="轉換價值")
+            gb.configure_grid_options(rowHeight=40)
             go = gb.build()
+            go["suppressSizeColumnsToFit"] = True  # 確保欄位不被壓縮，讓表格左右滑動
 
             grid_resp = AgGrid(
                 df_sched,
@@ -1908,17 +1907,17 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             gb2.configure_selection(selection_mode="multiple", use_checkbox=True,
                                     pre_selected_rows=pre_sel_adj)
             gb2.configure_column("狀",       width=55,  checkboxSelection=True, headerCheckboxSelection=True)
-            gb2.configure_column("活動名稱", minWidth=150, width=150)
+            gb2.configure_column("活動名稱", width=160)
+            gb2.configure_column("日預算",   width=82,  type=["numericColumn"])
             gb2.configure_column("今日花費", width=82,  type=["numericColumn"])
             gb2.configure_column("今日ROAS", width=82)
             gb2.configure_column("7天ROAS",  width=78)
-            gb2.configure_column("今日購買", width=75)
-            # 次要欄位預設隱藏（手機空間不足）
-            gb2.configure_column("日預算",   width=80,  type=["numericColumn"], hide=True)
-            gb2.configure_column("今日CPA",  width=78,  hide=True)
-            gb2.configure_column("轉換價值", width=85,  hide=True)
-            gb2.configure_grid_options(suppressSizeColumnsToFit=True, rowHeight=40)
+            gb2.configure_column("今日購買", width=78)
+            gb2.configure_column("今日CPA",  width=78)
+            gb2.configure_column("轉換價值", width=85)
+            gb2.configure_grid_options(rowHeight=40)
             go2 = gb2.build()
+            go2["suppressSizeColumnsToFit"] = True  # 確保欄位不被壓縮，讓表格左右滑動
 
             grid_adj = AgGrid(
                 df_adj[display_cols], gridOptions=go2,
