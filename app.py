@@ -1523,9 +1523,10 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                                 cid = futures[future]
                                 try:
                                     scheds = future.result()
-                                    # 只顯示台北今天或昨天的排程（跨午夜不消失）
-                                    active = [s for s in scheds
-                                              if _sched_tw_date(s) in (_today_tw, _yesterday_tw)]
+                                    # 優先顯示台北今天；今天沒有才 fallback 昨天（跨午夜不消失）
+                                    _today_s     = [s for s in scheds if _sched_tw_date(s) == _today_tw]
+                                    _yesterday_s = [s for s in scheds if _sched_tw_date(s) == _yesterday_tw]
+                                    active = _today_s if _today_s else _yesterday_s
                                     if active:
                                         bv = int(active[0].get("budget_value", 100))
                                         today_scheds[cid] = {
