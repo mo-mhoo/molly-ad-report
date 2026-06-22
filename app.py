@@ -720,6 +720,18 @@ def delete_budget_schedule(access_token, schedule_id):
     ).json()
     return resp
 
+def update_budget_schedule(access_token, schedule_id, new_pct):
+    """修改現有預算排程的幅度（PATCH via POST /{schedule_id}）"""
+    resp = requests.post(
+        f"https://graph.facebook.com/v25.0/{schedule_id}",
+        data={
+            "budget_value": str(int(new_pct)),
+            "access_token": access_token,
+        },
+        timeout=15,
+    ).json()
+    return resp
+
 def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_increase):
     # 若開始時間已過，自動推到下一個 15 分鐘整點
     TZ_TAIPEI = timezone(timedelta(hours=8))
@@ -1463,7 +1475,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
     st.divider()
     st.subheader("📅 預算排程")
 
-    tab_new, tab_del = st.tabs(["➕ 新增排程", "🗑️ 刪除排程"])
+    tab_new, tab_mod, tab_del = st.tabs(["➕ 新增排程", "✏️ 修改今日排程", "🗑️ 刪除排程"])
 
     # ── Tab 1：新增排程（含查看今日排程）──────────────────────────
     with tab_new:
@@ -1499,7 +1511,11 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                                 active = [s for s in scheds if _end_ts(s) > now_ts]
                                 if active:
                                     bv = int(active[0].get("budget_value", 100))
-                                    today_scheds[cid] = f"+{bv}%" if bv >= 0 else f"{bv}%"
+                                    today_scheds[cid] = {
+                                        "tag": f"+{bv}%" if bv >= 0 else f"{bv}%",
+                                        "schedule_id": active[0]["id"],
+                                        "budget_value": bv,
+                                    }
                         st.session_state["today_scheds"] = today_scheds
                     except Exception as e:
                         st.error(f"錯誤：{e}")
@@ -1635,7 +1651,8 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 ins_7d = sched_ins_7d.get(c["id"], {})
                 daily_b      = int(c["daily_budget"])
                 projected    = round(daily_b * (1 + sched_actual_pct / 100))
-                sched_tag    = today_scheds.get(c["id"], "—")
+                _ts_entry    = today_scheds.get(c["id"])
+                sched_tag    = _ts_entry["tag"] if isinstance(_ts_entry, dict) else (_ts_entry or "—")
                 spend_today  = round(ins.get("spend", 0))
                 orders_today = ins.get("orders", 0)
                 pv_today     = ins.get("purchase_val", 0)
@@ -1764,14 +1781,114 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                                 note = result.get("note", "")
                                 label = f"【{slot_label}】" if len(slots_to_apply) > 1 else ""
                                 st.success(f"✅ {cname}{label}{note if note else '排程建立成功'}")
-                                st.session_state.setdefault("today_scheds", {})[cid] = pct_sign
+                                st.session_state.setdefault("today_scheds", {})[cid] = {
+                                    "tag": pct_sign,
+                                    "schedule_id": result.get("id", ""),
+                                    "budget_value": sched_actual_pct,
+                                }
                             else:
                                 err_msg = result.get("error", {}).get("message", str(result))
                                 st.error(f"❌ {cname}【{slot_label}】{err_msg}")
         else:
             st.info("請先點「載入活動與成效」")
 
-    # ── Tab 2：刪除排程 ─────────────────────────────────────────
+    # ── Tab 2：修改今日排程 ────────────────────────────────────────
+    with tab_mod:
+        today_scheds_mod = st.session_state.get("today_scheds", {})
+        campaigns_mod    = st.session_state.get("campaigns", [])
+
+        if not campaigns_mod:
+            st.info("請先在「➕ 新增排程」頁籤點「載入活動與成效」")
+        else:
+            mod_camps = [c for c in campaigns_mod
+                         if isinstance(today_scheds_mod.get(c["id"]), dict)]
+            if not mod_camps:
+                st.info("今日尚無已建立的排程（或尚未載入）")
+            else:
+                st.caption(f"共 {len(mod_camps)} 個活動今日有排程，可直接修改幅度")
+
+                mod_new_pct = st.number_input(
+                    "新幅度 (%，正數 = 加碼，負數 = 減碼)",
+                    min_value=-99, max_value=10000, value=20, step=5,
+                    key="mod_new_pct",
+                )
+
+                mod_rows, mod_id_list = [], []
+                for c in mod_camps:
+                    entry = today_scheds_mod[c["id"]]
+                    mod_rows.append({
+                        "選取":     False,
+                        "活動名稱": c["name"],
+                        "目前排程": entry["tag"],
+                        "修改後":   f"+{mod_new_pct}%" if mod_new_pct >= 0 else f"{mod_new_pct}%",
+                    })
+                    mod_id_list.append(c["id"])
+
+                sel_state_mod = st.session_state.get("mod_sel", {})
+                mc1, mc2 = st.columns(2)
+                if mc1.button("全選", key="mod_sel_all", use_container_width=True):
+                    st.session_state["mod_sel"]   = {cid: True for cid in mod_id_list}
+                    st.session_state["mod_sel_v"] = st.session_state.get("mod_sel_v", 0) + 1
+                    st.rerun()
+                if mc2.button("取消全選", key="mod_sel_none", use_container_width=True):
+                    st.session_state["mod_sel"]   = {cid: False for cid in mod_id_list}
+                    st.session_state["mod_sel_v"] = st.session_state.get("mod_sel_v", 0) + 1
+                    st.rerun()
+
+                for i, row in enumerate(mod_rows):
+                    row["選取"] = sel_state_mod.get(mod_id_list[i], False)
+
+                edited_mod = st.data_editor(
+                    pd.DataFrame(mod_rows),
+                    use_container_width=True,
+                    hide_index=True,
+                    height=min(420, 50 + 40 * len(mod_rows)),
+                    column_config={
+                        "選取":     st.column_config.CheckboxColumn("✓",    width="small"),
+                        "活動名稱": st.column_config.TextColumn("活動名稱", width=180),
+                        "目前排程": st.column_config.TextColumn("目前排程", width=90),
+                        "修改後":   st.column_config.TextColumn("修改後",   width=80),
+                    },
+                    disabled=["活動名稱", "目前排程", "修改後"],
+                    key=f"mod_editor_{st.session_state.get('mod_sel_v', 0)}",
+                )
+
+                st.session_state["mod_sel"] = {
+                    mod_id_list[i]: bool(edited_mod.iloc[i]["選取"])
+                    for i in range(len(mod_id_list))
+                }
+                selected_mod_ids = [mod_id_list[i] for i in range(len(mod_rows))
+                                    if edited_mod.iloc[i]["選取"]]
+
+                if selected_mod_ids:
+                    new_sign = f"+{mod_new_pct}%" if mod_new_pct >= 0 else f"{mod_new_pct}%"
+                    st.info(f"已選 **{len(selected_mod_ids)}** 個活動，將排程幅度改為 **{new_sign}**")
+
+                    if st.button("✅ 確認修改排程", type="primary", key="confirm_mod"):
+                        _token = cfg.get("meta_token", "")
+                        ok, fail = 0, 0
+                        for cid in selected_mod_ids:
+                            entry  = today_scheds_mod[cid]
+                            sched_id = entry["schedule_id"]
+                            cname  = next((c["name"] for c in mod_camps if c["id"] == cid), cid)
+                            result = update_budget_schedule(_token, sched_id, mod_new_pct)
+                            if "error" not in result:
+                                st.success(f"✅ {cname} 已更新為 {new_sign}")
+                                st.session_state["today_scheds"][cid] = {
+                                    "tag": new_sign,
+                                    "schedule_id": sched_id,
+                                    "budget_value": mod_new_pct,
+                                }
+                                ok += 1
+                            else:
+                                err = result.get("error", {}).get("message", str(result))
+                                st.error(f"❌ {cname}：{err}")
+                                fail += 1
+                        if ok:
+                            st.session_state["mod_sel_v"] = st.session_state.get("mod_sel_v", 0) + 1
+                            st.rerun()
+
+    # ── Tab 3：刪除排程 ─────────────────────────────────────────
     with tab_del:
         if st.button("🔄 載入排程", key="load_del_scheds"):
             _token = cfg.get("meta_token", "")
