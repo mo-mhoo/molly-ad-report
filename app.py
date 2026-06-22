@@ -8,6 +8,12 @@ from pathlib import Path
 import calendar
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 
+# AgGrid 手機橫向滑動 CSS（注入進 iframe 內部）
+AGGRID_SCROLL_CSS = {
+    ".ag-root-wrapper": {"overflow-x": "auto !important"},
+    ".ag-root":         {"width": "max-content !important"},
+}
+
 st.set_page_config(page_title="廣告週報產生器", page_icon="📊", layout="wide")
 
 REPORT_DIR = Path("/Users/a111111/Downloads/TSA/Report/")
@@ -1636,7 +1642,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             gb.configure_column("轉換價值",   width=85,  header_name="轉換價值")
             gb.configure_grid_options(rowHeight=40)
             go = gb.build()
-            go["suppressSizeColumnsToFit"] = True  # 確保欄位不被壓縮，讓表格左右滑動
+            go["suppressSizeColumnsToFit"] = True
 
             grid_resp = AgGrid(
                 df_sched,
@@ -1645,6 +1651,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 fit_columns_on_grid_load=False,
                 height=min(420, 48 + 40 * len(rows)),
                 theme="streamlit",
+                custom_css=AGGRID_SCROLL_CSS,
                 key=f"sched_aggrid_{st.session_state.get('sched_sel_v', 0)}",
             )
 
@@ -1917,13 +1924,14 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             gb2.configure_column("轉換價值", width=85)
             gb2.configure_grid_options(rowHeight=40)
             go2 = gb2.build()
-            go2["suppressSizeColumnsToFit"] = True  # 確保欄位不被壓縮，讓表格左右滑動
+            go2["suppressSizeColumnsToFit"] = True
 
             grid_adj = AgGrid(
                 df_adj[display_cols], gridOptions=go2,
                 update_mode=GridUpdateMode.SELECTION_CHANGED,
                 fit_columns_on_grid_load=False,
                 theme="streamlit", key=adj_grid_key,
+                custom_css=AGGRID_SCROLL_CSS,
                 height=min(420, 60 + len(df_adj) * 40),
             )
 
