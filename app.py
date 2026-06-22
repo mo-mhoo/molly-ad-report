@@ -925,6 +925,22 @@ def enrich_ad_dims(df):
 with st.sidebar:
     st.header("⚙️ 設定")
 
+    # ── 管理員驗證 ──────────────────────────────────────────────
+    _admin_pwd = st.secrets.get("admin_password", "")
+    if _admin_pwd and not st.session_state.get("is_admin"):
+        _pwd_input = st.text_input("管理員密碼", type="password", key="admin_pwd_input")
+        if st.button("登入", key="admin_login"):
+            if _pwd_input == _admin_pwd:
+                st.session_state["is_admin"] = True
+                st.rerun()
+            else:
+                st.error("密碼錯誤")
+    is_admin = st.session_state.get("is_admin", True) if not _admin_pwd else st.session_state.get("is_admin", False)
+    if is_admin and _admin_pwd:
+        if st.button("登出", key="admin_logout"):
+            st.session_state["is_admin"] = False
+            st.rerun()
+
     # ── 廣告帳戶（最頂端）──────────────────────────────────────
     accounts = cfg.get("meta_accounts", [])
     if accounts:
@@ -956,44 +972,47 @@ with st.sidebar:
         data_source = "CSV 手動上傳"
 
     if data_source == "Meta API 自動抓取":
-        st.divider()
-        st.markdown("**Meta Access Token**")
-        meta_token = st.text_input(
-            "Access Token",
-            value=cfg.get("meta_token", ""),
-            type="password",
-        )
-        if st.button("💾 儲存 Token"):
-            cfg["meta_token"] = meta_token
-            save_config(cfg)
-            st.success("Token 已儲存")
+        if is_admin:
+            st.divider()
+            st.markdown("**Meta Access Token**")
+            meta_token = st.text_input(
+                "Access Token",
+                value=cfg.get("meta_token", ""),
+                type="password",
+            )
+            if st.button("💾 儲存 Token"):
+                cfg["meta_token"] = meta_token
+                save_config(cfg)
+                st.success("Token 已儲存")
 
-        st.divider()
-        st.markdown("**帳戶管理**")
-        with st.expander("➕ 新增帳戶"):
-            new_name = st.text_input("帳戶名稱（例：毛孩時代官網）", key="new_acct_name")
-            new_id   = st.text_input("廣告帳戶 ID", key="new_acct_id")
-            new_type = st.radio("帳戶類型", ["general（官網）", "cpas（momo/蝦皮）"], key="new_acct_type")
-            if st.button("新增"):
-                if new_name and new_id:
-                    accounts.append({
-                        "name": new_name,
-                        "id": new_id.strip(),
-                        "type": "cpas" if "cpas" in new_type else "general",
-                    })
-                    cfg["meta_accounts"] = accounts
-                    save_config(cfg)
-                    st.success(f"已新增：{new_name}")
-                    st.rerun()
+            st.divider()
+            st.markdown("**帳戶管理**")
+            with st.expander("➕ 新增帳戶"):
+                new_name = st.text_input("帳戶名稱（例：毛孩時代官網）", key="new_acct_name")
+                new_id   = st.text_input("廣告帳戶 ID", key="new_acct_id")
+                new_type = st.radio("帳戶類型", ["general（官網）", "cpas（momo/蝦皮）"], key="new_acct_type")
+                if st.button("新增"):
+                    if new_name and new_id:
+                        accounts.append({
+                            "name": new_name,
+                            "id": new_id.strip(),
+                            "type": "cpas" if "cpas" in new_type else "general",
+                        })
+                        cfg["meta_accounts"] = accounts
+                        save_config(cfg)
+                        st.success(f"已新增：{new_name}")
+                        st.rerun()
 
-        if accounts:
-            with st.expander("🗑️ 刪除帳戶"):
-                del_idx = st.selectbox("選擇要刪除的帳戶", range(len(acct_labels)), format_func=lambda i: acct_labels[i], key="del_acct")
-                if st.button("確認刪除", type="secondary"):
-                    accounts.pop(del_idx)
-                    cfg["meta_accounts"] = accounts
-                    save_config(cfg)
-                    st.rerun()
+            if accounts:
+                with st.expander("🗑️ 刪除帳戶"):
+                    del_idx = st.selectbox("選擇要刪除的帳戶", range(len(acct_labels)), format_func=lambda i: acct_labels[i], key="del_acct")
+                    if st.button("確認刪除", type="secondary"):
+                        accounts.pop(del_idx)
+                        cfg["meta_accounts"] = accounts
+                        save_config(cfg)
+                        st.rerun()
+        else:
+            meta_token = cfg.get("meta_token", "")
     else:
         meta_token = cfg.get("meta_token", "")
         selected_account_id   = cfg.get("meta_account_id", "")
