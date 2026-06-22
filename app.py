@@ -976,18 +976,22 @@ with st.sidebar:
         data_source = "CSV 手動上傳"
 
     if data_source == "Meta API 自動抓取":
+        meta_token = cfg.get("meta_token", "")
+        # Token UI 只在本機（secrets 沒有 token）才顯示
+        _token_in_secrets = bool(st.secrets.get("meta_token", ""))
         if is_admin:
-            st.divider()
-            st.markdown("**Meta Access Token**")
-            meta_token = st.text_input(
-                "Access Token",
-                value=cfg.get("meta_token", ""),
-                type="password",
-            )
-            if st.button("💾 儲存 Token"):
-                cfg["meta_token"] = meta_token
-                save_config(cfg)
-                st.success("Token 已儲存")
+            if not _token_in_secrets:
+                st.divider()
+                st.markdown("**Meta Access Token**")
+                meta_token = st.text_input(
+                    "Access Token",
+                    value=meta_token,
+                    type="password",
+                )
+                if st.button("💾 儲存 Token"):
+                    cfg["meta_token"] = meta_token
+                    save_config(cfg)
+                    st.success("Token 已儲存")
 
             st.divider()
             st.markdown("**帳戶管理**")
