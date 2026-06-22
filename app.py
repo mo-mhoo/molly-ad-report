@@ -1802,6 +1802,11 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
         else:
             mod_camps = [c for c in campaigns_mod
                          if isinstance(today_scheds_mod.get(c["id"]), dict)]
+            with st.expander("🔍 debug（確認後可關閉）"):
+                st.write(f"campaigns 數量：{len(campaigns_mod)}")
+                st.write(f"today_scheds 數量：{len(today_scheds_mod)}")
+                st.write(f"today_scheds 範例（前3）：{dict(list(today_scheds_mod.items())[:3])}")
+                st.write(f"mod_camps 數量：{len(mod_camps)}")
             if not mod_camps:
                 st.info("今日尚無已建立的排程（或尚未載入）")
             else:
