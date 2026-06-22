@@ -1609,61 +1609,46 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 st.session_state["sched_sel_v"] = st.session_state.get("sched_sel_v", 0) + 1
                 st.rerun()
 
-            # 套用選取狀態（供 AgGrid pre_selected_rows 使用）
+            # 套用選取狀態
             sel_state = st.session_state.get("sched_sel", {})
-            for i, row in enumerate(rows):
-                row["選取"] = sel_state.get(camp_id_list[i], False)
 
             pct_sign = f"+{sched_actual_pct}%" if sched_actual_pct > 0 else f"{sched_actual_pct}%"
-            # 加上 _cid 隱藏欄讓選取後能對應回 campaign_id
+            proj_col = f"排程後預計（{pct_sign}）"
             for i, row in enumerate(rows):
-                row["_cid"] = camp_id_list[i]
-                row["排程後預計"] = f"${row['排程後預計']}"
+                row["✓"]      = "✓" if sel_state.get(camp_id_list[i], False) else ""
+                row[proj_col] = f"${row['排程後預計']}"
                 row["今日ROAS"] = _fmt_roas(row["今日ROAS"])
                 row["7天ROAS"]  = _fmt_roas(row["7天ROAS"])
             df_sched = pd.DataFrame(rows)
 
-            gb = GridOptionsBuilder.from_dataframe(df_sched)
-            gb.configure_selection(
-                selection_mode="multiple",
-                use_checkbox=True,
-                pre_selected_rows=[i for i, row in enumerate(rows) if row["選取"]],
-            )
-            gb.configure_column("選取",   hide=True)
-            gb.configure_column("_cid",   hide=True)
-            gb.configure_column("狀",         width=55,  header_name="狀", checkboxSelection=True, headerCheckboxSelection=True)
-            gb.configure_column("活動名稱",   width=160, header_name="活動名稱")
-            gb.configure_column("日預算",     width=82,  header_name="日預算")
-            gb.configure_column("今日花費",   width=82,  header_name="今日花費")
-            gb.configure_column("今日ROAS",   width=82,  header_name="今日ROAS")
-            gb.configure_column("7天ROAS",    width=78,  header_name="7天ROAS")
-            gb.configure_column("今日排程",   width=82,  header_name="今日排程")
-            gb.configure_column("排程後預計", width=110, header_name=f"排程後預計（{pct_sign}）")
-            gb.configure_column("今日購買",   width=78,  header_name="今日購買")
-            gb.configure_column("今日CPA",    width=78,  header_name="今日CPA")
-            gb.configure_column("轉換價值",   width=85,  header_name="轉換價值")
-            gb.configure_grid_options(rowHeight=40)
-            go = gb.build()
-            go["suppressSizeColumnsToFit"] = True
-
-            grid_resp = AgGrid(
-                df_sched,
-                gridOptions=go,
-                update_mode=GridUpdateMode.SELECTION_CHANGED,
-                columns_auto_size_mode=ColumnsAutoSizeMode.NO_AUTOSIZE,
-                height=min(420, 48 + 40 * len(rows)),
-                theme="streamlit",
-                custom_css=AGGRID_SCROLL_CSS,
-                key=f"sched_aggrid_{st.session_state.get('sched_sel_v', 0)}",
+            disp_cols_sched = ["✓", "狀", "活動名稱", "日預算", "今日花費", "今日ROAS",
+                               "7天ROAS", "今日排程", proj_col, "今日購買", "今日CPA", "轉換價值"]
+            st.dataframe(
+                df_sched[disp_cols_sched],
+                use_container_width=True,
+                hide_index=True,
+                height=min(420, 50 + 36 * len(rows)),
+                column_config={
+                    "✓":        st.column_config.TextColumn("✓",     width=30),
+                    "狀":        st.column_config.TextColumn("狀",     width=40),
+                    "活動名稱":  st.column_config.TextColumn("活動名稱", width=160),
+                    "日預算":    st.column_config.NumberColumn("日預算",   width=80),
+                    "今日花費":  st.column_config.NumberColumn("今日花費", width=80),
+                    "今日ROAS":  st.column_config.TextColumn("今日ROAS", width=75),
+                    "7天ROAS":   st.column_config.TextColumn("7天ROAS",  width=70),
+                    "今日排程":  st.column_config.TextColumn("今日排程", width=80),
+                    proj_col:    st.column_config.TextColumn(proj_col,   width=110),
+                    "今日購買":  st.column_config.NumberColumn("今日購買", width=70),
+                    "今日CPA":   st.column_config.TextColumn("今日CPA",  width=70),
+                    "轉換價值":  st.column_config.TextColumn("轉換價值", width=80),
+                },
             )
 
-            sel_rows = grid_resp.get("selected_rows")
-            if sel_rows is None or (isinstance(sel_rows, pd.DataFrame) and sel_rows.empty):
-                sel_rows = []
-            elif isinstance(sel_rows, pd.DataFrame):
-                sel_rows = sel_rows.to_dict("records")
-            selected_camp_ids   = [r["_cid"]   for r in sel_rows]
-            selected_camp_names = [r["活動名稱"] for r in sel_rows]
+            # 從 session_state 直接取已選活動
+            selected_camp_ids   = [camp_id_list[i] for i in range(len(rows))
+                                    if sel_state.get(camp_id_list[i], False)]
+            selected_camp_names = [rows[i]["活動名稱"] for i in range(len(rows))
+                                    if sel_state.get(camp_id_list[i], False)]
 
             n_camps = len(selected_camp_ids)
             pct_sign = f"+{sched_actual_pct}%" if sched_actual_pct > 0 else f"{sched_actual_pct}%"
@@ -1909,43 +1894,37 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 st.rerun()
 
             sel_state_adj = st.session_state.get("adj_sel", {})
-            pre_sel_adj = [i for i, cid in enumerate(adj_id_list) if sel_state_adj.get(cid, False)]
-            adj_grid_key = f"adj_aggrid_{st.session_state.get('adj_sel_v', 0)}"
 
-            gb2 = GridOptionsBuilder.from_dataframe(df_adj[display_cols])
-            gb2.configure_selection(selection_mode="multiple", use_checkbox=True,
-                                    pre_selected_rows=pre_sel_adj)
-            gb2.configure_column("狀",       width=55,  checkboxSelection=True, headerCheckboxSelection=True)
-            gb2.configure_column("活動名稱", width=160)
-            gb2.configure_column("日預算",   width=82,  type=["numericColumn"])
-            gb2.configure_column("今日花費", width=82,  type=["numericColumn"])
-            gb2.configure_column("今日ROAS", width=82)
-            gb2.configure_column("7天ROAS",  width=78)
-            gb2.configure_column("今日購買", width=78)
-            gb2.configure_column("今日CPA",  width=78)
-            gb2.configure_column("轉換價值", width=85)
-            gb2.configure_grid_options(rowHeight=40)
-            go2 = gb2.build()
-            go2["suppressSizeColumnsToFit"] = True
+            # 加 ✓ 欄顯示已選狀態
+            for i, row in enumerate(adj_rows):
+                row["✓"] = "✓" if sel_state_adj.get(adj_id_list[i], False) else ""
 
-            grid_adj = AgGrid(
-                df_adj[display_cols], gridOptions=go2,
-                update_mode=GridUpdateMode.SELECTION_CHANGED,
-                columns_auto_size_mode=ColumnsAutoSizeMode.NO_AUTOSIZE,
-                theme="streamlit", key=adj_grid_key,
-                custom_css=AGGRID_SCROLL_CSS,
-                height=min(420, 60 + len(df_adj) * 40),
+            display_cols = ["✓", "狀", "活動名稱", "日預算", "今日花費", "今日ROAS",
+                            "7天ROAS", "今日購買", "今日CPA", "轉換價值"]
+            df_adj = pd.DataFrame(adj_rows)
+            st.dataframe(
+                df_adj[display_cols],
+                use_container_width=True,
+                hide_index=True,
+                height=min(420, 50 + 36 * len(adj_rows)),
+                column_config={
+                    "✓":        st.column_config.TextColumn("✓",     width=30),
+                    "狀":        st.column_config.TextColumn("狀",     width=40),
+                    "活動名稱":  st.column_config.TextColumn("活動名稱", width=160),
+                    "日預算":    st.column_config.NumberColumn("日預算",   width=80),
+                    "今日花費":  st.column_config.NumberColumn("今日花費", width=80),
+                    "今日ROAS":  st.column_config.TextColumn("今日ROAS", width=75),
+                    "7天ROAS":   st.column_config.TextColumn("7天ROAS",  width=70),
+                    "今日購買":  st.column_config.NumberColumn("今日購買", width=70),
+                    "今日CPA":   st.column_config.TextColumn("今日CPA",  width=70),
+                    "轉換價值":  st.column_config.TextColumn("轉換價值", width=80),
+                },
             )
 
-            sel_adj = grid_adj.get("selected_rows")
-            if sel_adj is None or (isinstance(sel_adj, pd.DataFrame) and sel_adj.empty):
-                sel_adj = []
-            elif isinstance(sel_adj, pd.DataFrame):
-                sel_adj = sel_adj.to_dict("records")
-
-            if sel_adj:
-                sel_names = {r["活動名稱"] for r in sel_adj}
-                sel_camps = [c for c in adj_campaigns if c["name"] in sel_names and c.get("daily_budget")]
+            # 從 session_state 直接取已選活動
+            sel_camps = [c for c in adj_campaigns
+                         if c.get("daily_budget") and sel_state_adj.get(c["id"], False)]
+            if sel_camps:
                 st.markdown(f"**已選 {len(sel_camps)} 個活動**")
 
                 # 快捷幅度按鈕（立即套用）
