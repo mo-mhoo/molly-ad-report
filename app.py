@@ -1530,11 +1530,14 @@ def _do_load_campaigns(token, acct):
                     "budget_value": bv,
                 }
             st.session_state["today_scheds"] = today_scheds
-            if _errors:
-                st.warning(f"部分排程抓取失敗（{len(_errors)} 筆）：{_errors[0][:120]}")
-            st.success(f"載入完成：{len(camps)} 個活動，{len(today_scheds)} 個今日排程")
+            st.session_state["_load_msg"] = (
+                f"✅ 載入完成：{len(camps)} 個活動，"
+                f"今日池={len(_today_pool)} 昨日池={len(_yesterday_pool)} "
+                f"→ 今日排程={len(today_scheds)}"
+                + (f"  ⚠️ {len(_errors)} 筆失敗" if _errors else "")
+            )
         except Exception as e:
-            st.error(f"載入錯誤：{e}")
+            st.session_state["_load_msg"] = f"❌ 載入錯誤：{e}"
 
 
 if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
@@ -1839,6 +1842,9 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 else:
                     _do_load_campaigns(_mod_token, _mod_acct)
                     st.rerun()
+
+        if "_load_msg" in st.session_state:
+            st.caption(st.session_state.pop("_load_msg"))
 
         today_scheds_mod = st.session_state.get("today_scheds", {})
         campaigns_mod    = st.session_state.get("campaigns", [])
