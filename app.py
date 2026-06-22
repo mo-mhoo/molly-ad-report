@@ -1049,7 +1049,7 @@ df_curr = df_comp = df_mom = df_yoy = None
 
 if data_source == "Meta API 自動抓取":
     today = date.today()
-    preset_options = ["過去7天", "今日", "本月至今", "自訂"]
+    preset_options = ["今日", "過去7天", "本月至今", "自訂"]
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
