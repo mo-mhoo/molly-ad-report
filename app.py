@@ -709,6 +709,8 @@ def fetch_campaign_schedules(access_token, campaign_id):
         },
         timeout=15,
     ).json()
+    if "error" in resp:
+        raise Exception(resp["error"].get("message", str(resp["error"])))
     return resp.get("data", [])
 
 def delete_budget_schedule(access_token, schedule_id):
@@ -1526,9 +1528,9 @@ def _do_load_campaigns(token, acct):
                     except Exception as fe:
                         _errors.append(str(fe))
             st.session_state["today_scheds"] = today_scheds
+            _err_preview = f"｜⚠️{len(_errors)} 筆失敗：{_errors[0][:80]}" if _errors else ""
             st.session_state["_load_msg"] = (
-                f"✅ {len(camps)} 活動 / {len(_active_camps)} ACTIVE → 今日排程={len(today_scheds)}"
-                + (f"｜⚠️{len(_errors)} 筆失敗" if _errors else "")
+                f"✅ {len(camps)} 活動 / {len(_active_camps)} ACTIVE → 今日排程={len(today_scheds)}{_err_preview}"
             )
         except Exception as e:
             st.session_state["_load_msg"] = f"❌ 載入錯誤：{e}"
