@@ -922,6 +922,10 @@ def enrich_ad_dims(df):
     df["素材類型"] = _d.apply(lambda x: x["素材類型"])
     return df
 
+# 帳號快速切換：在 sidebar 渲染前套用 pending 值（不能在 widget 渲染後直接改 widget key）
+if "acct_sel_pending" in st.session_state:
+    st.session_state["acct_sel"] = st.session_state.pop("acct_sel_pending")
+
 with st.sidebar:
     st.header("⚙️ 設定")
 
@@ -1034,7 +1038,7 @@ if accounts and len(accounts) > 1:
         if col.button(label, key=f"acct_btn_{i}",
                       type="primary" if i == cur_idx else "secondary",
                       use_container_width=True):
-            st.session_state["acct_sel"] = i
+            st.session_state["acct_sel_pending"] = i
             st.rerun()
 
 df_curr = df_comp = df_mom = df_yoy = None
