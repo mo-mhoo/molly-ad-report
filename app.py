@@ -1471,6 +1471,63 @@ else:
     else:
         st.info("👆 請先選擇「本期報表」或上傳 CSV 檔案")
 
+def _do_load_campaigns(token, acct):
+    """載入活動、成效、今日排程，全部存入 session_state。兩個 tab 共用。"""
+    TZ_TAIPEI = timezone(timedelta(hours=8))
+
+    def _sched_tw_date(s):
+        v = s.get("time_start", 0)
+        try:
+            ts = int(v)
+        except (ValueError, TypeError):
+            ts = int(datetime.strptime(str(v), "%Y-%m-%dT%H:%M:%S%z").timestamp())
+        return (datetime.utcfromtimestamp(ts) + timedelta(hours=8)).date()
+
+    with st.spinner("載入中（含 7 天成效與今日排程）..."):
+        try:
+            with ThreadPoolExecutor(max_workers=3) as ex:
+                f_camps  = ex.submit(fetch_campaigns_with_budget, token, acct)
+                f_ins    = ex.submit(fetch_today_campaign_insights, token, acct, "today")
+                f_ins_7d = ex.submit(fetch_today_campaign_insights, token, acct, "last_7d")
+                camps      = f_camps.result()
+                ins_today  = f_ins.result()
+                ins_7d_raw = f_ins_7d.result()
+            st.session_state["campaigns"]         = camps
+            st.session_state["sched_insights"]    = ins_today
+            st.session_state["sched_insights_7d"] = ins_7d_raw
+
+            _now_tw       = datetime.now(TZ_TAIPEI)
+            _today_tw     = _now_tw.date()
+            _yesterday_tw = _today_tw - timedelta(days=1)
+            today_scheds  = {}
+            _errors       = []
+            with ThreadPoolExecutor(max_workers=5) as ex:
+                futures = {ex.submit(fetch_campaign_schedules, token, c["id"]): c["id"]
+                           for c in camps if c.get("status") == "ACTIVE"}
+                for future in as_completed(futures):
+                    cid = futures[future]
+                    try:
+                        scheds = future.result()
+                        _today_s     = [s for s in scheds if _sched_tw_date(s) == _today_tw]
+                        _yesterday_s = [s for s in scheds if _sched_tw_date(s) == _yesterday_tw]
+                        active = _today_s if _today_s else _yesterday_s
+                        if active:
+                            bv = int(active[0].get("budget_value", 100))
+                            today_scheds[cid] = {
+                                "tag": f"+{bv}%" if bv >= 0 else f"{bv}%",
+                                "schedule_id": active[0]["id"],
+                                "budget_value": bv,
+                            }
+                    except Exception as fe:
+                        _errors.append(str(fe))
+            st.session_state["today_scheds"] = today_scheds
+            if _errors:
+                st.warning(f"部分排程抓取失敗（{len(_errors)} 筆）：{_errors[0][:120]}")
+            st.success(f"載入完成：{len(camps)} 個活動，{len(today_scheds)} 個今日排程")
+        except Exception as e:
+            st.error(f"載入錯誤：{e}")
+
+
 if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
     st.divider()
     st.subheader("📅 預算排程")
@@ -1485,62 +1542,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             if not _token or not _acct:
                 st.error("請先設定 Token 和帳戶")
             else:
-                with st.spinner("載入中（含 7 天成效與今日排程）..."):
-                    try:
-                        # 並發：campaigns + 今日成效 + 7天成效 同時打
-                        with ThreadPoolExecutor(max_workers=3) as ex:
-                            f_camps  = ex.submit(fetch_campaigns_with_budget, _token, _acct)
-                            f_ins    = ex.submit(fetch_today_campaign_insights, _token, _acct, "today")
-                            f_ins_7d = ex.submit(fetch_today_campaign_insights, _token, _acct, "last_7d")
-                            camps      = f_camps.result()
-                            ins_today  = f_ins.result()
-                            ins_7d_raw = f_ins_7d.result()
-                        st.session_state["campaigns"]        = camps
-                        st.session_state["sched_insights"]   = ins_today
-                        st.session_state["sched_insights_7d"]= ins_7d_raw
-                        st.session_state["debug_7d_keys"]    = list(ins_7d_raw.keys())[:5]
-                        # 並發：每個活動的排程同時打（最大瓶頸）
-                        TZ_TAIPEI = timezone(timedelta(hours=8))
-                        _now_tw       = datetime.now(TZ_TAIPEI)
-                        _today_tw     = _now_tw.date()
-                        _yesterday_tw = _today_tw - timedelta(days=1)
-
-                        def _sched_tw_date(s):
-                            """time_start +8h → 台北日期（即該排程屬於哪一天）"""
-                            v = s.get("time_start", 0)
-                            try:
-                                ts = int(v)
-                            except (ValueError, TypeError):
-                                ts = int(datetime.strptime(str(v), "%Y-%m-%dT%H:%M:%S%z").timestamp())
-                            return (datetime.utcfromtimestamp(ts) + timedelta(hours=8)).date()
-
-                        today_scheds = {}
-                        _sched_errors = []
-                        with ThreadPoolExecutor(max_workers=5) as ex:
-                            futures = {ex.submit(fetch_campaign_schedules, _token, c["id"]): c["id"]
-                                       for c in camps if c.get("status") == "ACTIVE"}
-                            for future in as_completed(futures):
-                                cid = futures[future]
-                                try:
-                                    scheds = future.result()
-                                    # 優先顯示台北今天；今天沒有才 fallback 昨天（跨午夜不消失）
-                                    _today_s     = [s for s in scheds if _sched_tw_date(s) == _today_tw]
-                                    _yesterday_s = [s for s in scheds if _sched_tw_date(s) == _yesterday_tw]
-                                    active = _today_s if _today_s else _yesterday_s
-                                    if active:
-                                        bv = int(active[0].get("budget_value", 100))
-                                        today_scheds[cid] = {
-                                            "tag": f"+{bv}%" if bv >= 0 else f"{bv}%",
-                                            "schedule_id": active[0]["id"],
-                                            "budget_value": bv,
-                                        }
-                                except Exception as fe:
-                                    _sched_errors.append(str(fe))
-                        st.session_state["today_scheds"] = today_scheds
-                        if _sched_errors:
-                            st.warning(f"部分排程抓取失敗（{len(_sched_errors)} 筆）：{_sched_errors[0][:120]}")
-                    except Exception as e:
-                        st.error(f"錯誤：{e}")
+                _do_load_campaigns(_token, _acct)
 
         campaigns       = st.session_state.get("campaigns", [])
         sched_insights  = st.session_state.get("sched_insights", {})
@@ -1819,19 +1821,26 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
         today_scheds_mod = st.session_state.get("today_scheds", {})
         campaigns_mod    = st.session_state.get("campaigns", [])
 
+        _mod_token = cfg.get("meta_token", "")
+        _mod_acct  = selected_account_id
+        if not campaigns_mod or not today_scheds_mod:
+            if st.button("🔄 載入活動與今日排程", key="load_mod", use_container_width=True):
+                if not _mod_token or not _mod_acct:
+                    st.error("請先設定 Token 和帳戶")
+                else:
+                    _do_load_campaigns(_mod_token, _mod_acct)
+                    st.rerun()
+
+        today_scheds_mod = st.session_state.get("today_scheds", {})
+        campaigns_mod    = st.session_state.get("campaigns", [])
+        mod_camps = [c for c in campaigns_mod
+                     if isinstance(today_scheds_mod.get(c["id"]), dict)]
+
         if not campaigns_mod:
-            st.info("請先在「➕ 新增排程」頁籤點「載入活動與成效」")
+            st.info("請點上方按鈕載入資料")
+        elif not mod_camps:
+            st.info("今日尚無已建立的排程")
         else:
-            mod_camps = [c for c in campaigns_mod
-                         if isinstance(today_scheds_mod.get(c["id"]), dict)]
-            with st.expander("🔍 debug（確認後可關閉）"):
-                st.write(f"campaigns 數量：{len(campaigns_mod)}")
-                st.write(f"today_scheds 數量：{len(today_scheds_mod)}")
-                st.write(f"today_scheds 範例（前3）：{dict(list(today_scheds_mod.items())[:3])}")
-                st.write(f"mod_camps 數量：{len(mod_camps)}")
-            if not mod_camps:
-                st.info("今日尚無已建立的排程（或尚未載入）")
-            else:
                 st.caption(f"共 {len(mod_camps)} 個活動今日有排程，可直接修改幅度")
 
                 mod_new_pct = st.number_input(
