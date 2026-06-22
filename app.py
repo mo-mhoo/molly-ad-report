@@ -297,11 +297,63 @@ def fmt_change(v, higher_is_better=True):
     return f'<span style="color:{"#16a34a" if good else "#dc2626"}">{label}</span>'
 
 def _fmt_chg(v, higher_is_better=True):
-    """純文字版變化率，不含 HTML"""
     if v is None:
         return "—"
     sign = "+" if v >= 0 else ""
     return f"{sign}{v:.1f}%"
+
+def _chg_color(v, hib):
+    """根據變化率與指標方向回傳 HTML 顏色 span"""
+    if v is None:
+        return "—"
+    sign = "+" if v >= 0 else ""
+    txt = f"{sign}{v:.1f}%"
+    is_good = (v >= 0 and hib) or (v < 0 and not hib)
+    color = "#27ae60" if is_good else "#e74c3c"
+    return f'<span style="color:{color};font-weight:bold">{txt}</span>'
+
+def build_table_html(curr_m, comp_m, mom_m, yoy_m):
+    rows_def = [
+        ("ATL", "花費",    "currency", True),
+        ("ATL", "CPC",     "currency", False),
+        ("BTL", "花費",    "currency", True),
+        ("BTL", "ROAS",    "roas",     True),
+        ("BTL", "廣告收益", "currency", True),
+        ("BTL", "CPA",     "currency", False),
+        ("BTL", "AOV",     "currency", True),
+    ]
+    cols = ["WoW" if comp_m else None, "MoM" if mom_m else None, "YoY" if yoy_m else None]
+    chg_headers = "".join(f"<th>{c}</th>" for c in cols if c)
+    header = f"<tr><th>類型</th><th>指標</th><th style='text-align:right'>實際數值</th>{chg_headers}</tr>"
+
+    body = ""
+    prev_type = None
+    for t, metric, style, hib in rows_def:
+        val = curr_m.get(t, {}).get(metric, 0)
+        row = "<tr>"
+        if t != prev_type:
+            span = sum(1 for r in rows_def if r[0] == t)
+            row += f'<td rowspan="{span}" style="font-weight:700;text-align:center;vertical-align:middle">{t}</td>'
+            prev_type = t
+        row += f"<td>{metric}</td><td style='text-align:right'>{fmt_val(val, style)}</td>"
+        if comp_m is not None:
+            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, comp_m.get(t,{}).get(metric,0)), hib)}</td>"
+        if mom_m is not None:
+            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, mom_m.get(t,{}).get(metric,0)), hib)}</td>"
+        if yoy_m is not None:
+            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, yoy_m.get(t,{}).get(metric,0)), hib)}</td>"
+        row += "</tr>"
+        body += row
+
+    return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+  body {{ margin:0; padding:4px; font-family:sans-serif; font-size:14px; }}
+  table {{ border-collapse:collapse; width:100%; }}
+  th {{ padding:8px 12px; text-align:left; border-bottom:2px solid #ccc; color:#555; font-size:12px; }}
+  td {{ padding:7px 12px; border-bottom:1px solid #e0e0e0; }}
+</style></head><body>
+<table>{header}{body}</table>
+</body></html>"""
 
 def build_table_df(curr_m, comp_m, mom_m, yoy_m):
     rows_def = [
@@ -1207,8 +1259,7 @@ if df_curr is not None and not df_curr.empty:
         yoy_m  = calc_meta_metrics(df_yoy)  if df_yoy  is not None else None
 
         st.subheader("📈 Meta Ads 關鍵指標（ATL / BTL）")
-        st.dataframe(build_table_df(curr_m, comp_m, mom_m, yoy_m),
-                     hide_index=True, use_container_width=True)
+        components.html(build_table_html(curr_m, comp_m, mom_m, yoy_m), height=360, scrolling=False)
 
         btl = curr_m.get("BTL", {})
         atl = curr_m.get("ATL", {})
