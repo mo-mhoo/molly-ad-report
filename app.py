@@ -1499,8 +1499,10 @@ def _do_load_campaigns(token, acct):
             _now_tw       = datetime.now(TZ_TAIPEI)
             _today_tw     = _now_tw.date()
             _yesterday_tw = _today_tw - timedelta(days=1)
-            today_scheds  = {}
-            _errors       = []
+            # 第一輪：分別收集今天 & 昨天的排程（逐活動）
+            _today_pool     = {}   # cid -> schedule
+            _yesterday_pool = {}
+            _errors         = []
             with ThreadPoolExecutor(max_workers=5) as ex:
                 futures = {ex.submit(fetch_campaign_schedules, token, c["id"]): c["id"]
                            for c in camps if c.get("status") == "ACTIVE"}
@@ -1508,18 +1510,25 @@ def _do_load_campaigns(token, acct):
                     cid = futures[future]
                     try:
                         scheds = future.result()
-                        _today_s     = [s for s in scheds if _sched_tw_date(s) == _today_tw]
-                        _yesterday_s = [s for s in scheds if _sched_tw_date(s) == _yesterday_tw]
-                        active = _today_s if _today_s else _yesterday_s
-                        if active:
-                            bv = int(active[0].get("budget_value", 100))
-                            today_scheds[cid] = {
-                                "tag": f"+{bv}%" if bv >= 0 else f"{bv}%",
-                                "schedule_id": active[0]["id"],
-                                "budget_value": bv,
-                            }
+                        for s in scheds:
+                            d = _sched_tw_date(s)
+                            if d == _today_tw and cid not in _today_pool:
+                                _today_pool[cid] = s
+                            elif d == _yesterday_tw and cid not in _yesterday_pool:
+                                _yesterday_pool[cid] = s
                     except Exception as fe:
                         _errors.append(str(fe))
+
+            # 全局決策：有任何活動存在今天排程 → 用今天；全無 → fallback 昨天
+            source = _today_pool if _today_pool else _yesterday_pool
+            today_scheds = {}
+            for cid, s in source.items():
+                bv = int(s.get("budget_value", 100))
+                today_scheds[cid] = {
+                    "tag": f"+{bv}%" if bv >= 0 else f"{bv}%",
+                    "schedule_id": s["id"],
+                    "budget_value": bv,
+                }
             st.session_state["today_scheds"] = today_scheds
             if _errors:
                 st.warning(f"部分排程抓取失敗（{len(_errors)} 筆）：{_errors[0][:120]}")
