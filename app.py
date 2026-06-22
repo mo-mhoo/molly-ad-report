@@ -1499,19 +1499,23 @@ def _do_load_campaigns(token, acct):
             _now_tw       = datetime.now(TZ_TAIPEI)
             _today_tw     = _now_tw.date()
             _yesterday_tw = _today_tw - timedelta(days=1)
+            _active_camps = [c for c in camps if c.get("status") == "ACTIVE"]
             # 第一輪：分別收集今天 & 昨天的排程（逐活動）
             _today_pool     = {}   # cid -> schedule
             _yesterday_pool = {}
             _errors         = []
+            _sample_dates   = []   # 診斷用：記錄前幾個 sched date
             with ThreadPoolExecutor(max_workers=5) as ex:
                 futures = {ex.submit(fetch_campaign_schedules, token, c["id"]): c["id"]
-                           for c in camps if c.get("status") == "ACTIVE"}
+                           for c in _active_camps}
                 for future in as_completed(futures):
                     cid = futures[future]
                     try:
                         scheds = future.result()
                         for s in scheds:
                             d = _sched_tw_date(s)
+                            if len(_sample_dates) < 5:
+                                _sample_dates.append(str(d))
                             if d == _today_tw and cid not in _today_pool:
                                 _today_pool[cid] = s
                             elif d == _yesterday_tw and cid not in _yesterday_pool:
@@ -1531,10 +1535,11 @@ def _do_load_campaigns(token, acct):
                 }
             st.session_state["today_scheds"] = today_scheds
             st.session_state["_load_msg"] = (
-                f"✅ 載入完成：{len(camps)} 個活動，"
-                f"今日池={len(_today_pool)} 昨日池={len(_yesterday_pool)} "
-                f"→ 今日排程={len(today_scheds)}"
-                + (f"  ⚠️ {len(_errors)} 筆失敗" if _errors else "")
+                f"✅ {len(camps)} 活動 / {len(_active_camps)} ACTIVE｜"
+                f"今日={_today_tw} 昨日={_yesterday_tw}｜"
+                f"今日池={len(_today_pool)} 昨日池={len(_yesterday_pool)}｜"
+                f"排程日期樣本:{_sample_dates}"
+                + (f"｜⚠️{len(_errors)} 筆失敗" if _errors else "")
             )
         except Exception as e:
             st.session_state["_load_msg"] = f"❌ 載入錯誤：{e}"
