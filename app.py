@@ -1423,7 +1423,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                         # 並發：每個活動的排程同時打（最大瓶頸）
                         now_ts = datetime.now(timezone.utc).timestamp()
                         today_scheds = {}
-                        with ThreadPoolExecutor(max_workers=10) as ex:
+                        with ThreadPoolExecutor(max_workers=5) as ex:
                             futures = {ex.submit(fetch_campaign_schedules, _token, c["id"]): c["id"]
                                        for c in camps}
                             for future in as_completed(futures):
