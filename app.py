@@ -1500,10 +1500,20 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                         st.session_state["sched_insights_7d"]= ins_7d_raw
                         st.session_state["debug_7d_keys"]    = list(ins_7d_raw.keys())[:5]
                         # 並發：每個活動的排程同時打（最大瓶頸）
-                        now_ts = datetime.now(timezone.utc).timestamp()
-                        # 顯示「過去 24h 內結束或尚未結束」的排程
-                        # 避免台北午夜跨日導致今日排程消失
-                        _ts_window_start = now_ts - 86400
+                        TZ_TAIPEI = timezone(timedelta(hours=8))
+                        _now_tw       = datetime.now(TZ_TAIPEI)
+                        _today_tw     = _now_tw.date()
+                        _yesterday_tw = _today_tw - timedelta(days=1)
+
+                        def _sched_tw_date(s):
+                            """time_start +8h → 台北日期（即該排程屬於哪一天）"""
+                            v = s.get("time_start", 0)
+                            try:
+                                ts = int(v)
+                            except (ValueError, TypeError):
+                                ts = int(datetime.strptime(str(v), "%Y-%m-%dT%H:%M:%S%z").timestamp())
+                            return (datetime.utcfromtimestamp(ts) + timedelta(hours=8)).date()
+
                         today_scheds = {}
                         _sched_errors = []
                         with ThreadPoolExecutor(max_workers=5) as ex:
@@ -1513,8 +1523,9 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                                 cid = futures[future]
                                 try:
                                     scheds = future.result()
+                                    # 只顯示台北今天或昨天的排程（跨午夜不消失）
                                     active = [s for s in scheds
-                                              if _end_ts(s) > _ts_window_start]
+                                              if _sched_tw_date(s) in (_today_tw, _yesterday_tw)]
                                     if active:
                                         bv = int(active[0].get("budget_value", 100))
                                         today_scheds[cid] = {
