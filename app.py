@@ -1813,12 +1813,26 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                     key="mod_new_pct",
                 )
 
+                mod_ins    = st.session_state.get("sched_insights", {})
+                mod_ins_7d = st.session_state.get("sched_insights_7d", {})
+
                 mod_rows, mod_id_list = [], []
                 for c in mod_camps:
-                    entry = today_scheds_mod[c["id"]]
+                    entry   = today_scheds_mod[c["id"]]
+                    ins     = mod_ins.get(c["id"], {})
+                    ins_7d  = mod_ins_7d.get(c["id"], {})
+                    spend   = round(ins.get("spend", 0))
+                    orders  = ins.get("orders", 0)
+                    cpa     = round(spend / orders) if orders > 0 else None
                     mod_rows.append({
                         "選取":     False,
                         "活動名稱": c["name"],
+                        "日預算":   int(c.get("daily_budget", 0)),
+                        "今日花費": spend,
+                        "今日ROAS": _fmt_roas(ins.get("roas")),
+                        "7天ROAS":  _fmt_roas(ins_7d.get("roas")),
+                        "今日CPA":  cpa,
+                        "今日購買": orders,
                         "目前排程": entry["tag"],
                         "修改後":   f"+{mod_new_pct}%" if mod_new_pct >= 0 else f"{mod_new_pct}%",
                     })
@@ -1845,11 +1859,18 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                     height=min(420, 50 + 40 * len(mod_rows)),
                     column_config={
                         "選取":     st.column_config.CheckboxColumn("✓",    width="small"),
-                        "活動名稱": st.column_config.TextColumn("活動名稱", width=180),
-                        "目前排程": st.column_config.TextColumn("目前排程", width=90),
-                        "修改後":   st.column_config.TextColumn("修改後",   width=80),
+                        "活動名稱": st.column_config.TextColumn("活動名稱", width=160),
+                        "日預算":   st.column_config.NumberColumn("日預算",  width=75),
+                        "今日花費": st.column_config.NumberColumn("今日花費", width=75),
+                        "今日ROAS": st.column_config.TextColumn("今日ROAS", width=75),
+                        "7天ROAS":  st.column_config.TextColumn("7天ROAS",  width=70),
+                        "今日CPA":  st.column_config.NumberColumn("今日CPA",  width=70),
+                        "今日購買": st.column_config.NumberColumn("今日購買", width=65),
+                        "目前排程": st.column_config.TextColumn("目前排程", width=80),
+                        "修改後":   st.column_config.TextColumn("修改後",   width=75),
                     },
-                    disabled=["活動名稱", "目前排程", "修改後"],
+                    disabled=["活動名稱", "日預算", "今日花費", "今日ROAS", "7天ROAS",
+                              "今日CPA", "今日購買", "目前排程", "修改後"],
                     key=f"mod_editor_{st.session_state.get('mod_sel_v', 0)}",
                 )
 
