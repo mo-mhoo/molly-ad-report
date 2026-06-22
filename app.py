@@ -698,6 +698,42 @@ def parse_meta_ts(ts_val, tz_tw):
         dt = datetime.strptime(str(ts_val), "%Y-%m-%dT%H:%M:%S%z")
         return dt.astimezone(tz_tw)
 
+def _batch_fetch_all_schedules(token, camps, now_ts):
+    """Batch API 一次抓所有活動的排程（152 活動 → 4 HTTP calls），回傳 del_scheds dict。"""
+    BATCH_SIZE = 50
+    sched_field = "id,time_start,time_end,budget_value,budget_value_type,status"
+    result = {}
+    for chunk_start in range(0, len(camps), BATCH_SIZE):
+        chunk = camps[chunk_start: chunk_start + BATCH_SIZE]
+        batch_payload = [
+            {"method": "GET",
+             "relative_url": f"{c['id']}/budget_schedules?fields={sched_field}&limit=50&access_token={token}"}
+            for c in chunk
+        ]
+        try:
+            batch_resp = requests.post(
+                "https://graph.facebook.com/v25.0/",
+                data={"access_token": token, "batch": json.dumps(batch_payload)},
+                timeout=30,
+            ).json()
+        except Exception:
+            continue
+        for c, item in zip(chunk, batch_resp):
+            if not isinstance(item, dict) or item.get("code") != 200:
+                continue
+            try:
+                body  = json.loads(item.get("body", "{}"))
+                scheds = body.get("data", [])
+                if scheds:
+                    result[c["id"]] = {
+                        "campaign": c,
+                        "active":  [s for s in scheds if _end_ts(s) > now_ts],
+                        "expired": [s for s in scheds if _end_ts(s) <= now_ts],
+                    }
+            except Exception:
+                continue
+    return result
+
 def fetch_campaign_schedules(access_token, campaign_id):
     """取得單一活動的所有預算排程"""
     resp = requests.get(
@@ -2001,15 +2037,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                     try:
                         camps = fetch_campaigns_with_budget(_token, _acct)
                         now_ts = datetime.now(timezone.utc).timestamp()
-                        del_scheds = {}
-                        for c in camps:
-                            scheds = fetch_campaign_schedules(_token, c["id"])
-                            if scheds:
-                                del_scheds[c["id"]] = {
-                                    "campaign": c,
-                                    "active":  [s for s in scheds if _end_ts(s) > now_ts],
-                                    "expired": [s for s in scheds if _end_ts(s) <= now_ts],
-                                }
+                        del_scheds = _batch_fetch_all_schedules(_token, camps, now_ts)
                         st.session_state["del_scheds"] = del_scheds
                     except Exception as e:
                         st.error(f"錯誤：{e}")
@@ -2033,18 +2061,10 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                         else:
                             fail += 1
                     st.success(f"✅ 已刪除 {ok} 筆" + (f"，失敗 {fail} 筆" if fail else ""))
-                    # 重新載入
                     camps2 = fetch_campaigns_with_budget(_token, selected_account_id)
-                    ds2 = {}
-                    for c2 in camps2:
-                        ss = fetch_campaign_schedules(_token, c2["id"])
-                        if ss:
-                            ds2[c2["id"]] = {
-                                "campaign": c2,
-                                "active":  [x for x in ss if _end_ts(x) > now_ts],
-                                "expired": [x for x in ss if _end_ts(x) <= now_ts],
-                            }
-                    st.session_state["del_scheds"] = ds2
+                    st.session_state["del_scheds"] = _batch_fetch_all_schedules(
+                        _token, camps2, datetime.now(timezone.utc).timestamp()
+                    )
                     st.rerun()
             else:
                 st.success("✅ 沒有過期排程")
@@ -2076,17 +2096,9 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                             if res.get("success"):
                                 st.success("已刪除")
                                 camps2 = fetch_campaigns_with_budget(_token, selected_account_id)
-                                now_ts3 = datetime.now(timezone.utc).timestamp()
-                                ds2 = {}
-                                for c2 in camps2:
-                                    ss = fetch_campaign_schedules(_token, c2["id"])
-                                    if ss:
-                                        ds2[c2["id"]] = {
-                                            "campaign": c2,
-                                            "active":  [x for x in ss if _end_ts(x) > now_ts3],
-                                            "expired": [x for x in ss if _end_ts(x) <= now_ts3],
-                                        }
-                                st.session_state["del_scheds"] = ds2
+                                st.session_state["del_scheds"] = _batch_fetch_all_schedules(
+                                    _token, camps2, datetime.now(timezone.utc).timestamp()
+                                )
                                 st.rerun()
                             else:
                                 st.error(f"刪除失敗：{res}")
