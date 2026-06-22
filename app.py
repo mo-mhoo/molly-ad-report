@@ -840,16 +840,21 @@ def fetch_today_campaign_insights(access_token, ad_account_id, date_preset="toda
         "level": "campaign",
         "date_preset": date_preset,
         "access_token": access_token,
-        "limit": 200,
+        "limit": 50,
     }
-    try:
-        resp = requests.get(url, params=params, timeout=30).json()
-    except Exception as e:
-        raise Exception(f"Insights API 請求失敗: {e}")
-    if "error" in resp:
-        raise Exception(resp["error"].get("message", str(resp["error"])))
+    all_rows = []
+    while url:
+        try:
+            resp = requests.get(url, params=params, timeout=30).json()
+        except Exception as e:
+            raise Exception(f"Insights API 請求失敗: {e}")
+        if "error" in resp:
+            raise Exception(resp["error"].get("message", str(resp["error"])))
+        all_rows.extend(resp.get("data", []))
+        url    = resp.get("paging", {}).get("next")
+        params = {}
     result = {}
-    for row in resp.get("data", []):
+    for row in all_rows:
         cid = row.get("campaign_id")
         if not cid:
             continue
