@@ -1425,7 +1425,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                         today_scheds = {}
                         with ThreadPoolExecutor(max_workers=5) as ex:
                             futures = {ex.submit(fetch_campaign_schedules, _token, c["id"]): c["id"]
-                                       for c in camps}
+                                       for c in camps if c.get("status") == "ACTIVE"}
                             for future in as_completed(futures):
                                 cid = futures[future]
                                 scheds = future.result()
