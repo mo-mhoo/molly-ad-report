@@ -1503,29 +1503,55 @@ def _do_load_campaigns(token, acct):
             st.session_state["sched_insights"]    = ins_today
             st.session_state["sched_insights_7d"] = ins_7d_raw
 
-            _now_tw       = datetime.now(TZ_TAIPEI)
-            _today_tw     = _now_tw.date()
-            _yesterday_tw = _today_tw - timedelta(days=1)
             _active_camps = [c for c in camps if c.get("status") == "ACTIVE"]
-            _now_ts      = datetime.now(timezone.utc).timestamp()
-            _cutoff      = _now_ts - 86400
+            _now_ts  = datetime.now(timezone.utc).timestamp()
+            _cutoff  = _now_ts - 86400
             today_scheds = {}
             _errors      = []
-            # 循序抓排程，避免並發觸發 Meta rate limit
-            for c in _active_camps:
+
+            # Batch API：47 個請求合成 1 次 HTTP，避免 rate limit
+            BATCH_SIZE = 50
+            sched_field = "id,time_start,time_end,budget_value,budget_value_type,status"
+            for chunk_start in range(0, len(_active_camps), BATCH_SIZE):
+                chunk = _active_camps[chunk_start: chunk_start + BATCH_SIZE]
+                batch_payload = [
+                    {"method": "GET",
+                     "relative_url": f"{c['id']}/budget_schedules?fields={sched_field}&limit=50&access_token={token}"}
+                    for c in chunk
+                ]
                 try:
-                    scheds = fetch_campaign_schedules(token, c["id"])
-                    valid  = [s for s in scheds if _end_ts(s) > _cutoff]
-                    if valid:
-                        best = min(valid, key=lambda s: abs(_end_ts(s) - _now_ts))
-                        bv   = int(best.get("budget_value", 100))
-                        today_scheds[c["id"]] = {
-                            "tag": f"+{bv}%" if bv >= 0 else f"{bv}%",
-                            "schedule_id": best["id"],
-                            "budget_value": bv,
-                        }
-                except Exception as fe:
-                    _errors.append(str(fe))
+                    batch_resp = requests.post(
+                        "https://graph.facebook.com/v25.0/",
+                        data={"access_token": token, "batch": json.dumps(batch_payload)},
+                        timeout=30,
+                    ).json()
+                except Exception as e:
+                    _errors.append(f"Batch 請求失敗: {e}")
+                    continue
+                for c, item in zip(chunk, batch_resp):
+                    if not isinstance(item, dict):
+                        continue
+                    if item.get("code") != 200:
+                        try:
+                            body = json.loads(item.get("body", "{}"))
+                            _errors.append(body.get("error", {}).get("message", f"HTTP {item.get('code')}"))
+                        except Exception:
+                            _errors.append(f"HTTP {item.get('code')}")
+                        continue
+                    try:
+                        body   = json.loads(item.get("body", "{}"))
+                        scheds = body.get("data", [])
+                        valid  = [s for s in scheds if _end_ts(s) > _cutoff]
+                        if valid:
+                            best = min(valid, key=lambda s: abs(_end_ts(s) - _now_ts))
+                            bv   = int(best.get("budget_value", 100))
+                            today_scheds[c["id"]] = {
+                                "tag": f"+{bv}%" if bv >= 0 else f"{bv}%",
+                                "schedule_id": best["id"],
+                                "budget_value": bv,
+                            }
+                    except Exception as fe:
+                        _errors.append(str(fe))
             st.session_state["today_scheds"] = today_scheds
             _err_preview = f"｜⚠️{len(_errors)} 筆失敗：{_errors[0][:80]}" if _errors else ""
             st.session_state["_load_msg"] = (
