@@ -1006,6 +1006,18 @@ with st.sidebar:
 acct_title = f"{client_sel} × {channel_sel}" if client_sel else ""
 st.subheader(f"📁 {acct_title} × {platform_sel}" if acct_title else f"📁 {platform_sel}")
 
+# 快速帳戶切換按鈕
+if accounts and len(accounts) > 1:
+    cur_idx = st.session_state.get("acct_sel", 0)
+    btn_cols = st.columns(len(accounts))
+    for i, (col, acct) in enumerate(zip(btn_cols, accounts)):
+        label = acct["name"]
+        if col.button(label, key=f"acct_btn_{i}",
+                      type="primary" if i == cur_idx else "secondary",
+                      use_container_width=True):
+            st.session_state["acct_sel"] = i
+            st.rerun()
+
 df_curr = df_comp = df_mom = df_yoy = None
 
 if data_source == "Meta API 自動抓取":
