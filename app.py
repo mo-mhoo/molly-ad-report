@@ -1502,31 +1502,25 @@ def _do_load_campaigns(token, acct):
             _today_tw     = _now_tw.date()
             _yesterday_tw = _today_tw - timedelta(days=1)
             _active_camps = [c for c in camps if c.get("status") == "ACTIVE"]
-            # 只顯示「現在還在跑或今天內結束」的排程，排除超過 24h 前就結束的舊排程
             _now_ts      = datetime.now(timezone.utc).timestamp()
-            _cutoff      = _now_ts - 86400   # 24h 前
+            _cutoff      = _now_ts - 86400
             today_scheds = {}
             _errors      = []
-            with ThreadPoolExecutor(max_workers=5) as ex:
-                futures = {ex.submit(fetch_campaign_schedules, token, c["id"]): c["id"]
-                           for c in _active_camps}
-                for future in as_completed(futures):
-                    cid = futures[future]
-                    try:
-                        scheds = future.result()
-                        # 找今天還沒結束超過 24h 的排程中最接近現在的那筆
-                        valid = [s for s in scheds if _end_ts(s) > _cutoff]
-                        # 優先取 end_ts 最早（最近要結束的），避免抓到很遠的未來排程
-                        if valid:
-                            best = min(valid, key=lambda s: abs(_end_ts(s) - _now_ts))
-                            bv = int(best.get("budget_value", 100))
-                            today_scheds[cid] = {
-                                "tag": f"+{bv}%" if bv >= 0 else f"{bv}%",
-                                "schedule_id": best["id"],
-                                "budget_value": bv,
-                            }
-                    except Exception as fe:
-                        _errors.append(str(fe))
+            # 循序抓排程，避免並發觸發 Meta rate limit
+            for c in _active_camps:
+                try:
+                    scheds = fetch_campaign_schedules(token, c["id"])
+                    valid  = [s for s in scheds if _end_ts(s) > _cutoff]
+                    if valid:
+                        best = min(valid, key=lambda s: abs(_end_ts(s) - _now_ts))
+                        bv   = int(best.get("budget_value", 100))
+                        today_scheds[c["id"]] = {
+                            "tag": f"+{bv}%" if bv >= 0 else f"{bv}%",
+                            "schedule_id": best["id"],
+                            "budget_value": bv,
+                        }
+                except Exception as fe:
+                    _errors.append(str(fe))
             st.session_state["today_scheds"] = today_scheds
             _err_preview = f"｜⚠️{len(_errors)} 筆失敗：{_errors[0][:80]}" if _errors else ""
             st.session_state["_load_msg"] = (
