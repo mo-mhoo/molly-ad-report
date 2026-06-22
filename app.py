@@ -1222,7 +1222,7 @@ if df_curr is not None and not df_curr.empty:
             if g_yoy:
                 row["YoY"] = fmt_change(pct_change(val, g_yoy.get(metric, 0)), hib)
             rows.append(row)
-        st.write(pd.DataFrame(rows).to_html(escape=False, index=False), unsafe_allow_html=True)
+        st.markdown(pd.DataFrame(rows).to_html(escape=False, index=False), unsafe_allow_html=True)
 
     else:
         curr_m = calc_meta_metrics(df_curr)
@@ -1231,7 +1231,7 @@ if df_curr is not None and not df_curr.empty:
         yoy_m  = calc_meta_metrics(df_yoy)  if df_yoy  is not None else None
 
         st.subheader("📈 Meta Ads 關鍵指標（ATL / BTL）")
-        st.write(build_table_html(curr_m, comp_m, mom_m, yoy_m), unsafe_allow_html=True)
+        st.markdown(build_table_html(curr_m, comp_m, mom_m, yoy_m), unsafe_allow_html=True)
 
         btl = curr_m.get("BTL", {})
         atl = curr_m.get("ATL", {})
@@ -1420,7 +1420,7 @@ if df_curr is not None and not df_curr.empty:
                 st.markdown(f"**{label}**")
                 tbl = build_dim_table(df_f, dim_col, df_fc, df_fm, df_fy)
                 if not tbl.empty:
-                    st.write(tbl.to_html(escape=False, index=False), unsafe_allow_html=True)
+                    st.markdown(tbl.to_html(escape=False, index=False), unsafe_allow_html=True)
                 else:
                     st.caption("無資料")
                 st.markdown("")
