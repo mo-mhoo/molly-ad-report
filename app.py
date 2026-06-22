@@ -6,6 +6,7 @@ import math
 from datetime import date, timedelta, datetime, timezone
 from pathlib import Path
 import calendar
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, ColumnsAutoSizeMode
 
 # AgGrid 手機橫向滑動 CSS（注入進 iframe 內部）
@@ -1407,22 +1408,31 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             else:
                 with st.spinner("載入中（含 7 天成效與今日排程）..."):
                     try:
-                        camps = fetch_campaigns_with_budget(_token, _acct)
+                        # 並發：campaigns + 今日成效 + 7天成效 同時打
+                        with ThreadPoolExecutor(max_workers=3) as ex:
+                            f_camps  = ex.submit(fetch_campaigns_with_budget, _token, _acct)
+                            f_ins    = ex.submit(fetch_today_campaign_insights, _token, _acct, "today")
+                            f_ins_7d = ex.submit(fetch_today_campaign_insights, _token, _acct, "last_7d")
+                            camps      = f_camps.result()
+                            ins_today  = f_ins.result()
+                            ins_7d_raw = f_ins_7d.result()
                         st.session_state["campaigns"]        = camps
-                        st.session_state["sched_insights"]   = fetch_today_campaign_insights(_token, _acct, "today")
-                        ins_7d_raw = fetch_today_campaign_insights(_token, _acct, "last_7d")
+                        st.session_state["sched_insights"]   = ins_today
                         st.session_state["sched_insights_7d"]= ins_7d_raw
                         st.session_state["debug_7d_keys"]    = list(ins_7d_raw.keys())[:5]
-                        # 抓今日有效排程（結束時間 > 現在）
+                        # 並發：每個活動的排程同時打（最大瓶頸）
                         now_ts = datetime.now(timezone.utc).timestamp()
                         today_scheds = {}
-                        for c in camps:
-                            scheds = fetch_campaign_schedules(_token, c["id"])
-                            active = [s for s in scheds if _end_ts(s) > now_ts]
-                            if active:
-                                # 取第一個進行中排程的幅度
-                                bv = int(active[0].get("budget_value", 100))
-                                today_scheds[c["id"]] = f"+{bv}%" if bv >= 0 else f"{bv}%"
+                        with ThreadPoolExecutor(max_workers=10) as ex:
+                            futures = {ex.submit(fetch_campaign_schedules, _token, c["id"]): c["id"]
+                                       for c in camps}
+                            for future in as_completed(futures):
+                                cid = futures[future]
+                                scheds = future.result()
+                                active = [s for s in scheds if _end_ts(s) > now_ts]
+                                if active:
+                                    bv = int(active[0].get("budget_value", 100))
+                                    today_scheds[cid] = f"+{bv}%" if bv >= 0 else f"{bv}%"
                         st.session_state["today_scheds"] = today_scheds
                     except Exception as e:
                         st.error(f"錯誤：{e}")
@@ -1811,9 +1821,13 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
         else:
             with st.spinner("載入中..."):
                 try:
-                    st.session_state["adj_campaigns"]    = fetch_campaigns_with_budget(_token, _acct)
-                    st.session_state["adj_insights"]     = fetch_today_campaign_insights(_token, _acct)
-                    st.session_state["adj_insights_7d"]  = fetch_today_campaign_insights(_token, _acct, "last_7d")
+                    with ThreadPoolExecutor(max_workers=3) as ex:
+                        f_camps  = ex.submit(fetch_campaigns_with_budget, _token, _acct)
+                        f_ins    = ex.submit(fetch_today_campaign_insights, _token, _acct)
+                        f_ins_7d = ex.submit(fetch_today_campaign_insights, _token, _acct, "last_7d")
+                        st.session_state["adj_campaigns"]   = f_camps.result()
+                        st.session_state["adj_insights"]    = f_ins.result()
+                        st.session_state["adj_insights_7d"] = f_ins_7d.result()
                 except Exception as e:
                     st.error(f"錯誤：{e}")
 
