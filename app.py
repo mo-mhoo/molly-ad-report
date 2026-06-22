@@ -1502,21 +1502,27 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                         # 並發：每個活動的排程同時打（最大瓶頸）
                         now_ts = datetime.now(timezone.utc).timestamp()
                         today_scheds = {}
+                        _sched_errors = []
                         with ThreadPoolExecutor(max_workers=5) as ex:
                             futures = {ex.submit(fetch_campaign_schedules, _token, c["id"]): c["id"]
                                        for c in camps if c.get("status") == "ACTIVE"}
                             for future in as_completed(futures):
                                 cid = futures[future]
-                                scheds = future.result()
-                                active = [s for s in scheds if _end_ts(s) > now_ts]
-                                if active:
-                                    bv = int(active[0].get("budget_value", 100))
-                                    today_scheds[cid] = {
-                                        "tag": f"+{bv}%" if bv >= 0 else f"{bv}%",
-                                        "schedule_id": active[0]["id"],
-                                        "budget_value": bv,
-                                    }
+                                try:
+                                    scheds = future.result()
+                                    active = [s for s in scheds if _end_ts(s) > now_ts]
+                                    if active:
+                                        bv = int(active[0].get("budget_value", 100))
+                                        today_scheds[cid] = {
+                                            "tag": f"+{bv}%" if bv >= 0 else f"{bv}%",
+                                            "schedule_id": active[0]["id"],
+                                            "budget_value": bv,
+                                        }
+                                except Exception as fe:
+                                    _sched_errors.append(str(fe))
                         st.session_state["today_scheds"] = today_scheds
+                        if _sched_errors:
+                            st.warning(f"部分排程抓取失敗（{len(_sched_errors)} 筆）：{_sched_errors[0][:120]}")
                     except Exception as e:
                         st.error(f"錯誤：{e}")
 
