@@ -1664,22 +1664,22 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             pct_sign = f"+{sched_actual_pct}%" if sched_actual_pct > 0 else f"{sched_actual_pct}%"
             proj_col = f"排程後預計（{pct_sign}）"
             for i, row in enumerate(rows):
-                row["✓"]      = "✓" if sel_state.get(camp_id_list[i], False) else ""
+                row["選取"]   = sel_state.get(camp_id_list[i], False)
                 row[proj_col] = f"${row['排程後預計']}"
                 row["今日ROAS"] = _fmt_roas(row["今日ROAS"])
                 row["7天ROAS"]  = _fmt_roas(row["7天ROAS"])
             df_sched = pd.DataFrame(rows)
 
-            disp_cols_sched = ["✓", "狀", "活動名稱", "日預算", "今日花費", "今日ROAS",
+            disp_cols_sched = ["選取", "狀", "活動名稱", "日預算", "今日花費", "今日ROAS",
                                "7天ROAS", "今日排程", proj_col, "今日購買", "今日CPA", "轉換價值"]
-            st.dataframe(
+            edited_sched = st.data_editor(
                 df_sched[disp_cols_sched],
                 use_container_width=True,
                 hide_index=True,
-                height=min(420, 50 + 36 * len(rows)),
+                height=min(420, 50 + 40 * len(rows)),
                 column_config={
-                    "✓":        st.column_config.TextColumn("✓",     width=30),
-                    "狀":        st.column_config.TextColumn("狀",     width=40),
+                    "選取":      st.column_config.CheckboxColumn("✓",   width="small"),
+                    "狀":        st.column_config.TextColumn("狀",       width=40),
                     "活動名稱":  st.column_config.TextColumn("活動名稱", width=160),
                     "日預算":    st.column_config.NumberColumn("日預算",   width=80),
                     "今日花費":  st.column_config.NumberColumn("今日花費", width=80),
@@ -1691,13 +1691,18 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                     "今日CPA":   st.column_config.TextColumn("今日CPA",  width=70),
                     "轉換價值":  st.column_config.TextColumn("轉換價值", width=80),
                 },
+                disabled=["狀", "活動名稱", "日預算", "今日花費", "今日ROAS", "7天ROAS",
+                          "今日排程", proj_col, "今日購買", "今日CPA", "轉換價值"],
+                key=f"sched_editor_{st.session_state.get('sched_sel_v', 0)}",
             )
 
-            # 從 session_state 直接取已選活動
+            # 從 editor 取已選活動（同步回 session_state 供按鈕追蹤）
+            st.session_state["sched_sel"] = {camp_id_list[i]: bool(edited_sched.iloc[i]["選取"])
+                                             for i in range(len(camp_id_list))}
             selected_camp_ids   = [camp_id_list[i] for i in range(len(rows))
-                                    if sel_state.get(camp_id_list[i], False)]
+                                    if edited_sched.iloc[i]["選取"]]
             selected_camp_names = [rows[i]["活動名稱"] for i in range(len(rows))
-                                    if sel_state.get(camp_id_list[i], False)]
+                                    if edited_sched.iloc[i]["選取"]]
 
             n_camps = len(selected_camp_ids)
             pct_sign = f"+{sched_actual_pct}%" if sched_actual_pct > 0 else f"{sched_actual_pct}%"
@@ -1948,21 +1953,21 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
 
             sel_state_adj = st.session_state.get("adj_sel", {})
 
-            # 加 ✓ 欄顯示已選狀態
+            # 加選取欄（checkbox）
             for i, row in enumerate(adj_rows):
-                row["✓"] = "✓" if sel_state_adj.get(adj_id_list[i], False) else ""
+                row["選取"] = sel_state_adj.get(adj_id_list[i], False)
 
-            display_cols = ["✓", "狀", "活動名稱", "日預算", "今日花費", "今日ROAS",
+            display_cols = ["選取", "狀", "活動名稱", "日預算", "今日花費", "今日ROAS",
                             "7天ROAS", "今日購買", "今日CPA", "轉換價值"]
             df_adj = pd.DataFrame(adj_rows)
-            st.dataframe(
+            edited_adj = st.data_editor(
                 df_adj[display_cols],
                 use_container_width=True,
                 hide_index=True,
-                height=min(420, 50 + 36 * len(adj_rows)),
+                height=min(420, 50 + 40 * len(adj_rows)),
                 column_config={
-                    "✓":        st.column_config.TextColumn("✓",     width=30),
-                    "狀":        st.column_config.TextColumn("狀",     width=40),
+                    "選取":      st.column_config.CheckboxColumn("✓",   width="small"),
+                    "狀":        st.column_config.TextColumn("狀",       width=40),
                     "活動名稱":  st.column_config.TextColumn("活動名稱", width=160),
                     "日預算":    st.column_config.NumberColumn("日預算",   width=80),
                     "今日花費":  st.column_config.NumberColumn("今日花費", width=80),
@@ -1972,11 +1977,18 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                     "今日CPA":   st.column_config.TextColumn("今日CPA",  width=70),
                     "轉換價值":  st.column_config.TextColumn("轉換價值", width=80),
                 },
+                disabled=["狀", "活動名稱", "日預算", "今日花費", "今日ROAS",
+                          "7天ROAS", "今日購買", "今日CPA", "轉換價值"],
+                key=f"adj_editor_{st.session_state.get('adj_sel_v', 0)}",
             )
 
-            # 從 session_state 直接取已選活動
+            # 從 editor 取已選活動（同步回 session_state 供按鈕追蹤）
+            st.session_state["adj_sel"] = {adj_id_list[i]: bool(edited_adj.iloc[i]["選取"])
+                                           for i in range(len(adj_id_list))}
+            selected_adj_ids = {adj_id_list[i] for i in range(len(adj_id_list))
+                                if edited_adj.iloc[i]["選取"]}
             sel_camps = [c for c in adj_campaigns
-                         if c.get("daily_budget") and sel_state_adj.get(c["id"], False)]
+                         if c["id"] in selected_adj_ids and c.get("daily_budget")]
             if sel_camps:
                 st.markdown(f"**已選 {len(sel_camps)} 個活動**")
 
