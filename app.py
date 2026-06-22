@@ -1500,11 +1500,11 @@ def _do_load_campaigns(token, acct):
             _today_tw     = _now_tw.date()
             _yesterday_tw = _today_tw - timedelta(days=1)
             _active_camps = [c for c in camps if c.get("status") == "ACTIVE"]
-            # 第一輪：分別收集今天 & 昨天的排程（逐活動）
-            _today_pool     = {}   # cid -> schedule
-            _yesterday_pool = {}
-            _errors         = []
-            _sample_dates   = []   # 診斷用：記錄前幾個 sched date
+            # 只顯示「現在還在跑或今天內結束」的排程，排除超過 24h 前就結束的舊排程
+            _now_ts      = datetime.now(timezone.utc).timestamp()
+            _cutoff      = _now_ts - 86400   # 24h 前
+            today_scheds = {}
+            _errors      = []
             with ThreadPoolExecutor(max_workers=5) as ex:
                 futures = {ex.submit(fetch_campaign_schedules, token, c["id"]): c["id"]
                            for c in _active_camps}
@@ -1512,33 +1512,22 @@ def _do_load_campaigns(token, acct):
                     cid = futures[future]
                     try:
                         scheds = future.result()
-                        for s in scheds:
-                            d = _sched_tw_date(s)
-                            if len(_sample_dates) < 5:
-                                _sample_dates.append(str(d))
-                            if d == _today_tw and cid not in _today_pool:
-                                _today_pool[cid] = s
-                            elif d == _yesterday_tw and cid not in _yesterday_pool:
-                                _yesterday_pool[cid] = s
+                        # 找今天還沒結束超過 24h 的排程中最接近現在的那筆
+                        valid = [s for s in scheds if _end_ts(s) > _cutoff]
+                        # 優先取 end_ts 最早（最近要結束的），避免抓到很遠的未來排程
+                        if valid:
+                            best = min(valid, key=lambda s: abs(_end_ts(s) - _now_ts))
+                            bv = int(best.get("budget_value", 100))
+                            today_scheds[cid] = {
+                                "tag": f"+{bv}%" if bv >= 0 else f"{bv}%",
+                                "schedule_id": best["id"],
+                                "budget_value": bv,
+                            }
                     except Exception as fe:
                         _errors.append(str(fe))
-
-            # 全局決策：有任何活動存在今天排程 → 用今天；全無 → fallback 昨天
-            source = _today_pool if _today_pool else _yesterday_pool
-            today_scheds = {}
-            for cid, s in source.items():
-                bv = int(s.get("budget_value", 100))
-                today_scheds[cid] = {
-                    "tag": f"+{bv}%" if bv >= 0 else f"{bv}%",
-                    "schedule_id": s["id"],
-                    "budget_value": bv,
-                }
             st.session_state["today_scheds"] = today_scheds
             st.session_state["_load_msg"] = (
-                f"✅ {len(camps)} 活動 / {len(_active_camps)} ACTIVE｜"
-                f"今日={_today_tw} 昨日={_yesterday_tw}｜"
-                f"今日池={len(_today_pool)} 昨日池={len(_yesterday_pool)}｜"
-                f"排程日期樣本:{_sample_dates}"
+                f"✅ {len(camps)} 活動 / {len(_active_camps)} ACTIVE → 今日排程={len(today_scheds)}"
                 + (f"｜⚠️{len(_errors)} 筆失敗" if _errors else "")
             )
         except Exception as e:
