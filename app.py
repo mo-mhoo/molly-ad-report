@@ -779,6 +779,14 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
         rem = now_tw.minute % 15
         time_start = int((now_tw + timedelta(minutes=(15 - rem) if rem else 15)).timestamp())
 
+    # 結束時間已過 → 拒絕，避免送給 Meta 無效參數
+    if int(time_end) <= now_ts:
+        return {"error": {"message": "排程結束時間已過，請重新選擇時段"}}
+
+    # 結束時間 ≤ 調整後的開始時間 → 時段無效
+    if int(time_end) <= int(time_start):
+        return {"error": {"message": "排程結束時間必須晚於開始時間，請重新選擇時段"}}
+
     # 先刪除時段重疊的舊排程（避免堆疊）
     existing = fetch_campaign_schedules(access_token, campaign_id)
     for s in existing:
