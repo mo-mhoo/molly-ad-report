@@ -1678,9 +1678,9 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                     slot_s_hour = st.selectbox("開始時間", HOURS, index=0, key="slot_s_hour")
                 ts3, ts4 = st.columns(2)
                 with ts3:
-                    slot_e_date = st.date_input("結束日期", date.today() + timedelta(days=1), key="slot_e_date")
+                    slot_e_date = st.date_input("結束日期", date.today(), key="slot_e_date")
                 with ts4:
-                    slot_e_hour = st.selectbox("結束時間", HOURS, index=0, key="slot_e_hour")
+                    slot_e_hour = st.selectbox("結束時間", HOURS, index=23, key="slot_e_hour")
                 if st.button("＋ 加入批次清單", key="add_slot", use_container_width=True):
                     ts_s = date_hour_to_ts(slot_s_date, slot_s_hour)
                     ts_e = date_hour_to_ts(slot_e_date, slot_e_hour)
