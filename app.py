@@ -771,14 +771,20 @@ def update_budget_schedule(access_token, schedule_id, new_pct, campaign_id=None,
 
     ts_start = _to_ts(time_start)
     ts_end   = _to_ts(time_end)
+    now_ts   = int(datetime.now(timezone.utc).timestamp())
 
-    # 1. 刪除舊排程
+    # 結束時間已過 → 先擋，不刪也不建，避免刪了卻建不回來
+    if ts_end <= now_ts:
+        return {"error": {"message": "排程結束時間已過，無法修改，請重新新增排程"}}
+
+    if not campaign_id:
+        return {"error": {"message": "缺少 campaign_id，無法重建排程"}}
+
+    # 1. 刪除舊排程（確認可以重建後才刪）
     delete_budget_schedule(access_token, schedule_id)
 
     # 2. 重建相同時段、新幅度的排程
-    if campaign_id:
-        return create_budget_schedule(access_token, campaign_id, ts_start, ts_end, new_pct)
-    return {"error": {"message": "缺少 campaign_id，無法重建排程"}}
+    return create_budget_schedule(access_token, campaign_id, ts_start, ts_end, new_pct)
 
 def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_increase):
     # 若開始時間已過，自動推到下一個 15 分鐘整點
