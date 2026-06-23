@@ -1757,9 +1757,10 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 ins    = sched_insights.get(c["id"], {})
                 ins_7d = sched_ins_7d.get(c["id"], {})
                 daily_b      = int(c["daily_budget"])
-                projected    = round(daily_b * (1 + sched_actual_pct / 100))
                 _ts_entry    = today_scheds.get(c["id"])
                 sched_tag    = _ts_entry["tag"] if isinstance(_ts_entry, dict) else (_ts_entry or "—")
+                eff_pct      = _ts_entry["budget_value"] if isinstance(_ts_entry, dict) else sched_actual_pct
+                projected    = round(daily_b * (1 + eff_pct / 100))
                 spend_today  = round(ins.get("spend", 0))
                 orders_today = ins.get("orders", 0)
                 pv_today     = ins.get("purchase_val", 0)
@@ -1773,7 +1774,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                     "今日ROAS": ins.get("roas"),
                     "7天ROAS":  ins_7d.get("roas"),
                     "今日排程": sched_tag,
-                    "排程後預計": projected,
+                    "排程後預算": projected,
                     "今日購買": orders_today,
                     "今日CPA":  cpa_today,
                     "轉換價值": round(pv_today) if pv_today else None,
@@ -1813,11 +1814,10 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             # 套用選取狀態
             sel_state = st.session_state.get("sched_sel", {})
 
-            pct_sign = f"+{sched_actual_pct}%" if sched_actual_pct > 0 else f"{sched_actual_pct}%"
-            proj_col = f"排程後預計（{pct_sign}）"
+            proj_col = "排程後預算"
             for i, row in enumerate(rows):
                 row["選取"]   = sel_state.get(camp_id_list[i], False)
-                row[proj_col] = f"${row['排程後預計']}"
+                row[proj_col] = f"${row['排程後預算']}"
                 row["今日ROAS"] = _fmt_roas(row["今日ROAS"])
                 row["7天ROAS"]  = _fmt_roas(row["7天ROAS"])
             df_sched = pd.DataFrame(rows)
