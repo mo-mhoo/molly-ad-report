@@ -1561,7 +1561,7 @@ def _do_load_campaigns(token, acct):
                 chunk = _active_camps[chunk_start: chunk_start + BATCH_SIZE]
                 batch_payload = [
                     {"method": "GET",
-                     "relative_url": f"{c['id']}/budget_schedules?fields={sched_field}&limit=50&access_token={token}"}
+                     "relative_url": f"{c['id']}/budget_schedules?fields={sched_field}&limit=50"}
                     for c in chunk
                 ]
                 try:
@@ -1621,6 +1621,9 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 st.error("請先設定 Token 和帳戶")
             else:
                 _do_load_campaigns(_token, _acct)
+
+        if "_load_msg" in st.session_state:
+            st.caption(st.session_state.get("_load_msg", ""))
 
         campaigns       = st.session_state.get("campaigns", [])
         sched_insights  = st.session_state.get("sched_insights", {})
