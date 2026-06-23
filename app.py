@@ -1553,7 +1553,6 @@ def _do_load_campaigns(token, acct):
 
             _active_camps = [c for c in camps if c.get("status") == "ACTIVE"]
             _now_ts  = datetime.now(timezone.utc).timestamp()
-            _cutoff  = _now_ts - 86400
             today_scheds = {}
             _errors      = []
 
@@ -1589,9 +1588,9 @@ def _do_load_campaigns(token, acct):
                     try:
                         body   = json.loads(item.get("body", "{}"))
                         scheds = body.get("data", [])
-                        valid  = [s for s in scheds if _end_ts(s) > _cutoff]
+                        valid  = [s for s in scheds if _end_ts(s) > _now_ts]
                         if valid:
-                            best = min(valid, key=lambda s: abs(_end_ts(s) - _now_ts))
+                            best = min(valid, key=lambda s: _end_ts(s))
                             bv   = int(best.get("budget_value", 100))
                             today_scheds[c["id"]] = {
                                 "tag": f"+{bv}%" if bv >= 0 else f"{bv}%",
