@@ -1198,8 +1198,8 @@ if data_source == "Meta API 自動抓取":
             p_since, p_until = date(today.year, today.month, 1), today - timedelta(days=1)
         else:
             p_since, p_until = today - timedelta(days=6), today
-        curr_since = st.date_input("開始", p_since, key=f"api_curr_s_{preset}")
-        curr_until = st.date_input("結束", p_until, key=f"api_curr_e_{preset}")
+        curr_since = st.date_input("開始", p_since, key=f"api_curr_s_{preset}_{today}")
+        curr_until = st.date_input("結束", p_until, key=f"api_curr_e_{preset}_{today}")
 
     default_comp_since, default_comp_until = prev_week_range(curr_since, curr_until)
     default_mom_since,  default_mom_until  = mom_range(curr_since, curr_until)
