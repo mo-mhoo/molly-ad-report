@@ -1771,8 +1771,8 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 daily_b      = int(c["daily_budget"])
                 _ts_entry    = today_scheds.get(c["id"])
                 sched_tag    = _ts_entry["tag"] if isinstance(_ts_entry, dict) else (_ts_entry or "—")
-                eff_pct      = _ts_entry["budget_value"] if isinstance(_ts_entry, dict) else sched_actual_pct
-                projected    = round(daily_b * (1 + eff_pct / 100))
+                _existing_pct = _ts_entry["budget_value"] if isinstance(_ts_entry, dict) else None
+                projected    = 0  # 在套用 sel_state 後重算
                 spend_today  = round(ins.get("spend", 0))
                 orders_today = ins.get("orders", 0)
                 pv_today     = ins.get("purchase_val", 0)
@@ -1786,7 +1786,8 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                     "今日ROAS": ins.get("roas"),
                     "7天ROAS":  ins_7d.get("roas"),
                     "今日排程": sched_tag,
-                    "排程後預算": projected,
+                    "排程後預算": 0,
+                    "_existing_pct": _existing_pct,
                     "今日購買": orders_today,
                     "今日CPA":  cpa_today,
                     "轉換價值": round(pv_today) if pv_today else None,
@@ -1828,8 +1829,14 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
 
             proj_col = "排程後預算"
             for i, row in enumerate(rows):
-                row["選取"]   = sel_state.get(camp_id_list[i], False)
-                row[proj_col] = f"${row['排程後預算']}"
+                is_sel = sel_state.get(camp_id_list[i], False)
+                row["選取"] = is_sel
+                daily_b = row["日預算"]
+                if is_sel:
+                    eff_pct = sched_actual_pct
+                else:
+                    eff_pct = row["_existing_pct"] if row["_existing_pct"] is not None else sched_actual_pct
+                row[proj_col] = f"${round(daily_b * (1 + eff_pct / 100))}"
                 row["今日ROAS"] = _fmt_roas(row["今日ROAS"])
                 row["7天ROAS"]  = _fmt_roas(row["7天ROAS"])
             df_sched = pd.DataFrame(rows)
