@@ -1951,7 +1951,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 mod_ins_7d = st.session_state.get("sched_insights_7d", {})
 
                 mod_sign    = f"+{mod_new_pct}%" if mod_new_pct >= 0 else f"{mod_new_pct}%"
-                proj_col_m  = f"修改後預計（{mod_sign}）"
+                proj_col_m  = f"修改後預算（{mod_sign}）"
 
                 mod_rows, mod_id_list = [], []
                 for c in mod_camps:
