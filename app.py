@@ -2236,6 +2236,15 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             orders_today = ins.get("orders", 0)
             pv_today     = ins.get("purchase_val", 0)
             cpa_today    = round(spend_today / orders_today) if orders_today > 0 else None
+            lc   = ins.get("link_clicks", 0)
+            imp  = ins.get("impressions", 0)
+            rc   = ins.get("reach", 0)
+            atc  = ins.get("add_to_cart", 0)
+            cvr_a      = f"{orders_today / lc * 100:.1f}%" if lc > 0 else None
+            atc_rate_a = f"{atc / lc * 100:.1f}%"          if lc > 0 else None
+            ctr_a      = f"{lc / imp * 100:.2f}%"           if imp > 0 else None
+            cpc_a      = round(spend_today / lc)            if lc > 0 else None
+            cpm_reach_a = round(spend_today / rc * 1000)    if rc > 0 else None
             adj_rows.append({
                 "狀":       "🟢" if c["status"] == "ACTIVE" else "⏸",
                 "活動名稱": c["name"],
@@ -2246,6 +2255,11 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 "今日購買": orders_today,
                 "今日CPA":  cpa_today,
                 "轉換價值": round(pv_today) if pv_today else None,
+                "CVR":      cvr_a,
+                "加車率":   atc_rate_a,
+                "CTR":      ctr_a,
+                "CPC":      cpc_a,
+                "觸及成本": cpm_reach_a,
             })
             adj_id_list.append(c["id"])
 
@@ -2299,7 +2313,8 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 row["選取"] = sel_state_adj.get(adj_id_list[i], False)
 
             display_cols = ["選取", "狀", "活動名稱", "日預算", "今日花費", "今日ROAS",
-                            "7天ROAS", "今日購買", "今日CPA", "轉換價值"]
+                            "7天ROAS", "今日購買", "今日CPA", "轉換價值",
+                            "CVR", "加車率", "CTR", "CPC", "觸及成本"]
             df_adj = pd.DataFrame(adj_rows)
             edited_adj = st.data_editor(
                 df_adj[display_cols],
@@ -2317,9 +2332,15 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                     "今日購買":  st.column_config.NumberColumn("今日購買", width=70),
                     "今日CPA":   st.column_config.TextColumn("今日CPA",  width=70),
                     "轉換價值":  st.column_config.TextColumn("轉換價值", width=80),
+                    "CVR":       st.column_config.TextColumn("CVR",      width=70),
+                    "加車率":    st.column_config.TextColumn("加車率",    width=70),
+                    "CTR":       st.column_config.TextColumn("CTR",      width=70),
+                    "CPC":       st.column_config.NumberColumn("CPC",    width=65),
+                    "觸及成本":  st.column_config.NumberColumn("觸及成本", width=80),
                 },
                 disabled=["狀", "活動名稱", "日預算", "今日花費", "今日ROAS",
-                          "7天ROAS", "今日購買", "今日CPA", "轉換價值"],
+                          "7天ROAS", "今日購買", "今日CPA", "轉換價值",
+                          "CVR", "加車率", "CTR", "CPC", "觸及成本"],
                 key=f"adj_editor_{st.session_state.get('adj_sel_v', 0)}",
             )
 
