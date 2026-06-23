@@ -894,7 +894,7 @@ def fetch_today_campaign_insights(access_token, ad_account_id, date_preset="toda
     """抓各活動的 ROAS、訂單數、花費（支援一般及 CPAS 帳戶）"""
     url = f"https://graph.facebook.com/v25.0/act_{ad_account_id}/insights"
     params = {
-        "fields": "campaign_id,spend,purchase_roas,actions,action_values,catalog_segment_actions,catalog_segment_value",
+        "fields": "campaign_id,spend,impressions,reach,inline_link_clicks,purchase_roas,actions,action_values,catalog_segment_actions,catalog_segment_value",
         "level": "campaign",
         "date_preset": date_preset,
         "access_token": access_token,
@@ -957,7 +957,31 @@ def fetch_today_campaign_insights(access_token, ad_account_id, date_preset="toda
         except Exception:
             spend = 0.0
 
-        result[cid] = {"roas": roas, "orders": orders, "spend": spend, "purchase_val": purchase_val}
+        try:
+            impressions = float(row.get("impressions", 0))
+        except Exception:
+            impressions = 0.0
+
+        try:
+            reach = float(row.get("reach", 0))
+        except Exception:
+            reach = 0.0
+
+        try:
+            link_clicks = float(row.get("inline_link_clicks", 0))
+        except Exception:
+            link_clicks = 0.0
+
+        add_to_cart = 0.0
+        for a_type in ["actions", "catalog_segment_actions"]:
+            atc = _get_action(row.get(a_type, []), "add_to_cart")
+            if atc > 0:
+                add_to_cart += atc
+
+        result[cid] = {
+            "roas": roas, "orders": orders, "spend": spend, "purchase_val": purchase_val,
+            "impressions": impressions, "reach": reach, "link_clicks": link_clicks, "add_to_cart": add_to_cart,
+        }
     return result
 
 def adjust_campaign_budget(access_token, campaign_id, multiplier_pct):
@@ -1777,6 +1801,15 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 orders_today = ins.get("orders", 0)
                 pv_today     = ins.get("purchase_val", 0)
                 cpa_today    = round(spend_today / orders_today) if orders_today > 0 else None
+                lc  = ins.get("link_clicks", 0)
+                imp = ins.get("impressions", 0)
+                rc  = ins.get("reach", 0)
+                atc = ins.get("add_to_cart", 0)
+                cvr      = f"{orders_today / lc * 100:.1f}%" if lc > 0 else None
+                atc_rate = f"{atc / lc * 100:.1f}%"          if lc > 0 else None
+                ctr      = f"{lc / imp * 100:.2f}%"           if imp > 0 else None
+                cpc      = round(spend_today / lc)            if lc > 0 else None
+                cpm_reach = round(spend_today / rc * 1000)    if rc > 0 else None
                 rows.append({
                     "選取":     False,
                     "狀":       "🟢" if c["status"] == "ACTIVE" else "⏸",
@@ -1791,6 +1824,11 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                     "今日購買": orders_today,
                     "今日CPA":  cpa_today,
                     "轉換價值": round(pv_today) if pv_today else None,
+                    "CVR":      cvr,
+                    "加車率":   atc_rate,
+                    "CTR":      ctr,
+                    "CPC":      cpc,
+                    "觸及成本": cpm_reach,
                 })
                 camp_id_list.append(c["id"])
 
@@ -1842,7 +1880,8 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             df_sched = pd.DataFrame(rows)
 
             disp_cols_sched = ["選取", "狀", "活動名稱", "日預算", "今日花費", "今日ROAS",
-                               "7天ROAS", "今日排程", proj_col, "今日購買", "今日CPA", "轉換價值"]
+                               "7天ROAS", "今日排程", proj_col, "今日購買", "今日CPA", "轉換價值",
+                               "CVR", "加車率", "CTR", "CPC", "觸及成本"]
             edited_sched = st.data_editor(
                 df_sched[disp_cols_sched],
                 use_container_width=True,
@@ -1861,9 +1900,15 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                     "今日購買":  st.column_config.NumberColumn("今日購買", width=70),
                     "今日CPA":   st.column_config.TextColumn("今日CPA",  width=70),
                     "轉換價值":  st.column_config.TextColumn("轉換價值", width=80),
+                    "CVR":       st.column_config.TextColumn("CVR",      width=70),
+                    "加車率":    st.column_config.TextColumn("加車率",    width=70),
+                    "CTR":       st.column_config.TextColumn("CTR",      width=70),
+                    "CPC":       st.column_config.NumberColumn("CPC",    width=65),
+                    "觸及成本":  st.column_config.NumberColumn("觸及成本", width=80),
                 },
                 disabled=["狀", "活動名稱", "日預算", "今日花費", "今日ROAS", "7天ROAS",
-                          "今日排程", proj_col, "今日購買", "今日CPA", "轉換價值"],
+                          "今日排程", proj_col, "今日購買", "今日CPA", "轉換價值",
+                          "CVR", "加車率", "CTR", "CPC", "觸及成本"],
                 key=f"sched_editor_{st.session_state.get('sched_sel_v', 0)}",
             )
 
