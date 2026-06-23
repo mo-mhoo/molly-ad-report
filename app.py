@@ -1183,7 +1183,7 @@ if accounts and len(accounts) > 1:
 df_curr = df_comp = df_mom = df_yoy = None
 
 if data_source == "Meta API 自動抓取":
-    today = date.today()
+    today = datetime.now(timezone(timedelta(hours=8))).date()
     preset_options = ["今日", "過去7天", "本月至今", "自訂"]
 
     col1, col2, col3, col4 = st.columns(4)
@@ -1691,9 +1691,9 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             with st.expander("⚡ 快速加整天（日期範圍）", expanded=False):
                 qc1, qc2 = st.columns(2)
                 with qc1:
-                    quick_s = st.date_input("從", date.today(), key="quick_s")
+                    quick_s = st.date_input("從", datetime.now(timezone(timedelta(hours=8))).date(), key="quick_s")
                 with qc2:
-                    quick_e = st.date_input("到", date.today(), key="quick_e")
+                    quick_e = st.date_input("到", datetime.now(timezone(timedelta(hours=8))).date(), key="quick_e")
                 if st.button("＋ 批次加整天（每天 00:00–次日 00:00）", key="add_quick_days", use_container_width=True):
                     if quick_e < quick_s:
                         st.error("結束日期不能早於開始日期")
@@ -1721,12 +1721,12 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             with st.expander("🕐 自訂時段", expanded=False):
                 ts1, ts2 = st.columns(2)
                 with ts1:
-                    slot_s_date = st.date_input("開始日期", date.today(), key="slot_s_date")
+                    slot_s_date = st.date_input("開始日期", datetime.now(timezone(timedelta(hours=8))).date(), key="slot_s_date")
                 with ts2:
                     slot_s_hour = st.selectbox("開始時間", HOURS, index=0, key="slot_s_hour")
                 ts3, ts4 = st.columns(2)
                 with ts3:
-                    slot_e_date = st.date_input("結束日期", date.today(), key="slot_e_date")
+                    slot_e_date = st.date_input("結束日期", datetime.now(timezone(timedelta(hours=8))).date(), key="slot_e_date")
                 with ts4:
                     slot_e_hour = st.selectbox("結束時間", HOURS, index=len(HOURS)-1, key="slot_e_hour")
                 if st.button("＋ 加入批次清單", key="add_slot", use_container_width=True):
