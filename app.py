@@ -768,17 +768,25 @@ def update_budget_schedule(access_token, schedule_id, new_pct, campaign_id=None)
     ).json()
     if "error" in detail:
         return detail
+    def _to_ts(v):
+        try:
+            return int(v)
+        except (ValueError, TypeError):
+            return int(datetime.strptime(str(v), "%Y-%m-%dT%H:%M:%S%z").timestamp())
+
     time_start = detail.get("time_start")
     time_end   = detail.get("time_end")
     if not time_start or not time_end:
         return {"error": {"message": "無法取得排程時段資訊"}}
+    ts_start = _to_ts(time_start)
+    ts_end   = _to_ts(time_end)
 
     # 2. 刪除舊排程
     delete_budget_schedule(access_token, schedule_id)
 
     # 3. 重建相同時段、新幅度的排程
     if campaign_id:
-        return create_budget_schedule(access_token, campaign_id, time_start, time_end, new_pct)
+        return create_budget_schedule(access_token, campaign_id, ts_start, ts_end, new_pct)
     return {"error": {"message": "缺少 campaign_id，無法重建排程"}}
 
 def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_increase):
