@@ -869,10 +869,11 @@ def date_to_ts(d, is_start=False):
     return int(datetime(d.year, d.month, d.day, 0, 0, 0, tzinfo=TZ_TAIPEI).timestamp())
 
 def date_hour_to_ts(d, hour_str):
-    """date + 'HH:00' → Unix timestamp（台灣時間）"""
+    """date + 'HH:MM' → Unix timestamp（台灣時間）"""
     TZ_TAIPEI = timezone(timedelta(hours=8))
-    h = int(hour_str.split(":")[0])
-    return int(datetime(d.year, d.month, d.day, h, 0, 0, tzinfo=TZ_TAIPEI).timestamp())
+    parts = hour_str.split(":")
+    h, m = int(parts[0]), int(parts[1]) if len(parts) > 1 else 0
+    return int(datetime(d.year, d.month, d.day, h, m, 0, tzinfo=TZ_TAIPEI).timestamp())
 
 # ── 快速加減碼 & 批次上刊 API ─────────────────────────────────
 
@@ -1636,7 +1637,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             sched_actual_pct = sched_pct if "加碼" in sched_dir else -sched_pct
 
             # ── 排程時段設定（2 列排列，手機不擠）
-            HOURS = [f"{h:02d}:00" for h in range(24)]
+            HOURS = [f"{h:02d}:00" for h in range(24)] + ["23:45"]
             st.markdown("**排程時段**")
 
             # 快速加整天（日期範圍）
@@ -1680,7 +1681,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 with ts3:
                     slot_e_date = st.date_input("結束日期", date.today(), key="slot_e_date")
                 with ts4:
-                    slot_e_hour = st.selectbox("結束時間", HOURS, index=23, key="slot_e_hour")
+                    slot_e_hour = st.selectbox("結束時間", HOURS, index=len(HOURS)-1, key="slot_e_hour")
                 if st.button("＋ 加入批次清單", key="add_slot", use_container_width=True):
                     ts_s = date_hour_to_ts(slot_s_date, slot_s_hour)
                     ts_e = date_hour_to_ts(slot_e_date, slot_e_hour)
