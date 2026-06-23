@@ -1694,7 +1694,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                     quick_s = st.date_input("從", datetime.now(timezone(timedelta(hours=8))).date(), key="quick_s")
                 with qc2:
                     quick_e = st.date_input("到", datetime.now(timezone(timedelta(hours=8))).date(), key="quick_e")
-                if st.button("＋ 批次加整天（每天 00:00–次日 00:00）", key="add_quick_days", use_container_width=True):
+                if st.button("＋ 批次加整天（每天 00:00–23:45）", key="add_quick_days", use_container_width=True):
                     if quick_e < quick_s:
                         st.error("結束日期不能早於開始日期")
                     else:
@@ -1703,11 +1703,11 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                         d = quick_s
                         while d <= quick_e:
                             ts_s = date_hour_to_ts(d, "00:00")
-                            ts_e = date_hour_to_ts(d + timedelta(days=1), "00:00")
+                            ts_e = date_hour_to_ts(d, "23:45")
                             if not any(s["_ts_start"] == ts_s and s["_ts_end"] == ts_e for s in slots):
                                 slots.append({
                                     "開始": f"{d} 00:00",
-                                    "結束": f"{d + timedelta(days=1)} 00:00",
+                                    "結束": f"{d} 23:45",
                                     "_ts_start": ts_s,
                                     "_ts_end":   ts_e,
                                 })
