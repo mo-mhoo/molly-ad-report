@@ -758,33 +758,24 @@ def delete_budget_schedule(access_token, schedule_id):
     ).json()
     return resp
 
-def update_budget_schedule(access_token, schedule_id, new_pct, campaign_id=None):
+def update_budget_schedule(access_token, schedule_id, new_pct, campaign_id=None, time_start=None, time_end=None):
     """修改現有預算排程：Meta 不支援直接 PATCH，改用刪除＋重建相同時段"""
-    # 1. 抓舊排程的 time_start / time_end
-    detail = requests.get(
-        f"https://graph.facebook.com/v25.0/{schedule_id}",
-        params={"fields": "time_start,time_end,budget_value_type", "access_token": access_token},
-        timeout=15,
-    ).json()
-    if "error" in detail:
-        return detail
     def _to_ts(v):
         try:
             return int(v)
         except (ValueError, TypeError):
             return int(datetime.strptime(str(v), "%Y-%m-%dT%H:%M:%S%z").timestamp())
 
-    time_start = detail.get("time_start")
-    time_end   = detail.get("time_end")
     if not time_start or not time_end:
-        return {"error": {"message": "無法取得排程時段資訊"}}
+        return {"error": {"message": "缺少排程時段資訊，請重新載入後再試"}}
+
     ts_start = _to_ts(time_start)
     ts_end   = _to_ts(time_end)
 
-    # 2. 刪除舊排程
+    # 1. 刪除舊排程
     delete_budget_schedule(access_token, schedule_id)
 
-    # 3. 重建相同時段、新幅度的排程
+    # 2. 重建相同時段、新幅度的排程
     if campaign_id:
         return create_budget_schedule(access_token, campaign_id, ts_start, ts_end, new_pct)
     return {"error": {"message": "缺少 campaign_id，無法重建排程"}}
@@ -1615,6 +1606,8 @@ def _do_load_campaigns(token, acct):
                                 "tag": f"+{bv}%" if bv >= 0 else f"{bv}%",
                                 "schedule_id": best["id"],
                                 "budget_value": bv,
+                                "time_start": best.get("time_start"),
+                                "time_end": best.get("time_end"),
                             }
                     except Exception as fe:
                         _errors.append(str(fe))
@@ -2041,7 +2034,12 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                             entry  = today_scheds_mod[cid]
                             sched_id = entry["schedule_id"]
                             cname  = next((c["name"] for c in mod_camps if c["id"] == cid), cid)
-                            result = update_budget_schedule(_token, sched_id, mod_new_pct, campaign_id=cid)
+                            result = update_budget_schedule(
+                                _token, sched_id, mod_new_pct,
+                                campaign_id=cid,
+                                time_start=entry.get("time_start"),
+                                time_end=entry.get("time_end"),
+                            )
                             if "error" not in result:
                                 st.success(f"✅ {cname} 已更新為 {new_sign}")
                                 st.session_state["today_scheds"][cid] = {
