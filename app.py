@@ -1973,6 +1973,28 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             components.html("""<script>
 (function(){
   var lastIdx=null, lastState=null;
+  var _origPM=null, _intercepting=false, _queue=[];
+
+  function startBatch(){
+    if(_intercepting) return;
+    _intercepting=true; _queue=[];
+    _origPM=window.parent.postMessage;
+    window.parent.postMessage=function(){
+      _queue.push(Array.from(arguments));
+    };
+  }
+  function endBatch(){
+    var orig=_origPM;
+    var q=_queue.slice();
+    _intercepting=false; _queue=[];
+    window.parent.postMessage=orig;
+    if(q.length>0){
+      // Send only the last message — it contains the full accumulated edit state
+      var last=q[q.length-1];
+      orig.apply(window.parent, last);
+    }
+  }
+
   function patch(iframe){
     if(iframe._sp) return;
     try{
@@ -1988,6 +2010,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
         if(e.shiftKey && lastIdx!==null && lastState!==null){
           e.preventDefault(); e.stopImmediatePropagation();
           var min=Math.min(lastIdx,idx), max=Math.max(lastIdx,idx);
+          startBatch();
           Array.from(doc.querySelectorAll('.ag-row[row-index]')).forEach(function(r){
             var ri=parseInt(r.getAttribute('row-index'));
             if(ri>=min && ri<=max){
@@ -1995,6 +2018,8 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
               if(cb && cb.checked!==lastState) cb.click();
             }
           });
+          // Allow React / AG Grid async events to flush, then release
+          setTimeout(endBatch, 150);
           lastIdx=idx;
         } else {
           lastIdx=idx; lastState=!inp.checked;
