@@ -1905,7 +1905,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             combined = sorted(zip(rows, camp_id_list), key=_sort_key)
             rows, camp_id_list = (list(z) for z in zip(*combined)) if combined else ([], [])
 
-            # ── 快速選取按鈕（遞增版本號強制 AgGrid 重新渲染）
+            # ── 快速選取按鈕
             qb1, qb2, qb3 = st.columns(3)
             if qb1.button("全選", key="sel_all", use_container_width=True):
                 st.session_state["sched_sel"]   = {cid: True for cid in camp_id_list}
@@ -1920,6 +1920,30 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                                                     for i in range(len(rows))}
                 st.session_state["sched_sel_v"] = st.session_state.get("sched_sel_v", 0) + 1
                 st.rerun()
+
+            # 範圍選取（取代 Shift+Click）
+            with st.expander("選取範圍（例：1-5 選第1到5行）"):
+                rc1, rc2 = st.columns([3, 1])
+                range_input = rc1.text_input("行數範圍", placeholder="例：1-5 或 2,4,6", label_visibility="collapsed", key="range_input")
+                if rc2.button("套用", key="sel_range", use_container_width=True):
+                    sel = dict(st.session_state.get("sched_sel", {}))
+                    try:
+                        indices = set()
+                        for part in range_input.split(","):
+                            part = part.strip()
+                            if "-" in part:
+                                a, b = part.split("-", 1)
+                                indices.update(range(int(a) - 1, int(b)))
+                            else:
+                                indices.add(int(part) - 1)
+                        for i, cid in enumerate(camp_id_list):
+                            if i in indices:
+                                sel[cid] = True
+                        st.session_state["sched_sel"]   = sel
+                        st.session_state["sched_sel_v"] = st.session_state.get("sched_sel_v", 0) + 1
+                        st.rerun()
+                    except Exception:
+                        st.error("格式錯誤，請輸入如 1-5 或 2,4,6")
 
             # 套用選取狀態
             sel_state = st.session_state.get("sched_sel", {})
@@ -1970,59 +1994,6 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                           "CVR", "加車率", "CTR", "CPC", "觸及成本"],
                 key=f"sched_editor_{st.session_state.get('sched_sel_v', 0)}",
             )
-            components.html("""<script>
-(function(){
-  try {
-    var P = window.parent;
-    // state 掛在 window.parent，跨 rerun 保留
-    if(!P._sc) P._sc = { lastIdx: null, lastState: null, synth: false };
-    var S = P._sc;
-
-    function findCb(row) { return row.querySelector('input[type="checkbox"]'); }
-
-    function handler(e) {
-      if(S.synth) return;  // 跳過我們自己的 synthetic click
-      var row = e.target.closest('.ag-row');
-      if(!row) return;
-      var cb = findCb(row);
-      if(!cb) return;
-      // 確認點擊在 checkbox cell（不是其他欄）
-      if(!e.target.closest('input[type="checkbox"], .ag-checkbox-input-wrapper, label')) return;
-      var idx = parseInt(row.getAttribute('row-index'));
-      if(isNaN(idx)) return;
-
-      if(e.shiftKey && S.lastIdx !== null && S.lastState !== null) {
-        // 阻止瀏覽器 toggle 當前列（我們自己統一處理）
-        e.preventDefault();
-        var min = Math.min(S.lastIdx, idx), max = Math.max(S.lastIdx, idx);
-        S.synth = true;
-        P.document.querySelectorAll('.ag-row[row-index]').forEach(function(r) {
-          var ri = parseInt(r.getAttribute('row-index'));
-          if(ri >= min && ri <= max) {
-            var c = findCb(r);
-            // capture phase：cb.checked 還是舊值（未 toggle），所以直接比對
-            if(c && c.checked !== S.lastState) c.click();
-          }
-        });
-        S.synth = false;
-        S.lastIdx = idx;
-        // lastState 維持不變（保持同一選取方向）
-      } else {
-        // 單選：capture phase cb.checked 是舊值，toggle 後會變成 !cb.checked
-        S.lastIdx = idx;
-        S.lastState = !cb.checked;
-      }
-    }
-
-    if(P._scH) P.document.removeEventListener('click', P._scH, true);
-    P._scH = handler;
-    P.document.addEventListener('click', handler, true);
-    console.log('[shift-select] attached, lastIdx=', S.lastIdx);
-  } catch(err) {
-    console.error('[shift-select]', err);
-  }
-})();
-</script>""", height=1)
 
             # 從 editor 取已選活動（同步回 session_state 供按鈕追蹤）
             st.session_state["sched_sel"] = {camp_id_list[i]: bool(edited_sched.iloc[i]["選取"])
