@@ -240,6 +240,7 @@ def calc_meta_metrics(df):
         atc = sub["加到購物車次數"].sum()
         result[t] = {
             "花費": spend,
+            "點擊": clicks,
             "CPC": spend / clicks if clicks > 0 else 0,
             "CTR": clicks / impr * 100 if impr > 0 else 0,
             "ROAS": revenue / spend if spend > 0 else 0,
@@ -315,6 +316,7 @@ def _chg_color(v, hib):
 def build_table_html(curr_m, comp_m, mom_m, yoy_m):
     rows_def = [
         ("ATL", "花費",    "currency", True),
+        ("ATL", "點擊",    "count",    True),
         ("ATL", "CPC",     "currency", False),
         ("BTL", "花費",    "currency", True),
         ("BTL", "ROAS",    "roas",     True),
@@ -384,6 +386,7 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
 def build_table_df(curr_m, comp_m, mom_m, yoy_m):
     rows_def = [
         ("ATL", "花費",    "currency", True),
+        ("ATL", "點擊",    "count",    True),
         ("ATL", "CPC",     "currency", False),
         ("BTL", "花費",    "currency", True),
         ("BTL", "ROAS",    "roas",     True),
@@ -1414,7 +1417,7 @@ if df_curr is not None and not df_curr.empty:
         yoy_m  = calc_meta_metrics(df_yoy)  if df_yoy  is not None else None
 
         st.subheader("📈 Meta Ads 關鍵指標（ATL / BTL）")
-        components.html(build_table_html(curr_m, comp_m, mom_m, yoy_m), height=430, scrolling=False)
+        components.html(build_table_html(curr_m, comp_m, mom_m, yoy_m), height=465, scrolling=False)
 
         btl = curr_m.get("BTL", {})
         atl = curr_m.get("ATL", {})
