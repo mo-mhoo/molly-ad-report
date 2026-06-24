@@ -1974,48 +1974,52 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
 (function(){
   try {
     var P = window.parent;
-    if(!P._sc) P._sc = {lastIdx: null};
+    // state 掛在 window.parent，跨 rerun 保留
+    if(!P._sc) P._sc = { lastIdx: null, lastState: null, synth: false };
     var S = P._sc;
 
-    function findCheckbox(row) {
-      // 嘗試多種 selector，相容不同版本 AG Grid / Streamlit
-      return row.querySelector('input[type="checkbox"]');
-    }
+    function findCb(row) { return row.querySelector('input[type="checkbox"]'); }
 
     function handler(e) {
-      // click 事件：瀏覽器已處理完 checkbox toggle
-      var inp = e.target;
-      if(inp.type !== 'checkbox') inp = e.target.closest('label, .ag-checkbox-input-wrapper');
-      if(!inp) return;
+      if(S.synth) return;  // 跳過我們自己的 synthetic click
       var row = e.target.closest('.ag-row');
       if(!row) return;
+      var cb = findCb(row);
+      if(!cb) return;
+      // 確認點擊在 checkbox cell（不是其他欄）
+      if(!e.target.closest('input[type="checkbox"], .ag-checkbox-input-wrapper, label')) return;
       var idx = parseInt(row.getAttribute('row-index'));
       if(isNaN(idx)) return;
 
-      var cb = findCheckbox(row);
-      var currentState = cb ? cb.checked : true;  // 已 toggle 後的狀態
-
-      if(e.shiftKey && S.lastIdx !== null) {
-        var min = Math.min(S.lastIdx, idx);
-        var max = Math.max(S.lastIdx, idx);
-        // 批次修改中間列（排除當前列，瀏覽器已幫我們處理它）
+      if(e.shiftKey && S.lastIdx !== null && S.lastState !== null) {
+        // 阻止瀏覽器 toggle 當前列（我們自己統一處理）
+        e.preventDefault();
+        var min = Math.min(S.lastIdx, idx), max = Math.max(S.lastIdx, idx);
+        S.synth = true;
         P.document.querySelectorAll('.ag-row[row-index]').forEach(function(r) {
           var ri = parseInt(r.getAttribute('row-index'));
-          if(ri >= min && ri <= max && ri !== idx) {
-            var c = findCheckbox(r);
-            if(c && c.checked !== currentState) c.click();
+          if(ri >= min && ri <= max) {
+            var c = findCb(r);
+            // capture phase：cb.checked 還是舊值（未 toggle），所以直接比對
+            if(c && c.checked !== S.lastState) c.click();
           }
         });
+        S.synth = false;
+        S.lastIdx = idx;
+        // lastState 維持不變（保持同一選取方向）
+      } else {
+        // 單選：capture phase cb.checked 是舊值，toggle 後會變成 !cb.checked
+        S.lastIdx = idx;
+        S.lastState = !cb.checked;
       }
-      S.lastIdx = idx;
     }
 
     if(P._scH) P.document.removeEventListener('click', P._scH, true);
     P._scH = handler;
     P.document.addEventListener('click', handler, true);
-    console.log('[shift-select] handler attached, lastIdx=', S.lastIdx);
+    console.log('[shift-select] attached, lastIdx=', S.lastIdx);
   } catch(err) {
-    console.error('[shift-select] ERROR:', err);
+    console.error('[shift-select]', err);
   }
 })();
 </script>""", height=1)
