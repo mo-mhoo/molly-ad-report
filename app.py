@@ -1974,45 +1974,48 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
 (function(){
   try {
     var P = window.parent;
-    // 狀態存在 window.parent，跨 Streamlit rerun 保留
-    if(!P._sc) P._sc = {lastIdx:null, lastState:null};
+    if(!P._sc) P._sc = {lastIdx: null};
     var S = P._sc;
 
-    function handler(e){
-      // 支援兩種點擊目標：直接點 input 或點 cell wrapper
-      var cell = e.target.closest('[col-id="\\u9078\\u53d6"]');  // 選取 in unicode
-      if(!cell) cell = e.target.closest('.ag-checkbox-input-wrapper, .ag-checkbox-cell');
-      if(!cell) return;
-      var row = cell.closest('.ag-row');
+    function findCheckbox(row) {
+      // 嘗試多種 selector，相容不同版本 AG Grid / Streamlit
+      return row.querySelector('input[type="checkbox"]');
+    }
+
+    function handler(e) {
+      // click 事件：瀏覽器已處理完 checkbox toggle
+      var inp = e.target;
+      if(inp.type !== 'checkbox') inp = e.target.closest('label, .ag-checkbox-input-wrapper');
+      if(!inp) return;
+      var row = e.target.closest('.ag-row');
       if(!row) return;
       var idx = parseInt(row.getAttribute('row-index'));
       if(isNaN(idx)) return;
-      var inp = cell.querySelector('input[type="checkbox"]') || cell.closest('.ag-row').querySelector('input[type="checkbox"]');
 
-      if(e.shiftKey && S.lastIdx !== null && S.lastState !== null){
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        var min = Math.min(S.lastIdx, idx), max = Math.max(S.lastIdx, idx);
-        P.document.querySelectorAll('.ag-row[row-index]').forEach(function(r){
+      var cb = findCheckbox(row);
+      var currentState = cb ? cb.checked : true;  // 已 toggle 後的狀態
+
+      if(e.shiftKey && S.lastIdx !== null) {
+        var min = Math.min(S.lastIdx, idx);
+        var max = Math.max(S.lastIdx, idx);
+        // 批次修改中間列（排除當前列，瀏覽器已幫我們處理它）
+        P.document.querySelectorAll('.ag-row[row-index]').forEach(function(r) {
           var ri = parseInt(r.getAttribute('row-index'));
-          if(ri >= min && ri <= max){
-            var cb = r.querySelector('input[type="checkbox"]');
-            if(cb && cb.checked !== S.lastState) cb.click();
+          if(ri >= min && ri <= max && ri !== idx) {
+            var c = findCheckbox(r);
+            if(c && c.checked !== currentState) c.click();
           }
         });
-        S.lastIdx = idx;
-      } else {
-        S.lastIdx = idx;
-        S.lastState = inp ? !inp.checked : true;
       }
+      S.lastIdx = idx;
     }
 
-    // 每次重新掛載（remove 舊的再 add 新的，避免重複）
-    if(P._scHandler) P.document.removeEventListener('pointerdown', P._scHandler, true);
-    P._scHandler = handler;
-    P.document.addEventListener('pointerdown', handler, true);
+    if(P._scH) P.document.removeEventListener('click', P._scH, true);
+    P._scH = handler;
+    P.document.addEventListener('click', handler, true);
+    console.log('[shift-select] handler attached, lastIdx=', S.lastIdx);
   } catch(err) {
-    console.error('[shift-select]', err);
+    console.error('[shift-select] ERROR:', err);
   }
 })();
 </script>""", height=1)
