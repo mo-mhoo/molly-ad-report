@@ -1972,27 +1972,23 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             )
             components.html("""<script>
 (function(){
-  var lastIdx=null, lastState=null;
-  var _origPM=null, _intercepting=false, _queue=[];
+  var P = window.parent;
+  // 用 window.parent 保存狀態，讓 Streamlit rerun 後狀態不遺失
+  if(!P._sc) P._sc = {lastIdx:null, lastState:null};
+  var S = P._sc;
 
   function startBatch(){
-    if(_intercepting) return;
-    _intercepting=true; _queue=[];
-    _origPM=window.parent.postMessage;
-    window.parent.postMessage=function(){
-      _queue.push(Array.from(arguments));
-    };
+    if(P._scBusy) return;
+    P._scBusy=true; P._scQueue=[];
+    P._scOrigPM=P.postMessage;
+    P.postMessage=function(){ P._scQueue.push(Array.from(arguments)); };
   }
   function endBatch(){
-    var orig=_origPM;
-    var q=_queue.slice();
-    _intercepting=false; _queue=[];
-    window.parent.postMessage=orig;
-    if(q.length>0){
-      // Send only the last message — it contains the full accumulated edit state
-      var last=q[q.length-1];
-      orig.apply(window.parent, last);
-    }
+    var orig=P._scOrigPM;
+    var q=(P._scQueue||[]).slice();
+    P._scBusy=false; P._scQueue=[];
+    P.postMessage=orig;
+    if(q.length>0){ var last=q[q.length-1]; orig.apply(P,last); }
   }
 
   function patch(iframe){
@@ -2007,32 +2003,31 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
         var row=inp.closest('.ag-row');
         if(!row) return;
         var idx=parseInt(row.getAttribute('row-index'));
-        if(e.shiftKey && lastIdx!==null && lastState!==null){
+        if(e.shiftKey && S.lastIdx!==null && S.lastState!==null){
           e.preventDefault(); e.stopImmediatePropagation();
-          var min=Math.min(lastIdx,idx), max=Math.max(lastIdx,idx);
+          var min=Math.min(S.lastIdx,idx), max=Math.max(S.lastIdx,idx);
           startBatch();
           Array.from(doc.querySelectorAll('.ag-row[row-index]')).forEach(function(r){
             var ri=parseInt(r.getAttribute('row-index'));
             if(ri>=min && ri<=max){
               var cb=r.querySelector('.ag-checkbox-input');
-              if(cb && cb.checked!==lastState) cb.click();
+              if(cb && cb.checked!==S.lastState) cb.click();
             }
           });
-          // Allow React / AG Grid async events to flush, then release
-          setTimeout(endBatch, 150);
-          lastIdx=idx;
+          setTimeout(endBatch, 200);
+          S.lastIdx=idx;
         } else {
-          lastIdx=idx; lastState=!inp.checked;
+          S.lastIdx=idx; S.lastState=!inp.checked;
         }
       },true);
     }catch(e){}
   }
   function scan(){
-    Array.from(window.parent.document.querySelectorAll('iframe')).forEach(function(f){try{patch(f);}catch(e){}});
+    Array.from(P.document.querySelectorAll('iframe')).forEach(function(f){try{patch(f);}catch(e){}});
   }
-  scan(); setInterval(scan,1500);
+  scan(); setInterval(scan,800);
 })();
-</script>""", height=0)
+</script>""", height=1)
 
             # 從 editor 取已選活動（同步回 session_state 供按鈕追蹤）
             st.session_state["sched_sel"] = {camp_id_list[i]: bool(edited_sched.iloc[i]["選取"])
