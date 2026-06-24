@@ -326,6 +326,13 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
     chg_headers = "".join(f"<th>{c}</th>" for c in cols if c)
     header = f"<tr><th>類型</th><th>指標</th><th style='text-align:right'>實際數值</th>{chg_headers}</tr>"
 
+    def _total_spend(m):
+        return (m.get("ATL", {}).get("花費", 0) or 0) + (m.get("BTL", {}).get("花費", 0) or 0)
+    def _total_roas(m):
+        s = _total_spend(m)
+        rev = m.get("BTL", {}).get("廣告收益", 0) or 0
+        return rev / s if s > 0 else 0
+
     body = ""
     prev_type = None
     for t, metric, style, hib in rows_def:
@@ -342,6 +349,25 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
             row += f"<td style='text-align:right'>{_chg_color(pct_change(val, mom_m.get(t,{}).get(metric,0)), hib)}</td>"
         if yoy_m is not None:
             row += f"<td style='text-align:right'>{_chg_color(pct_change(val, yoy_m.get(t,{}).get(metric,0)), hib)}</td>"
+        row += "</tr>"
+        body += row
+
+    # 總計行
+    total_rows = [("總計", "花費", "currency", True, _total_spend),
+                  ("總計", "ROAS", "roas", True, _total_roas)]
+    for i, (t, metric, style, hib, fn) in enumerate(total_rows):
+        val = fn(curr_m)
+        td_style = "font-weight:700;text-align:center;vertical-align:middle;border-top:2px solid #bbb"
+        row = "<tr style='background:#f8f8f8'>"
+        if i == 0:
+            row += f'<td rowspan="2" style="{td_style}">{t}</td>'
+        row += f"<td style='font-weight:600'>{metric}</td><td style='text-align:right;font-weight:600'>{fmt_val(val, style)}</td>"
+        if comp_m is not None:
+            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, fn(comp_m)), hib)}</td>"
+        if mom_m is not None:
+            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, fn(mom_m)), hib)}</td>"
+        if yoy_m is not None:
+            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, fn(yoy_m)), hib)}</td>"
         row += "</tr>"
         body += row
 
@@ -365,6 +391,13 @@ def build_table_df(curr_m, comp_m, mom_m, yoy_m):
         ("BTL", "CPA",     "currency", False),
         ("BTL", "AOV",     "currency", True),
     ]
+    def _total_spend(m):
+        return (m.get("ATL", {}).get("花費", 0) or 0) + (m.get("BTL", {}).get("花費", 0) or 0)
+    def _total_roas(m):
+        s = _total_spend(m)
+        rev = m.get("BTL", {}).get("廣告收益", 0) or 0
+        return rev / s if s > 0 else 0
+
     result = []
     for t, metric, style, hib in rows_def:
         val = curr_m.get(t, {}).get(metric, 0)
@@ -376,6 +409,19 @@ def build_table_df(curr_m, comp_m, mom_m, yoy_m):
         if yoy_m is not None:
             row["YoY"] = _fmt_chg(pct_change(val, yoy_m.get(t, {}).get(metric, 0)), hib)
         result.append(row)
+
+    for metric, style, hib, fn in [("花費", "currency", True, _total_spend),
+                                    ("ROAS", "roas", True, _total_roas)]:
+        val = fn(curr_m)
+        row = {"類型": "總計", "指標": metric, "實際數值": fmt_val(val, style)}
+        if comp_m is not None:
+            row["WoW"] = _fmt_chg(pct_change(val, fn(comp_m)), hib)
+        if mom_m is not None:
+            row["MoM"] = _fmt_chg(pct_change(val, fn(mom_m)), hib)
+        if yoy_m is not None:
+            row["YoY"] = _fmt_chg(pct_change(val, fn(yoy_m)), hib)
+        result.append(row)
+
     return pd.DataFrame(result)
 
 # ── 檔案偵測 ─────────────────────────────────────────────
@@ -1368,7 +1414,7 @@ if df_curr is not None and not df_curr.empty:
         yoy_m  = calc_meta_metrics(df_yoy)  if df_yoy  is not None else None
 
         st.subheader("📈 Meta Ads 關鍵指標（ATL / BTL）")
-        components.html(build_table_html(curr_m, comp_m, mom_m, yoy_m), height=360, scrolling=False)
+        components.html(build_table_html(curr_m, comp_m, mom_m, yoy_m), height=430, scrolling=False)
 
         btl = curr_m.get("BTL", {})
         atl = curr_m.get("ATL", {})
