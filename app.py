@@ -2049,9 +2049,14 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
 
                 if st.button("✅ 確認建立排程", type="primary", key="confirm_sched"):
                     _token = cfg.get("meta_token", "")
+                    _camp_map = {c["id"]: c for c in campaigns}
                     for slot in slots_to_apply:
                         slot_label = f"{slot['開始']}→{slot['結束']}"
                         for cid, cname in zip(selected_camp_ids, selected_camp_names):
+                            # ASC 活動不支援預算排程，直接跳過
+                            if _camp_map.get(cid, {}).get("smart_promotion_type"):
+                                st.warning(f"⚠️ {cname}：ASC 活動不支援預算排程，已跳過")
+                                continue
                             result = create_budget_schedule(_token, cid, slot["_ts_start"], slot["_ts_end"], sched_actual_pct)
                             if result.get("success") or result.get("id"):
                                 note = result.get("note", "")
