@@ -1972,40 +1972,48 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             )
             components.html("""<script>
 (function(){
-  var P = window.parent;
-  // 狀態存在 window.parent，跨 Streamlit rerun 保留
-  if(!P._sc) P._sc = {lastIdx:null, lastState:null};
-  var S = P._sc;
-  // 避免重複掛載
-  if(P._scAttached) return;
-  P._scAttached = true;
+  try {
+    var P = window.parent;
+    // 狀態存在 window.parent，跨 Streamlit rerun 保留
+    if(!P._sc) P._sc = {lastIdx:null, lastState:null};
+    var S = P._sc;
 
-  // st.data_editor 直接渲染在主頁面 DOM，不在子 iframe
-  P.document.addEventListener('pointerdown', function(e){
-    var inp = e.target.closest('.ag-checkbox-input');
-    if(!inp) return;
-    var row = inp.closest('.ag-row');
-    if(!row) return;
-    var idx = parseInt(row.getAttribute('row-index'));
+    function handler(e){
+      // 支援兩種點擊目標：直接點 input 或點 cell wrapper
+      var cell = e.target.closest('[col-id="\\u9078\\u53d6"]');  // 選取 in unicode
+      if(!cell) cell = e.target.closest('.ag-checkbox-input-wrapper, .ag-checkbox-cell');
+      if(!cell) return;
+      var row = cell.closest('.ag-row');
+      if(!row) return;
+      var idx = parseInt(row.getAttribute('row-index'));
+      if(isNaN(idx)) return;
+      var inp = cell.querySelector('input[type="checkbox"]') || cell.closest('.ag-row').querySelector('input[type="checkbox"]');
 
-    if(e.shiftKey && S.lastIdx !== null && S.lastState !== null){
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      var min = Math.min(S.lastIdx, idx);
-      var max = Math.max(S.lastIdx, idx);
-      Array.from(P.document.querySelectorAll('.ag-row[row-index]')).forEach(function(r){
-        var ri = parseInt(r.getAttribute('row-index'));
-        if(ri >= min && ri <= max){
-          var cb = r.querySelector('.ag-checkbox-input');
-          if(cb && cb.checked !== S.lastState) cb.click();
-        }
-      });
-      S.lastIdx = idx;
-    } else {
-      S.lastIdx = idx;
-      S.lastState = !inp.checked;
+      if(e.shiftKey && S.lastIdx !== null && S.lastState !== null){
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        var min = Math.min(S.lastIdx, idx), max = Math.max(S.lastIdx, idx);
+        P.document.querySelectorAll('.ag-row[row-index]').forEach(function(r){
+          var ri = parseInt(r.getAttribute('row-index'));
+          if(ri >= min && ri <= max){
+            var cb = r.querySelector('input[type="checkbox"]');
+            if(cb && cb.checked !== S.lastState) cb.click();
+          }
+        });
+        S.lastIdx = idx;
+      } else {
+        S.lastIdx = idx;
+        S.lastState = inp ? !inp.checked : true;
+      }
     }
-  }, true);
+
+    // 每次重新掛載（remove 舊的再 add 新的，避免重複）
+    if(P._scHandler) P.document.removeEventListener('pointerdown', P._scHandler, true);
+    P._scHandler = handler;
+    P.document.addEventListener('pointerdown', handler, true);
+  } catch(err) {
+    console.error('[shift-select]', err);
+  }
 })();
 </script>""", height=1)
 
