@@ -1908,70 +1908,35 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             # ── 快速選取按鈕
             qb1, qb2, qb3 = st.columns(3)
             if qb1.button("全選", key="sel_all", use_container_width=True):
-                st.session_state["sched_sel"]   = {cid: True for cid in camp_id_list}
-                st.session_state["sched_sel_v"] = st.session_state.get("sched_sel_v", 0) + 1
+                st.session_state["sched_sel"] = set(range(len(camp_id_list)))
                 st.rerun()
             if qb2.button("取消全選", key="sel_none", use_container_width=True):
-                st.session_state["sched_sel"]   = {cid: False for cid in camp_id_list}
-                st.session_state["sched_sel_v"] = st.session_state.get("sched_sel_v", 0) + 1
+                st.session_state["sched_sel"] = set()
                 st.rerun()
             if qb3.button("選🟢有花費", key="sel_spend", use_container_width=True):
-                st.session_state["sched_sel"]   = {camp_id_list[i]: rows[i]["今日花費"] > 0
-                                                    for i in range(len(rows))}
-                st.session_state["sched_sel_v"] = st.session_state.get("sched_sel_v", 0) + 1
+                st.session_state["sched_sel"] = {i for i, r in enumerate(rows) if r["今日花費"] > 0}
                 st.rerun()
 
-            # 範圍選取（取代 Shift+Click）
-            with st.expander("選取範圍（例：1-5 選第1到5行）"):
-                rc1, rc2 = st.columns([3, 1])
-                range_input = rc1.text_input("行數範圍", placeholder="例：1-5 或 2,4,6", label_visibility="collapsed", key="range_input")
-                if rc2.button("套用", key="sel_range", use_container_width=True):
-                    sel = dict(st.session_state.get("sched_sel", {}))
-                    try:
-                        indices = set()
-                        for part in range_input.split(","):
-                            part = part.strip()
-                            if "-" in part:
-                                a, b = part.split("-", 1)
-                                indices.update(range(int(a) - 1, int(b)))
-                            else:
-                                indices.add(int(part) - 1)
-                        for i, cid in enumerate(camp_id_list):
-                            if i in indices:
-                                sel[cid] = True
-                        st.session_state["sched_sel"]   = sel
-                        st.session_state["sched_sel_v"] = st.session_state.get("sched_sel_v", 0) + 1
-                        st.rerun()
-                    except Exception:
-                        st.error("格式錯誤，請輸入如 1-5 或 2,4,6")
-
-            # 套用選取狀態
-            sel_state = st.session_state.get("sched_sel", {})
-
             proj_col = "排程後預算"
+            sel_indices = st.session_state.get("sched_sel", set())
             for i, row in enumerate(rows):
-                is_sel = sel_state.get(camp_id_list[i], False)
-                row["選取"] = is_sel
+                is_sel  = i in sel_indices
                 daily_b = row["日預算"]
-                if is_sel:
-                    eff_pct = sched_actual_pct
-                else:
-                    eff_pct = row["_existing_pct"] if row["_existing_pct"] is not None else sched_actual_pct
-                row[proj_col] = f"${round(daily_b * (1 + eff_pct / 100))}"
-                row["今日ROAS"] = _fmt_roas(row["今日ROAS"])
-                row["7天ROAS"]  = _fmt_roas(row["7天ROAS"])
-            df_sched = pd.DataFrame(rows)
+                eff_pct = sched_actual_pct if is_sel else (row["_existing_pct"] if row["_existing_pct"] is not None else sched_actual_pct)
+                row[proj_col]    = f"${round(daily_b * (1 + eff_pct / 100))}"
+                row["今日ROAS"]  = _fmt_roas(row["今日ROAS"])
+                row["7天ROAS"]   = _fmt_roas(row["7天ROAS"])
 
-            disp_cols_sched = ["選取", "狀", "活動名稱", "日預算", "今日花費", "今日ROAS",
+            disp_cols_sched = ["狀", "活動名稱", "日預算", "今日花費", "今日ROAS",
                                "7天ROAS", "今日排程", proj_col, "今日購買", "今日CPA", "轉換價值",
                                "CVR", "加車率", "CTR", "CPC", "觸及成本"]
-            edited_sched = st.data_editor(
+            df_sched = pd.DataFrame(rows)
+            sched_event = st.dataframe(
                 df_sched[disp_cols_sched],
                 use_container_width=True,
                 hide_index=True,
                 height=min(420, 50 + 40 * len(rows)),
                 column_config={
-                    "選取":      st.column_config.CheckboxColumn("✓",   width="small"),
                     "狀":        st.column_config.TextColumn("狀",       width=40),
                     "活動名稱":  st.column_config.TextColumn("活動名稱", width=160),
                     "日預算":    st.column_config.NumberColumn("日預算",   width=80),
@@ -1989,19 +1954,18 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                     "CPC":       st.column_config.NumberColumn("CPC",    width=65),
                     "觸及成本":  st.column_config.NumberColumn("觸及成本", width=80),
                 },
-                disabled=["狀", "活動名稱", "日預算", "今日花費", "今日ROAS", "7天ROAS",
-                          "今日排程", proj_col, "今日購買", "今日CPA", "轉換價值",
-                          "CVR", "加車率", "CTR", "CPC", "觸及成本"],
-                key=f"sched_editor_{st.session_state.get('sched_sel_v', 0)}",
+                on_select="rerun",
+                selection_mode="multi-row",
+                key="sched_df",
             )
+            # 同步選取狀態（原生多選，支援 Shift+Click）
+            new_sel = set(sched_event.selection.rows)
+            if new_sel != sel_indices:
+                st.session_state["sched_sel"] = new_sel
+                sel_indices = new_sel
 
-            # 從 editor 取已選活動（同步回 session_state 供按鈕追蹤）
-            st.session_state["sched_sel"] = {camp_id_list[i]: bool(edited_sched.iloc[i]["選取"])
-                                             for i in range(len(camp_id_list))}
-            selected_camp_ids   = [camp_id_list[i] for i in range(len(rows))
-                                    if edited_sched.iloc[i]["選取"]]
-            selected_camp_names = [rows[i]["活動名稱"] for i in range(len(rows))
-                                    if edited_sched.iloc[i]["選取"]]
+            selected_camp_ids   = [camp_id_list[i] for i in sorted(sel_indices)]
+            selected_camp_names = [rows[i]["活動名稱"] for i in sorted(sel_indices)]
 
             n_camps = len(selected_camp_ids)
             pct_sign = f"+{sched_actual_pct}%" if sched_actual_pct > 0 else f"{sched_actual_pct}%"
