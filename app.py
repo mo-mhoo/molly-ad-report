@@ -1970,6 +1970,44 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                           "CVR", "加車率", "CTR", "CPC", "觸及成本"],
                 key=f"sched_editor_{st.session_state.get('sched_sel_v', 0)}",
             )
+            components.html("""<script>
+(function(){
+  var lastIdx=null, lastState=null;
+  function patch(iframe){
+    if(iframe._sp) return;
+    try{
+      var doc=iframe.contentDocument;
+      if(!doc||!doc.querySelector('.ag-checkbox-input')) return;
+      iframe._sp=true;
+      doc.addEventListener('pointerdown',function(e){
+        var inp=e.target.closest('.ag-checkbox-input');
+        if(!inp) return;
+        var row=inp.closest('.ag-row');
+        if(!row) return;
+        var idx=parseInt(row.getAttribute('row-index'));
+        if(e.shiftKey && lastIdx!==null && lastState!==null){
+          e.preventDefault(); e.stopImmediatePropagation();
+          var min=Math.min(lastIdx,idx), max=Math.max(lastIdx,idx);
+          Array.from(doc.querySelectorAll('.ag-row[row-index]')).forEach(function(r){
+            var ri=parseInt(r.getAttribute('row-index'));
+            if(ri>=min && ri<=max){
+              var cb=r.querySelector('.ag-checkbox-input');
+              if(cb && cb.checked!==lastState) cb.click();
+            }
+          });
+          lastIdx=idx;
+        } else {
+          lastIdx=idx; lastState=!inp.checked;
+        }
+      },true);
+    }catch(e){}
+  }
+  function scan(){
+    Array.from(window.parent.document.querySelectorAll('iframe')).forEach(function(f){try{patch(f);}catch(e){}});
+  }
+  scan(); setInterval(scan,1500);
+})();
+</script>""", height=0)
 
             # 從 editor 取已選活動（同步回 session_state 供按鈕追蹤）
             st.session_state["sched_sel"] = {camp_id_list[i]: bool(edited_sched.iloc[i]["選取"])
