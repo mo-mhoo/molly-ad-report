@@ -1469,17 +1469,19 @@ if df_curr is not None and not df_curr.empty:
 
         if btl:
             st.markdown("#### 🛒 BTL 轉換漏斗")
-            r1, r2, r3, r4, r5 = st.columns(5)
+            r1, r2, r3, r4, r5, r6 = st.columns(6)
             atc  = btl.get('加購次數', 0)
             cost = btl.get('購物車成本', 0)
             cr   = btl.get('點擊到成交率', 0)
             acr  = btl.get('點擊到購物車率', 0)
             c2p  = btl.get('購物車到成交率', 0)
+            aov  = btl.get('AOV', 0)
             r1.metric("購物車次數",    f"{atc:.0f}",    delta=funnel_delta(atc,  comp_btl.get('加購次數',0),       mom_btl.get('加購次數',0),       yoy_btl.get('加購次數',0)),       delta_color=funnel_color(atc,  comp_btl.get('加購次數',0)))
             r2.metric("購物車成本",    f"${cost:,.0f}", delta=funnel_delta(cost, comp_btl.get('購物車成本',0),     mom_btl.get('購物車成本',0),     yoy_btl.get('購物車成本',0),  False), delta_color=funnel_color(cost, comp_btl.get('購物車成本',0), False))
-            r3.metric("點擊→成交率",   f"{cr:.2f}%",    delta=funnel_delta(cr,   comp_btl.get('點擊到成交率',0),   mom_btl.get('點擊到成交率',0),   yoy_btl.get('點擊到成交率',0)),   delta_color=funnel_color(cr,   comp_btl.get('點擊到成交率',0)))
-            r4.metric("點擊→購物車率", f"{acr:.2f}%",   delta=funnel_delta(acr,  comp_btl.get('點擊到購物車率',0), mom_btl.get('點擊到購物車率',0), yoy_btl.get('點擊到購物車率',0)), delta_color=funnel_color(acr,  comp_btl.get('點擊到購物車率',0)))
-            r5.metric("購物車→成交率", f"{c2p:.2f}%",   delta=funnel_delta(c2p,  comp_btl.get('購物車到成交率',0), mom_btl.get('購物車到成交率',0), yoy_btl.get('購物車到成交率',0)), delta_color=funnel_color(c2p,  comp_btl.get('購物車到成交率',0)))
+            r3.metric("AOV",          f"${aov:,.0f}",  delta=funnel_delta(aov,  comp_btl.get('AOV',0),           mom_btl.get('AOV',0),           yoy_btl.get('AOV',0)),           delta_color=funnel_color(aov,  comp_btl.get('AOV',0)))
+            r4.metric("點擊→成交率",   f"{cr:.2f}%",    delta=funnel_delta(cr,   comp_btl.get('點擊到成交率',0),   mom_btl.get('點擊到成交率',0),   yoy_btl.get('點擊到成交率',0)),   delta_color=funnel_color(cr,   comp_btl.get('點擊到成交率',0)))
+            r5.metric("點擊→購物車率", f"{acr:.2f}%",   delta=funnel_delta(acr,  comp_btl.get('點擊到購物車率',0), mom_btl.get('點擊到購物車率',0), yoy_btl.get('點擊到購物車率',0)), delta_color=funnel_color(acr,  comp_btl.get('點擊到購物車率',0)))
+            r6.metric("購物車→成交率", f"{c2p:.2f}%",   delta=funnel_delta(c2p,  comp_btl.get('購物車到成交率',0), mom_btl.get('購物車到成交率',0), yoy_btl.get('購物車到成交率',0)), delta_color=funnel_color(c2p,  comp_btl.get('購物車到成交率',0)))
 
     # Debug：顯示 API 回傳的所有 action types
     raw_actions = st.session_state.get("raw_actions")
