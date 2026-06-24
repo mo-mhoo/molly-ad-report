@@ -3,6 +3,7 @@ import pandas as pd
 import requests
 import json
 import math
+import time
 from datetime import date, timedelta, datetime, timezone
 from pathlib import Path
 import calendar
@@ -1619,8 +1620,14 @@ else:
     else:
         st.info("👆 請先選擇「本期報表」或上傳 CSV 檔案")
 
-def _do_load_campaigns(token, acct):
-    """載入活動、成效、今日排程，全部存入 session_state。兩個 tab 共用。"""
+def _do_load_campaigns(token, acct, force=False):
+    """載入活動、成效、今日排程，全部存入 session_state。兩個 tab 共用。
+    force=False 時若快取未過期（30 分鐘內）直接跳過，節省 API 配額。"""
+    CACHE_TTL = 1800  # 30 分鐘
+    last_load = st.session_state.get("_load_ts", 0)
+    if not force and st.session_state.get("campaigns") and (time.time() - last_load < CACHE_TTL):
+        st.session_state["_load_msg"] = f"✅ 使用快取資料（{int((time.time()-last_load)//60)} 分鐘前載入）"
+        return
     TZ_TAIPEI = timezone(timedelta(hours=8))
 
     def _sched_tw_date(s):
@@ -1695,6 +1702,7 @@ def _do_load_campaigns(token, acct):
                     except Exception as fe:
                         _errors.append(str(fe))
             st.session_state["today_scheds"] = today_scheds
+            st.session_state["_load_ts"]     = time.time()
             _err_preview = f"｜⚠️{len(_errors)} 筆失敗：{_errors[0][:80]}" if _errors else ""
             st.session_state["_load_msg"] = (
                 f"✅ {len(camps)} 活動 / {len(_active_camps)} ACTIVE → 今日排程={len(today_scheds)}{_err_preview}"
@@ -1711,13 +1719,21 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
 
     # ── Tab 1：新增排程（含查看今日排程）──────────────────────────
     with tab_new:
-        if st.button("🔄 載入活動與成效", key="load_campaigns"):
+        _lb1, _lb2 = st.columns([3, 1])
+        if _lb1.button("🔄 載入活動與成效", key="load_campaigns", use_container_width=True):
             _token = cfg.get("meta_token", "")
             _acct  = selected_account_id
             if not _token or not _acct:
                 st.error("請先設定 Token 和帳戶")
             else:
-                _do_load_campaigns(_token, _acct)
+                _do_load_campaigns(_token, _acct, force=False)
+        if _lb2.button("強制重整", key="load_campaigns_force", use_container_width=True):
+            _token = cfg.get("meta_token", "")
+            _acct  = selected_account_id
+            if not _token or not _acct:
+                st.error("請先設定 Token 和帳戶")
+            else:
+                _do_load_campaigns(_token, _acct, force=True)
 
         if "_load_msg" in st.session_state:
             st.caption(st.session_state.get("_load_msg", ""))
@@ -2023,11 +2039,18 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
         _mod_token = cfg.get("meta_token", "")
         _mod_acct  = selected_account_id
         if not campaigns_mod or not today_scheds_mod:
-            if st.button("🔄 載入活動與今日排程", key="load_mod", use_container_width=True):
+            _mb1, _mb2 = st.columns([3, 1])
+            if _mb1.button("🔄 載入活動與今日排程", key="load_mod", use_container_width=True):
                 if not _mod_token or not _mod_acct:
                     st.error("請先設定 Token 和帳戶")
                 else:
-                    _do_load_campaigns(_mod_token, _mod_acct)
+                    _do_load_campaigns(_mod_token, _mod_acct, force=False)
+                    st.rerun()
+            if _mb2.button("強制重整", key="load_mod_force", use_container_width=True):
+                if not _mod_token or not _mod_acct:
+                    st.error("請先設定 Token 和帳戶")
+                else:
+                    _do_load_campaigns(_mod_token, _mod_acct, force=True)
                     st.rerun()
 
         if "_load_msg" in st.session_state:
