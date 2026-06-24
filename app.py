@@ -1973,59 +1973,39 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             components.html("""<script>
 (function(){
   var P = window.parent;
-  // 用 window.parent 保存狀態，讓 Streamlit rerun 後狀態不遺失
+  // 狀態存在 window.parent，跨 Streamlit rerun 保留
   if(!P._sc) P._sc = {lastIdx:null, lastState:null};
   var S = P._sc;
+  // 避免重複掛載
+  if(P._scAttached) return;
+  P._scAttached = true;
 
-  function startBatch(){
-    if(P._scBusy) return;
-    P._scBusy=true; P._scQueue=[];
-    P._scOrigPM=P.postMessage;
-    P.postMessage=function(){ P._scQueue.push(Array.from(arguments)); };
-  }
-  function endBatch(){
-    var orig=P._scOrigPM;
-    var q=(P._scQueue||[]).slice();
-    P._scBusy=false; P._scQueue=[];
-    P.postMessage=orig;
-    if(q.length>0){ var last=q[q.length-1]; orig.apply(P,last); }
-  }
+  // st.data_editor 直接渲染在主頁面 DOM，不在子 iframe
+  P.document.addEventListener('pointerdown', function(e){
+    var inp = e.target.closest('.ag-checkbox-input');
+    if(!inp) return;
+    var row = inp.closest('.ag-row');
+    if(!row) return;
+    var idx = parseInt(row.getAttribute('row-index'));
 
-  function patch(iframe){
-    if(iframe._sp) return;
-    try{
-      var doc=iframe.contentDocument;
-      if(!doc||!doc.querySelector('.ag-checkbox-input')) return;
-      iframe._sp=true;
-      doc.addEventListener('pointerdown',function(e){
-        var inp=e.target.closest('.ag-checkbox-input');
-        if(!inp) return;
-        var row=inp.closest('.ag-row');
-        if(!row) return;
-        var idx=parseInt(row.getAttribute('row-index'));
-        if(e.shiftKey && S.lastIdx!==null && S.lastState!==null){
-          e.preventDefault(); e.stopImmediatePropagation();
-          var min=Math.min(S.lastIdx,idx), max=Math.max(S.lastIdx,idx);
-          startBatch();
-          Array.from(doc.querySelectorAll('.ag-row[row-index]')).forEach(function(r){
-            var ri=parseInt(r.getAttribute('row-index'));
-            if(ri>=min && ri<=max){
-              var cb=r.querySelector('.ag-checkbox-input');
-              if(cb && cb.checked!==S.lastState) cb.click();
-            }
-          });
-          setTimeout(endBatch, 200);
-          S.lastIdx=idx;
-        } else {
-          S.lastIdx=idx; S.lastState=!inp.checked;
+    if(e.shiftKey && S.lastIdx !== null && S.lastState !== null){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      var min = Math.min(S.lastIdx, idx);
+      var max = Math.max(S.lastIdx, idx);
+      Array.from(P.document.querySelectorAll('.ag-row[row-index]')).forEach(function(r){
+        var ri = parseInt(r.getAttribute('row-index'));
+        if(ri >= min && ri <= max){
+          var cb = r.querySelector('.ag-checkbox-input');
+          if(cb && cb.checked !== S.lastState) cb.click();
         }
-      },true);
-    }catch(e){}
-  }
-  function scan(){
-    Array.from(P.document.querySelectorAll('iframe')).forEach(function(f){try{patch(f);}catch(e){}});
-  }
-  scan(); setInterval(scan,800);
+      });
+      S.lastIdx = idx;
+    } else {
+      S.lastIdx = idx;
+      S.lastState = !inp.checked;
+    }
+  }, true);
 })();
 </script>""", height=1)
 
