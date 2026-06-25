@@ -1971,15 +1971,15 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             qb1, qb2, qb3 = st.columns(3)
             if qb1.button("全選", key="sel_all", use_container_width=True):
                 st.session_state["sched_sel"] = set(range(len(camp_id_list)))
-                st.session_state["sched_sel_v"] = st.session_state.get("sched_sel_v", 0) + 1
+                st.session_state["_sched_btn_set"] = True
                 st.rerun()
             if qb2.button("取消全選", key="sel_none", use_container_width=True):
                 st.session_state["sched_sel"] = set()
-                st.session_state["sched_sel_v"] = st.session_state.get("sched_sel_v", 0) + 1
+                st.session_state["_sched_btn_set"] = True
                 st.rerun()
             if qb3.button("選🟢有花費", key="sel_spend", use_container_width=True):
                 st.session_state["sched_sel"] = {i for i, r in enumerate(rows) if r["今日花費"] > 0}
-                st.session_state["sched_sel_v"] = st.session_state.get("sched_sel_v", 0) + 1
+                st.session_state["_sched_btn_set"] = True
                 st.rerun()
 
             proj_col = "排程後預算"
@@ -2024,8 +2024,11 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 key=f"sched_df_{st.session_state.get('sched_sel_v', 0)}",
             )
             # 同步選取狀態（原生多選，支援 Shift+Click）
+            # 若是按鈕觸發的 rerun，跳過同步以免 dataframe 空 state 覆蓋按鈕設定
             new_sel = set(sched_event.selection.rows)
-            if new_sel != sel_indices:
+            if st.session_state.pop("_sched_btn_set", False):
+                sel_indices = st.session_state.get("sched_sel", set())
+            elif new_sel != sel_indices:
                 st.session_state["sched_sel"] = new_sel
                 sel_indices = new_sel
 
@@ -2160,27 +2163,27 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                     })
                     mod_id_list.append(c["id"])
 
-                sel_state_mod = st.session_state.get("mod_sel", {})
                 mc1, mc2 = st.columns(2)
                 if mc1.button("全選", key="mod_sel_all", use_container_width=True):
-                    st.session_state["mod_sel"]   = {cid: True for cid in mod_id_list}
-                    st.session_state["mod_sel_v"] = st.session_state.get("mod_sel_v", 0) + 1
+                    st.session_state["mod_sel"] = set(range(len(mod_id_list)))
+                    st.session_state["_mod_btn_set"] = True
                     st.rerun()
                 if mc2.button("取消全選", key="mod_sel_none", use_container_width=True):
-                    st.session_state["mod_sel"]   = {cid: False for cid in mod_id_list}
-                    st.session_state["mod_sel_v"] = st.session_state.get("mod_sel_v", 0) + 1
+                    st.session_state["mod_sel"] = set()
+                    st.session_state["_mod_btn_set"] = True
                     st.rerun()
 
-                for i, row in enumerate(mod_rows):
-                    row["選取"] = sel_state_mod.get(mod_id_list[i], False)
+                # 移除選取欄，改用原生多選
+                for row in mod_rows:
+                    row.pop("選取", None)
 
-                edited_mod = st.data_editor(
+                mod_sel_indices = st.session_state.get("mod_sel", set())
+                mod_event = st.dataframe(
                     pd.DataFrame(mod_rows),
                     use_container_width=True,
                     hide_index=True,
                     height=min(420, 50 + 40 * len(mod_rows)),
                     column_config={
-                        "選取":      st.column_config.CheckboxColumn("✓",    width="small"),
                         "活動名稱":  st.column_config.TextColumn("活動名稱", width=160),
                         "日預算":    st.column_config.NumberColumn("日預算",  width=75),
                         "今日花費":  st.column_config.NumberColumn("今日花費", width=75),
@@ -2192,17 +2195,18 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                         "今日CPA":   st.column_config.NumberColumn("今日CPA",  width=70),
                         "轉換價值":  st.column_config.NumberColumn("轉換價值", width=75),
                     },
-                    disabled=["活動名稱", "日預算", "今日花費", "今日ROAS", "7天ROAS",
-                              "今日排程", proj_col_m, "今日購買", "今日CPA", "轉換價值"],
-                    key=f"mod_editor_{st.session_state.get('mod_sel_v', 0)}",
+                    on_select="rerun",
+                    selection_mode="multi-row",
+                    key="mod_df",
                 )
+                new_mod_sel = set(mod_event.selection.rows)
+                if st.session_state.pop("_mod_btn_set", False):
+                    mod_sel_indices = st.session_state.get("mod_sel", set())
+                elif new_mod_sel != mod_sel_indices:
+                    st.session_state["mod_sel"] = new_mod_sel
+                    mod_sel_indices = new_mod_sel
 
-                st.session_state["mod_sel"] = {
-                    mod_id_list[i]: bool(edited_mod.iloc[i]["選取"])
-                    for i in range(len(mod_id_list))
-                }
-                selected_mod_ids = [mod_id_list[i] for i in range(len(mod_rows))
-                                    if edited_mod.iloc[i]["選取"]]
+                selected_mod_ids = [mod_id_list[i] for i in sorted(mod_sel_indices)]
 
                 if selected_mod_ids:
                     new_sign = f"+{mod_new_pct}%" if mod_new_pct >= 0 else f"{mod_new_pct}%"
@@ -2234,7 +2238,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                                 st.error(f"❌ {cname}：{err}")
                                 fail += 1
                         if ok:
-                            st.session_state["mod_sel_v"] = st.session_state.get("mod_sel_v", 0) + 1
+                            st.session_state["mod_sel"] = set()
                             st.rerun()
 
     # ── Tab 3：刪除排程 ─────────────────────────────────────────
