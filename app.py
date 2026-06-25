@@ -2006,6 +2006,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 st.session_state["sched_sel"] = new_sel
                 sel_indices = new_sel
 
+            sel_indices = {i for i in sel_indices if i < len(camp_id_list)}
             selected_camp_ids   = [camp_id_list[i] for i in sorted(sel_indices)]
             selected_camp_names = [rows[i]["活動名稱"] for i in sorted(sel_indices)]
 
