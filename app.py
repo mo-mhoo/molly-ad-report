@@ -890,8 +890,7 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
             params={"fields": "stop_time,end_time,start_time", "access_token": access_token},
             timeout=15,
         ).json()
-        camp_end_str = camp_info.get("stop_time") or camp_info.get("end_time")
-        st.warning(f"🔍 3858090 debug: camp_info={camp_info}, camp_end_str={camp_end_str}")
+        camp_end_str = camp_info.get("stop_time")
         if camp_end_str:
             try:
                 camp_end_ts = int(datetime.strptime(camp_end_str, "%Y-%m-%dT%H:%M:%S%z").timestamp())
@@ -906,6 +905,29 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
                     return {"error": {"message": "活動排期已結束，無法建立排程"}}
             except Exception:
                 pass
+
+    # 3858090 且無法縮短（無結束時間）→ 嘗試 adset 層級
+    if result.get("error", {}).get("error_subcode") == 3858090:
+        adsets = requests.get(
+            f"https://graph.facebook.com/v25.0/{campaign_id}/adsets",
+            params={"fields": "id,name,daily_budget,lifetime_budget", "access_token": access_token, "limit": 50},
+            timeout=15,
+        ).json().get("data", [])
+        if adsets:
+            ok, fail = 0, []
+            for a in adsets:
+                r = requests.post(f"https://graph.facebook.com/v25.0/{a['id']}", data=payload, timeout=30).json()
+                if "error" not in r:
+                    ok += 1
+                else:
+                    fail.append(f"{a['name']}: {r['error']['message']}")
+            if ok:
+                msg = f"已套用至 {ok} 個廣告組合（adset 層級）"
+                if fail:
+                    msg += f"，{len(fail)} 個失敗"
+                return {"success": True, "level": "adset", "note": f"（{msg}）"}
+            if fail:
+                return {"error": {"message": " / ".join(fail)}}
 
     # error_subcode 3858199：帶著 daily_budget 再試一次（ASC 活動需要）
     if result.get("error", {}).get("error_subcode") == 3858199:
