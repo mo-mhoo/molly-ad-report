@@ -1925,12 +1925,15 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             qb1, qb2, qb3 = st.columns(3)
             if qb1.button("全選", key="sel_all", use_container_width=True):
                 st.session_state["sched_sel"] = set(range(len(camp_id_list)))
+                st.session_state["sched_sel_v"] = st.session_state.get("sched_sel_v", 0) + 1
                 st.rerun()
             if qb2.button("取消全選", key="sel_none", use_container_width=True):
                 st.session_state["sched_sel"] = set()
+                st.session_state["sched_sel_v"] = st.session_state.get("sched_sel_v", 0) + 1
                 st.rerun()
             if qb3.button("選🟢有花費", key="sel_spend", use_container_width=True):
                 st.session_state["sched_sel"] = {i for i, r in enumerate(rows) if r["今日花費"] > 0}
+                st.session_state["sched_sel_v"] = st.session_state.get("sched_sel_v", 0) + 1
                 st.rerun()
 
             proj_col = "排程後預算"
@@ -1972,7 +1975,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 },
                 on_select="rerun",
                 selection_mode="multi-row",
-                key="sched_df",
+                key=f"sched_df_{st.session_state.get('sched_sel_v', 0)}",
             )
             # 同步選取狀態（原生多選，支援 Shift+Click）
             new_sel = set(sched_event.selection.rows)
