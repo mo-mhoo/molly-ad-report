@@ -890,7 +890,8 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
             params={"fields": "stop_time,end_time,start_time", "access_token": access_token},
             timeout=15,
         ).json()
-        camp_end_str = camp_info.get("end_time") or camp_info.get("stop_time")
+        camp_end_str = camp_info.get("stop_time") or camp_info.get("end_time")
+        st.warning(f"🔍 3858090 debug: camp_info={camp_info}, camp_end_str={camp_end_str}")
         if camp_end_str:
             try:
                 camp_end_ts = int(datetime.strptime(camp_end_str, "%Y-%m-%dT%H:%M:%S%z").timestamp())
