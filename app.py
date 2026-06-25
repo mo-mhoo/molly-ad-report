@@ -887,7 +887,7 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
     if result.get("error", {}).get("error_subcode") == 3858090:
         camp_info = requests.get(
             f"https://graph.facebook.com/v25.0/{campaign_id}",
-            params={"fields": "end_time,stop_time", "access_token": access_token},
+            params={"fields": "stop_time,end_time,start_time", "access_token": access_token},
             timeout=15,
         ).json()
         camp_end_str = camp_info.get("end_time") or camp_info.get("stop_time")
