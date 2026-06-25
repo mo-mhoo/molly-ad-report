@@ -2029,8 +2029,12 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                                     "budget_value": sched_actual_pct,
                                 }
                             else:
-                                err_msg = result.get("error", {}).get("message", str(result))
-                                st.error(f"❌ {cname}【{slot_label}】{err_msg}")
+                                _err = result.get("error", {})
+                                err_msg = _err.get("message", str(result))
+                                err_sub = _err.get("error_subcode", "")
+                                err_usr = _err.get("error_user_msg", "")
+                                detail = " | ".join(filter(None, [err_usr, f"subcode:{err_sub}" if err_sub else ""]))
+                                st.error(f"❌ {cname}【{slot_label}】{err_msg}" + (f"（{detail}）" if detail else ""))
         else:
             st.info("請先點「載入活動與成效」")
 
