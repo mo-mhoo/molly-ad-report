@@ -1973,12 +1973,19 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             combined = sorted(zip(rows, camp_id_list), key=_sort_key)
             rows, camp_id_list = (list(z) for z in zip(*combined)) if combined else ([], [])
 
-            # ── 目標 ROAS 設定 & 花費進度比
+            # ── 目標 ROAS 設定（每帳號獨立）
+            _roas_cfg_key = f"target_roas_{selected_account_id}"
+            _stored_roas  = float(cfg.get("account_target_roas", {}).get(selected_account_id, 4.0))
+            if _roas_cfg_key not in st.session_state:
+                st.session_state[_roas_cfg_key] = _stored_roas
             _tr_col, _ = st.columns([2, 5])
             target_roas = _tr_col.number_input(
-                "目標 ROAS（用於建議加碼）", min_value=0.1, value=4.0, step=0.5,
-                key="target_roas_input",
+                "目標 ROAS（用於建議加碼）", min_value=0.1, step=0.5,
+                key=_roas_cfg_key,
             )
+            if target_roas != _stored_roas:
+                cfg.setdefault("account_target_roas", {})[selected_account_id] = target_roas
+                save_config(cfg)
             _now_tw = datetime.now(tz=timezone(timedelta(hours=8)))
             _hour_frac = _now_tw.hour + _now_tw.minute / 60
             _expected_pace = _hour_frac / 24  # 當前時間應達成進度
