@@ -1731,6 +1731,7 @@ def _do_load_campaigns(token, acct, force=False):
             today_scheds = {}
             _errors      = []
 
+            time.sleep(1)  # 避免和前面平行請求同時搶 rate limit
             # Batch API：47 個請求合成 1 次 HTTP，避免 rate limit
             BATCH_SIZE = 50
             sched_field = "id,time_start,time_end,budget_value,budget_value_type,status"
@@ -1747,6 +1748,16 @@ def _do_load_campaigns(token, acct, force=False):
                         data={"access_token": token, "batch": json.dumps(batch_payload)},
                         timeout=30,
                     ).json()
+                    # rate limit → 等 3 秒重試一次
+                    if isinstance(batch_resp, list) and batch_resp and isinstance(batch_resp[0], dict):
+                        first_body = json.loads(batch_resp[0].get("body", "{}")) if isinstance(batch_resp[0].get("body"), str) else {}
+                        if "User request limit" in first_body.get("error", {}).get("message", ""):
+                            time.sleep(3)
+                            batch_resp = requests.post(
+                                "https://graph.facebook.com/v25.0/",
+                                data={"access_token": token, "batch": json.dumps(batch_payload)},
+                                timeout=30,
+                            ).json()
                 except Exception as e:
                     _errors.append(f"Batch 請求失敗: {e}")
                     continue
