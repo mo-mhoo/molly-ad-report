@@ -1982,6 +1982,16 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             combined = sorted(zip(rows, camp_id_list), key=_sort_key)
             rows, camp_id_list = (list(z) for z in zip(*combined)) if combined else ([], [])
 
+            # ── 目標 ROAS 設定 & 花費進度比
+            _tr_col, _ = st.columns([2, 5])
+            target_roas = _tr_col.number_input(
+                "目標 ROAS（用於建議加碼）", min_value=0.1, value=4.0, step=0.5,
+                key="target_roas_input",
+            )
+            _now_tw = datetime.now(tz=timezone(timedelta(hours=8)))
+            _hour_frac = _now_tw.hour + _now_tw.minute / 60
+            _expected_pace = _hour_frac / 24  # 當前時間應達成進度
+
             # ── 快速選取按鈕
             qb1, qb2, qb3 = st.columns(3)
             if qb1.button("全選", key="sel_all", use_container_width=True):
@@ -2004,10 +2014,31 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 daily_b = row["日預算"]
                 eff_pct = sched_actual_pct if is_sel else (row["_existing_pct"] if row["_existing_pct"] is not None else sched_actual_pct)
                 row[proj_col]    = f"${round(daily_b * (1 + eff_pct / 100))}"
+
+                # 建議加碼%（Phase 1：ROAS tier + 花費進度比）
+                _roas_raw = row["今日ROAS"]
+                _pace = (row["今日花費"] / daily_b / _expected_pace
+                         ) if (_expected_pace > 0 and daily_b > 0) else 0
+                if _roas_raw and _roas_raw > 0:
+                    _r = _roas_raw / target_roas
+                    if _r >= 5:
+                        _sug = "🚀 +200~800%"
+                    elif _r >= 3:
+                        _sug = "🟢 +100~200%"
+                    elif _r >= 1.5:
+                        _sug = "🟢 +50~100%"
+                    elif _pace >= 1.0:
+                        _sug = "🟡 +20%"
+                    else:
+                        _sug = "⏸ 觀望"
+                else:
+                    _sug = "🟡 +20%" if _pace >= 1.0 else "— 無資料"
+                row["建議加碼"] = _sug
+
                 row["今日ROAS"]  = _fmt_roas(row["今日ROAS"])
                 row["7天ROAS"]   = _fmt_roas(row["7天ROAS"])
 
-            disp_cols_sched = ["狀", "活動名稱", "日預算", "今日花費", "今日ROAS",
+            disp_cols_sched = ["建議加碼", "狀", "活動名稱", "日預算", "今日花費", "今日ROAS",
                                "7天ROAS", "今日排程", proj_col, "今日購買", "今日CPA", "轉換價值",
                                "CVR", "加車率", "CTR", "CPC", "觸及成本"]
             df_sched = pd.DataFrame(rows)
@@ -2017,6 +2048,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 hide_index=True,
                 height=min(420, 50 + 40 * len(rows)),
                 column_config={
+                    "建議加碼":  st.column_config.TextColumn("建議加碼", width=110),
                     "狀":        st.column_config.TextColumn("狀",       width=40),
                     "活動名稱":  st.column_config.TextColumn("活動名稱", width=160),
                     "日預算":    st.column_config.NumberColumn("日預算",   width=80),
