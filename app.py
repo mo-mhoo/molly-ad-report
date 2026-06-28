@@ -894,7 +894,7 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
             params={"fields": "stop_time,end_time,start_time", "access_token": access_token},
             timeout=15,
         ).json()
-        camp_end_str = camp_info.get("stop_time")
+        camp_end_str = camp_info.get("stop_time") or camp_info.get("end_time")
         if camp_end_str:
             try:
                 camp_end_ts = int(datetime.strptime(camp_end_str, "%Y-%m-%dT%H:%M:%S%z").timestamp())
@@ -951,6 +951,8 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
                 return {"error": {"message": "此活動的廣告組合不支援排程加碼（可能使用 lifetime 預算）。請改用活動管理員手動調整預算。"}}
             if fail:
                 return {"error": {"message": " / ".join(fail)}}
+        else:
+            return {"error": {"message": "找不到廣告組合，無法建立排程（此活動可能需手動調整預算）"}}
 
     # error_subcode 3858199 / 3858175：帶著 daily_budget 再試一次（ASC 活動需要）
     if result.get("error", {}).get("error_subcode") in (3858199, 3858175):
