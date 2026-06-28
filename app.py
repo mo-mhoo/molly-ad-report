@@ -939,8 +939,8 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
             if fail:
                 return {"error": {"message": " / ".join(fail)}}
 
-    # error_subcode 3858199：帶著 daily_budget 再試一次（ASC 活動需要）
-    if result.get("error", {}).get("error_subcode") == 3858199:
+    # error_subcode 3858199 / 3858175：帶著 daily_budget 再試一次（ASC 活動需要）
+    if result.get("error", {}).get("error_subcode") in (3858199, 3858175):
         camp_info = requests.get(
             f"https://graph.facebook.com/v25.0/{campaign_id}",
             params={"fields": "daily_budget", "access_token": access_token},
