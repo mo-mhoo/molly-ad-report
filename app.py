@@ -2111,7 +2111,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 sel_indices = new_sel
 
             sel_indices = {i for i in sel_indices if i < len(camp_id_list)}
-            selected_camp_ids   = [camp_id_list[i] for i in sorted(sel_indices)]
+            selected_camp_ids   = [camp_id_list[i] for i in sorted(sel_indices) if i < len(camp_id_list)]
             selected_camp_names = [rows[i]["活動名稱"] for i in sorted(sel_indices)]
 
             n_camps = len(selected_camp_ids)
@@ -2284,7 +2284,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                     st.session_state["mod_sel"] = new_mod_sel
                     mod_sel_indices = new_mod_sel
 
-                selected_mod_ids = [mod_id_list[i] for i in sorted(mod_sel_indices)]
+                selected_mod_ids = [mod_id_list[i] for i in sorted(mod_sel_indices) if i < len(mod_id_list)]
 
                 if selected_mod_ids:
                     new_sign = f"+{mod_new_pct}%" if mod_new_pct >= 0 else f"{mod_new_pct}%"
