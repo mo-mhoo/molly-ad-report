@@ -879,7 +879,11 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
         "budget_value": budget_value,
         "budget_value_type": "MULTIPLIER",
     }]
-    payload = {"access_token": access_token, "budget_schedule_specs": json.dumps(spec)}
+    payload = {
+        "access_token": access_token,
+        "budget_schedule_specs": json.dumps(spec),
+        "budget_rebalance_flag": "true",
+    }
 
     # 先嘗試 campaign 層級
     result = requests.post(f"https://graph.facebook.com/v25.0/{campaign_id}", data=payload, timeout=30).json()
