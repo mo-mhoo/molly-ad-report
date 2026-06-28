@@ -882,7 +882,6 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
     payload = {
         "access_token": access_token,
         "budget_schedule_specs": json.dumps(spec),
-        "budget_rebalance_flag": "true",
     }
 
     # 先嘗試 campaign 層級
@@ -923,7 +922,7 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
         ).json()
         _db2 = camp_info2.get("daily_budget")
         if _db2:
-            _payload_db = {**payload, "daily_budget": _db2}
+            _payload_db = {**payload, "daily_budget": _db2, "budget_rebalance_flag": "true"}
             _r_db = requests.post(f"https://graph.facebook.com/v25.0/{campaign_id}", data=_payload_db, timeout=30).json()
             print(f"[DEBUG] 3858090+daily_budget retry result={_r_db}")
             if "error" not in _r_db:
