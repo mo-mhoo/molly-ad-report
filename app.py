@@ -2312,8 +2312,12 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                                 }
                                 ok += 1
                             else:
-                                err = result.get("error", {}).get("message", str(result))
-                                st.error(f"❌ {cname}：{err}")
+                                _e = result.get("error", {})
+                                _emsg = _e.get("message", str(result))
+                                _esub = _e.get("error_subcode", "")
+                                _eusr = _e.get("error_user_msg", "")
+                                _detail = " | ".join(filter(None, [_eusr, f"subcode:{_esub}" if _esub else ""]))
+                                st.error(f"❌ {cname}：{_emsg}" + (f"（{_detail}）" if _detail else ""))
                                 fail += 1
                         if ok:
                             st.session_state["mod_sel"] = set()
