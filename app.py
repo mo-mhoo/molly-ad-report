@@ -910,6 +910,21 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
             except Exception:
                 pass
 
+    # 3858090 且無法縮短 → 先帶 daily_budget 重試 campaign 層（部分活動類型需要）
+    if result.get("error", {}).get("error_subcode") == 3858090:
+        camp_info2 = requests.get(
+            f"https://graph.facebook.com/v25.0/{campaign_id}",
+            params={"fields": "daily_budget", "access_token": access_token},
+            timeout=15,
+        ).json()
+        _db2 = camp_info2.get("daily_budget")
+        if _db2:
+            _payload_db = {**payload, "daily_budget": _db2}
+            _r_db = requests.post(f"https://graph.facebook.com/v25.0/{campaign_id}", data=_payload_db, timeout=30).json()
+            print(f"[DEBUG] 3858090+daily_budget retry result={_r_db}")
+            if "error" not in _r_db:
+                return {"success": True, "level": "campaign", "note": "（帶 daily_budget 成功）"}
+
     # 3858090 且無法縮短（無結束時間）→ 嘗試 adset 層級
     if result.get("error", {}).get("error_subcode") == 3858090:
         adsets = requests.get(
