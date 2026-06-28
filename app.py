@@ -916,26 +916,22 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
             timeout=15,
         ).json().get("data", [])
         if adsets:
-            ok, fail, skipped_lifetime = 0, [], 0
+            ok, fail, invalid = 0, [], 0
             for a in adsets:
-                # 只對有 daily_budget 的廣告組合套用，lifetime budget 無法用 MULTIPLIER
-                if not a.get("daily_budget"):
-                    skipped_lifetime += 1
-                    continue
                 r = requests.post(f"https://graph.facebook.com/v25.0/{a['id']}", data=payload, timeout=30).json()
                 if "error" not in r:
                     ok += 1
+                elif "Invalid parameter" in r.get("error", {}).get("message", ""):
+                    invalid += 1
                 else:
                     fail.append(f"{a['name']}: {r['error']['message']}")
             if ok:
                 msg = f"已套用至 {ok} 個廣告組合（adset 層級）"
-                if skipped_lifetime:
-                    msg += f"，{skipped_lifetime} 個 lifetime 預算跳過"
                 if fail:
                     msg += f"，{len(fail)} 個失敗"
                 return {"success": True, "level": "adset", "note": f"（{msg}）"}
-            if skipped_lifetime and not fail:
-                return {"error": {"message": f"此活動的廣告組合使用 lifetime 預算，不支援排程加碼。請改用活動管理員手動調整預算。"}}
+            if invalid == len(adsets):
+                return {"error": {"message": "此活動的廣告組合不支援排程加碼（可能使用 lifetime 預算）。請改用活動管理員手動調整預算。"}}
             if fail:
                 return {"error": {"message": " / ".join(fail)}}
 
@@ -963,11 +959,8 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
         if not adsets:
             return {"error": {"message": "找不到任何廣告組合"}}
 
-        ok, fail, invalid, skipped_lifetime = 0, [], 0, 0
+        ok, fail, invalid = 0, [], 0
         for a in adsets:
-            if not a.get("daily_budget"):
-                skipped_lifetime += 1
-                continue
             r = requests.post(f"https://graph.facebook.com/v25.0/{a['id']}", data=payload, timeout=30).json()
             if "error" not in r:
                 ok += 1
@@ -978,8 +971,6 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
 
         if ok:
             msg = f"已套用至 {ok} 個廣告組合（adset 層級）"
-            if skipped_lifetime:
-                msg += f"，{skipped_lifetime} 個 lifetime 預算跳過"
             if fail:
                 msg += f"；失敗 {len(fail)} 個"
             return {"success": True, "note": msg}
