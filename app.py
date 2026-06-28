@@ -44,6 +44,8 @@ def load_config():
             }
             if "meta_accounts" in st.secrets:
                 cfg["meta_accounts"] = [dict(a) for a in st.secrets["meta_accounts"]]
+            if "account_target_roas" in st.secrets:
+                cfg["account_target_roas"] = dict(st.secrets["account_target_roas"])
             return cfg
     except Exception:
         pass
