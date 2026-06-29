@@ -831,23 +831,21 @@ def update_budget_schedule(access_token, schedule_id, new_pct, campaign_id=None,
     if not campaign_id:
         return {"error": {"message": "缺少 campaign_id，無法重建排程"}}
 
-    # 1. 先嘗試直接更新幅度（不刪除），避免刪了建不回來
-    r_patch = requests.post(
-        f"https://graph.facebook.com/v25.0/{schedule_id}",
-        data={"access_token": access_token, "budget_value": int(new_pct)},
-        timeout=30,
-    ).json()
-    if "error" not in r_patch:
+    # 刪除舊排程，用原始 time_start 重建（不推到未來，保留完整時段）
+    delete_budget_schedule(access_token, schedule_id)
+
+    spec = [{
+        "time_start": ts_start,
+        "time_end": ts_end,
+        "budget_value": int(new_pct),
+        "budget_value_type": "MULTIPLIER",
+    }]
+    payload = {"access_token": access_token, "budget_schedule_specs": json.dumps(spec)}
+    result = requests.post(f"https://graph.facebook.com/v25.0/{campaign_id}", data=payload, timeout=30).json()
+    if "error" not in result:
         return {"success": True}
 
-    # 2. 直接更新失敗 → 剩餘時間不足 3 小時就放棄，保留舊排程
-    remaining_min = int((ts_end - now_ts) / 60)
-    if ts_end - now_ts < 3 * 3600:
-        patch_err = r_patch.get("error", {}).get("message", "")
-        return {"error": {"message": f"距排程結束僅剩 {remaining_min} 分鐘（不足 3 小時），無法重建。舊排程保留中。（原因：{patch_err}）"}}
-
-    # 3. 刪除舊排程並重建
-    delete_budget_schedule(access_token, schedule_id)
+    # 原始 time_start 不被接受 → fallback：用當前時間重建（有 3 小時限制）
     return create_budget_schedule(access_token, campaign_id, ts_start, ts_end, new_pct)
 
 def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_increase):
