@@ -853,7 +853,6 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
     if int(time_end) <= int(time_start):
         return {"error": {"message": "排程結束時間必須晚於開始時間，請重新選擇時段"}}
 
-    print(f"[DEBUG] create_budget_schedule cid={campaign_id} time_start={time_start} time_end={time_end} pct={pct_increase}")
     # 先刪除時段重疊的舊排程（避免堆疊）；若 API 不支援則跳過
     try:
         existing = fetch_campaign_schedules(access_token, campaign_id)
@@ -881,7 +880,6 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
 
     # 先嘗試 campaign 層級
     result = requests.post(f"https://graph.facebook.com/v25.0/{campaign_id}", data=payload, timeout=30).json()
-    print(f"[DEBUG] campaign POST result={result}")
     if "error" not in result:
         return {"success": True, "level": "campaign"}
 
@@ -1729,9 +1727,12 @@ def _do_load_campaigns(token, acct, force=False):
                     if item.get("code") != 200:
                         try:
                             body = json.loads(item.get("body", "{}"))
-                            _errors.append(body.get("error", {}).get("message", f"HTTP {item.get('code')}"))
+                            msg  = body.get("error", {}).get("message", f"HTTP {item.get('code')}")
                         except Exception:
-                            _errors.append(f"HTTP {item.get('code')}")
+                            msg = f"HTTP {item.get('code')}"
+                        # rate limit 靜默跳過，不計入失敗
+                        if "rate limit" not in msg.lower():
+                            _errors.append(msg)
                         continue
                     try:
                         body   = json.loads(item.get("body", "{}"))
