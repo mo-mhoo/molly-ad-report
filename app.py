@@ -44,6 +44,8 @@ def load_config():
             }
             if "meta_accounts" in st.secrets:
                 cfg["meta_accounts"] = [dict(a) for a in st.secrets["meta_accounts"]]
+            if "account_target_roas" in st.secrets:
+                cfg["account_target_roas"] = dict(st.secrets["account_target_roas"])
             return cfg
     except Exception:
         pass
@@ -876,7 +878,10 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
         "budget_value": budget_value,
         "budget_value_type": "MULTIPLIER",
     }]
-    payload = {"access_token": access_token, "budget_schedule_specs": json.dumps(spec)}
+    payload = {
+        "access_token": access_token,
+        "budget_schedule_specs": json.dumps(spec),
+    }
 
     # 先嘗試 campaign 層級
     result = requests.post(f"https://graph.facebook.com/v25.0/{campaign_id}", data=payload, timeout=30).json()
@@ -890,7 +895,7 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
             params={"fields": "stop_time,end_time,start_time", "access_token": access_token},
             timeout=15,
         ).json()
-        camp_end_str = camp_info.get("stop_time")
+        camp_end_str = camp_info.get("stop_time") or camp_info.get("end_time")
         if camp_end_str:
             try:
                 camp_end_ts = int(datetime.strptime(camp_end_str, "%Y-%m-%dT%H:%M:%S%z").timestamp())
@@ -906,6 +911,21 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
             except Exception:
                 pass
 
+    # 3858090 且無法縮短 → 先帶 daily_budget 重試 campaign 層（部分活動類型需要）
+    if result.get("error", {}).get("error_subcode") == 3858090:
+        camp_info2 = requests.get(
+            f"https://graph.facebook.com/v25.0/{campaign_id}",
+            params={"fields": "daily_budget", "access_token": access_token},
+            timeout=15,
+        ).json()
+        _db2 = camp_info2.get("daily_budget")
+        if _db2:
+            _payload_db = {**payload, "daily_budget": _db2, "budget_rebalance_flag": "true"}
+            _r_db = requests.post(f"https://graph.facebook.com/v25.0/{campaign_id}", data=_payload_db, timeout=30).json()
+            print(f"[DEBUG] 3858090+daily_budget retry result={_r_db}")
+            if "error" not in _r_db:
+                return {"success": True, "level": "campaign", "note": "（帶 daily_budget 成功）"}
+
     # 3858090 且無法縮短（無結束時間）→ 嘗試 adset 層級
     if result.get("error", {}).get("error_subcode") == 3858090:
         adsets = requests.get(
@@ -914,11 +934,13 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
             timeout=15,
         ).json().get("data", [])
         if adsets:
-            ok, fail = 0, []
+            ok, fail, invalid = 0, [], 0
             for a in adsets:
                 r = requests.post(f"https://graph.facebook.com/v25.0/{a['id']}", data=payload, timeout=30).json()
                 if "error" not in r:
                     ok += 1
+                elif "Invalid parameter" in r.get("error", {}).get("message", ""):
+                    invalid += 1
                 else:
                     fail.append(f"{a['name']}: {r['error']['message']}")
             if ok:
@@ -926,11 +948,15 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
                 if fail:
                     msg += f"，{len(fail)} 個失敗"
                 return {"success": True, "level": "adset", "note": f"（{msg}）"}
+            if invalid == len(adsets):
+                return {"error": {"message": "此活動的廣告組合不支援排程加碼（可能使用 lifetime 預算）。請改用活動管理員手動調整預算。"}}
             if fail:
                 return {"error": {"message": " / ".join(fail)}}
+        else:
+            return {"error": {"message": "找不到廣告組合，無法建立排程（此活動可能需手動調整預算）"}}
 
-    # error_subcode 3858199：帶著 daily_budget 再試一次（ASC 活動需要）
-    if result.get("error", {}).get("error_subcode") == 3858199:
+    # error_subcode 3858199 / 3858175：帶著 daily_budget 再試一次（ASC 活動需要）
+    if result.get("error", {}).get("error_subcode") in (3858199, 3858175):
         camp_info = requests.get(
             f"https://graph.facebook.com/v25.0/{campaign_id}",
             params={"fields": "daily_budget", "access_token": access_token},
@@ -1702,6 +1728,7 @@ def _do_load_campaigns(token, acct, force=False):
             today_scheds = {}
             _errors      = []
 
+            time.sleep(1)  # 避免和前面平行請求同時搶 rate limit
             # Batch API：47 個請求合成 1 次 HTTP，避免 rate limit
             BATCH_SIZE = 50
             sched_field = "id,time_start,time_end,budget_value,budget_value_type,status"
@@ -1718,6 +1745,16 @@ def _do_load_campaigns(token, acct, force=False):
                         data={"access_token": token, "batch": json.dumps(batch_payload)},
                         timeout=30,
                     ).json()
+                    # rate limit → 等 3 秒重試一次
+                    if isinstance(batch_resp, list) and batch_resp and isinstance(batch_resp[0], dict):
+                        first_body = json.loads(batch_resp[0].get("body", "{}")) if isinstance(batch_resp[0].get("body"), str) else {}
+                        if "User request limit" in first_body.get("error", {}).get("message", ""):
+                            time.sleep(3)
+                            batch_resp = requests.post(
+                                "https://graph.facebook.com/v25.0/",
+                                data={"access_token": token, "batch": json.dumps(batch_payload)},
+                                timeout=30,
+                            ).json()
                 except Exception as e:
                     _errors.append(f"Batch 請求失敗: {e}")
                     continue
@@ -1970,6 +2007,23 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             combined = sorted(zip(rows, camp_id_list), key=_sort_key)
             rows, camp_id_list = (list(z) for z in zip(*combined)) if combined else ([], [])
 
+            # ── 目標 ROAS 設定（每帳號獨立）
+            _roas_cfg_key = f"target_roas_{selected_account_id}"
+            _stored_roas  = float(cfg.get("account_target_roas", {}).get(selected_account_id, 4.0))
+            if _roas_cfg_key not in st.session_state:
+                st.session_state[_roas_cfg_key] = _stored_roas
+            _tr_col, _ = st.columns([2, 5])
+            target_roas = _tr_col.number_input(
+                "目標 ROAS（用於建議加碼）", min_value=0.1, step=0.5,
+                key=_roas_cfg_key,
+            )
+            if target_roas != _stored_roas:
+                cfg.setdefault("account_target_roas", {})[selected_account_id] = target_roas
+                save_config(cfg)
+            _now_tw = datetime.now(tz=timezone(timedelta(hours=8)))
+            _hour_frac = _now_tw.hour + _now_tw.minute / 60
+            _expected_pace = _hour_frac / 24  # 當前時間應達成進度
+
             # ── 快速選取按鈕
             qb1, qb2, qb3 = st.columns(3)
             if qb1.button("全選", key="sel_all", use_container_width=True):
@@ -1992,10 +2046,31 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 daily_b = row["日預算"]
                 eff_pct = sched_actual_pct if is_sel else (row["_existing_pct"] if row["_existing_pct"] is not None else sched_actual_pct)
                 row[proj_col]    = f"${round(daily_b * (1 + eff_pct / 100))}"
+
+                # 建議加碼%（Phase 1：ROAS tier + 花費進度比）
+                _roas_raw = row["今日ROAS"]
+                _pace = (row["今日花費"] / daily_b / _expected_pace
+                         ) if (_expected_pace > 0 and daily_b > 0) else 0
+                if _roas_raw and _roas_raw > 0:
+                    _r = _roas_raw / target_roas
+                    if _r >= 5:
+                        _sug = "🚀 +200~800%"
+                    elif _r >= 3:
+                        _sug = "🟢 +100~200%"
+                    elif _r >= 1.5:
+                        _sug = "🟢 +50~100%"
+                    elif _pace >= 1.0:
+                        _sug = "🟡 +20%"
+                    else:
+                        _sug = "⏸ 觀望"
+                else:
+                    _sug = "🟡 +20%" if _pace >= 1.0 else "— 無資料"
+                row["建議加碼"] = _sug
+
                 row["今日ROAS"]  = _fmt_roas(row["今日ROAS"])
                 row["7天ROAS"]   = _fmt_roas(row["7天ROAS"])
 
-            disp_cols_sched = ["狀", "活動名稱", "日預算", "今日花費", "今日ROAS",
+            disp_cols_sched = ["建議加碼", "狀", "活動名稱", "日預算", "今日花費", "今日ROAS",
                                "7天ROAS", "今日排程", proj_col, "今日購買", "今日CPA", "轉換價值",
                                "CVR", "加車率", "CTR", "CPC", "觸及成本"]
             df_sched = pd.DataFrame(rows)
@@ -2005,6 +2080,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 hide_index=True,
                 height=min(420, 50 + 40 * len(rows)),
                 column_config={
+                    "建議加碼":  st.column_config.TextColumn("建議加碼", width=110),
                     "狀":        st.column_config.TextColumn("狀",       width=40),
                     "活動名稱":  st.column_config.TextColumn("活動名稱", width=160),
                     "日預算":    st.column_config.NumberColumn("日預算",   width=80),
@@ -2036,7 +2112,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 sel_indices = new_sel
 
             sel_indices = {i for i in sel_indices if i < len(camp_id_list)}
-            selected_camp_ids   = [camp_id_list[i] for i in sorted(sel_indices)]
+            selected_camp_ids   = [camp_id_list[i] for i in sorted(sel_indices) if i < len(camp_id_list)]
             selected_camp_names = [rows[i]["活動名稱"] for i in sorted(sel_indices)]
 
             n_camps = len(selected_camp_ids)
@@ -2209,7 +2285,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                     st.session_state["mod_sel"] = new_mod_sel
                     mod_sel_indices = new_mod_sel
 
-                selected_mod_ids = [mod_id_list[i] for i in sorted(mod_sel_indices)]
+                selected_mod_ids = [mod_id_list[i] for i in sorted(mod_sel_indices) if i < len(mod_id_list)]
 
                 if selected_mod_ids:
                     new_sign = f"+{mod_new_pct}%" if mod_new_pct >= 0 else f"{mod_new_pct}%"
@@ -2237,8 +2313,12 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                                 }
                                 ok += 1
                             else:
-                                err = result.get("error", {}).get("message", str(result))
-                                st.error(f"❌ {cname}：{err}")
+                                _e = result.get("error", {})
+                                _emsg = _e.get("message", str(result))
+                                _esub = _e.get("error_subcode", "")
+                                _eusr = _e.get("error_user_msg", "")
+                                _detail = " | ".join(filter(None, [_eusr, f"subcode:{_esub}" if _esub else ""]))
+                                st.error(f"❌ {cname}：{_emsg}" + (f"（{_detail}）" if _detail else ""))
                                 fail += 1
                         if ok:
                             st.session_state["mod_sel"] = set()
