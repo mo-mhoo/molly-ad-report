@@ -2506,39 +2506,39 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             df_adj = pd.DataFrame(adj_rows)
             display_cols = ["狀", "活動名稱", "日預算", "今日花費", "今日ROAS", "7天ROAS", "今日購買", "今日CPA", "轉換價值"]
 
-            # 快速選取按鈕（遞增版本號強制 AgGrid 重新渲染）
+            # 快速選取按鈕
             ab1, ab2, ab3 = st.columns(3)
+            def _reset_adj_sel(new_sel):
+                v = st.session_state.get("adj_sel_v", 0)
+                old_key = f"adj_df_{v}"
+                if old_key in st.session_state:
+                    del st.session_state[old_key]
+                st.session_state["adj_sel"] = new_sel
+                st.session_state["adj_sel_v"] = v + 1
+                st.session_state["_adj_btn_set"] = True
+                st.rerun()
+
             if ab1.button("全選", key="adj_all", use_container_width=True):
-                st.session_state["adj_sel"]   = {cid: True for cid in adj_id_list}
-                st.session_state["adj_sel_v"] = st.session_state.get("adj_sel_v", 0) + 1
-                st.rerun()
+                _reset_adj_sel(set(range(len(adj_id_list))))
             if ab2.button("取消全選", key="adj_none", use_container_width=True):
-                st.session_state["adj_sel"]   = {cid: False for cid in adj_id_list}
-                st.session_state["adj_sel_v"] = st.session_state.get("adj_sel_v", 0) + 1
-                st.rerun()
+                _reset_adj_sel(set())
             if ab3.button("選🟢有花費", key="adj_spend", use_container_width=True):
-                st.session_state["adj_sel"]   = {adj_id_list[i]: adj_rows[i]["今日花費"] > 0
-                                                  for i in range(len(adj_rows))}
-                st.session_state["adj_sel_v"] = st.session_state.get("adj_sel_v", 0) + 1
-                st.rerun()
+                _reset_adj_sel({i for i, r in enumerate(adj_rows) if r["今日花費"] > 0})
 
-            sel_state_adj = st.session_state.get("adj_sel", {})
+            adj_sel_indices = st.session_state.get("adj_sel", set())
+            if not isinstance(adj_sel_indices, set):
+                adj_sel_indices = set()
 
-            # 加選取欄（checkbox）
-            for i, row in enumerate(adj_rows):
-                row["選取"] = sel_state_adj.get(adj_id_list[i], False)
-
-            display_cols = ["選取", "狀", "活動名稱", "日預算", "今日花費", "今日ROAS",
+            display_cols = ["狀", "活動名稱", "日預算", "今日花費", "今日ROAS",
                             "7天ROAS", "今日購買", "今日CPA", "轉換價值",
                             "CVR", "加車率", "CTR", "CPC", "觸及成本"]
             df_adj = pd.DataFrame(adj_rows)
-            edited_adj = st.data_editor(
+            adj_event = st.dataframe(
                 df_adj[display_cols],
                 use_container_width=True,
                 hide_index=True,
                 height=min(420, 50 + 40 * len(adj_rows)),
                 column_config={
-                    "選取":      st.column_config.CheckboxColumn("✓",   width="small"),
                     "狀":        st.column_config.TextColumn("狀",       width=40),
                     "活動名稱":  st.column_config.TextColumn("活動名稱", width=160),
                     "日預算":    st.column_config.NumberColumn("日預算",   width=80),
@@ -2554,17 +2554,19 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                     "CPC":       st.column_config.NumberColumn("CPC",    width=65),
                     "觸及成本":  st.column_config.NumberColumn("觸及成本", width=80),
                 },
-                disabled=["狀", "活動名稱", "日預算", "今日花費", "今日ROAS",
-                          "7天ROAS", "今日購買", "今日CPA", "轉換價值",
-                          "CVR", "加車率", "CTR", "CPC", "觸及成本"],
-                key=f"adj_editor_{st.session_state.get('adj_sel_v', 0)}",
+                on_select="rerun",
+                selection_mode="multi-row",
+                key=f"adj_df_{st.session_state.get('adj_sel_v', 0)}",
             )
+            new_adj_sel = set(adj_event.selection.rows)
+            if st.session_state.pop("_adj_btn_set", False):
+                adj_sel_indices = st.session_state.get("adj_sel", set())
+            elif new_adj_sel != adj_sel_indices:
+                st.session_state["adj_sel"] = new_adj_sel
+                adj_sel_indices = new_adj_sel
 
-            # 從 editor 取已選活動（同步回 session_state 供按鈕追蹤）
-            st.session_state["adj_sel"] = {adj_id_list[i]: bool(edited_adj.iloc[i]["選取"])
-                                           for i in range(len(adj_id_list))}
-            selected_adj_ids = {adj_id_list[i] for i in range(len(adj_id_list))
-                                if edited_adj.iloc[i]["選取"]}
+            adj_sel_indices = {i for i in adj_sel_indices if i < len(adj_id_list)}
+            selected_adj_ids = {adj_id_list[i] for i in adj_sel_indices}
             sel_camps = [c for c in adj_campaigns
                          if c["id"] in selected_adj_ids and c.get("daily_budget")]
             if sel_camps:
