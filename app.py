@@ -811,7 +811,7 @@ def delete_budget_schedule(access_token, schedule_id):
     return resp
 
 def update_budget_schedule(access_token, schedule_id, new_pct, campaign_id=None, time_start=None, time_end=None):
-    """修改現有預算排程：Meta 不支援直接 PATCH，改用刪除＋重建相同時段"""
+    """修改現有預算排程：先試直接更新幅度，失敗才 delete+recreate"""
     def _to_ts(v):
         try:
             return int(v)
@@ -825,22 +825,29 @@ def update_budget_schedule(access_token, schedule_id, new_pct, campaign_id=None,
     ts_end   = _to_ts(time_end)
     now_ts   = int(datetime.now(timezone.utc).timestamp())
 
-    # 結束時間已過 → 先擋，不刪也不建，避免刪了卻建不回來
     if ts_end <= now_ts:
         return {"error": {"message": "排程結束時間已過，無法修改，請重新新增排程"}}
-
-    # 剩餘時間 < 3 小時 → Meta 不允許建立，先擋避免刪了建不回來
-    remaining_min = int((ts_end - now_ts) / 60)
-    if ts_end - now_ts < 3 * 3600:
-        return {"error": {"message": f"距排程結束僅剩 {remaining_min} 分鐘（不足 3 小時），無法修改。舊排程保留中，明天可重新設定。"}}
 
     if not campaign_id:
         return {"error": {"message": "缺少 campaign_id，無法重建排程"}}
 
-    # 1. 刪除舊排程（確認可以重建後才刪）
-    delete_budget_schedule(access_token, schedule_id)
+    # 1. 先嘗試直接更新幅度（不刪除），避免刪了建不回來
+    r_patch = requests.post(
+        f"https://graph.facebook.com/v25.0/{schedule_id}",
+        data={"access_token": access_token, "budget_value": int(new_pct)},
+        timeout=30,
+    ).json()
+    if "error" not in r_patch:
+        return {"success": True}
 
-    # 2. 重建相同時段、新幅度的排程
+    # 2. 直接更新失敗 → 剩餘時間不足 3 小時就放棄，保留舊排程
+    remaining_min = int((ts_end - now_ts) / 60)
+    if ts_end - now_ts < 3 * 3600:
+        patch_err = r_patch.get("error", {}).get("message", "")
+        return {"error": {"message": f"距排程結束僅剩 {remaining_min} 分鐘（不足 3 小時），無法重建。舊排程保留中。（原因：{patch_err}）"}}
+
+    # 3. 刪除舊排程並重建
+    delete_budget_schedule(access_token, schedule_id)
     return create_budget_schedule(access_token, campaign_id, ts_start, ts_end, new_pct)
 
 def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_increase):
