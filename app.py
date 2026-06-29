@@ -7,6 +7,7 @@ import os
 from typing import Any, Optional
 
 import anthropic
+import requests
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -27,10 +28,11 @@ st.set_page_config(
 
 @st.cache_resource
 def get_client() -> anthropic.Anthropic:
-    api_key = (
-        st.secrets.get("ANTHROPIC_API_KEY", None)
-        or os.getenv("ANTHROPIC_API_KEY")
-    )
+    try:
+        api_key = st.secrets.get("ANTHROPIC_API_KEY", None)
+    except Exception:
+        api_key = None
+    api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
     if not api_key:
         st.error("請設定 ANTHROPIC_API_KEY（Streamlit Secrets 或 .env）")
         st.stop()
@@ -565,9 +567,15 @@ if "api_messages" not in st.session_state:
 
 # Meta credentials (persist across reruns, cleared on browser close)
 if "meta_token" not in st.session_state:
-    st.session_state.meta_token = st.secrets.get("META_ACCESS_TOKEN", "")
+    try:
+        st.session_state.meta_token = st.secrets.get("META_ACCESS_TOKEN", "") or ""
+    except Exception:
+        st.session_state.meta_token = os.getenv("META_ACCESS_TOKEN", "")
 if "meta_account_id" not in st.session_state:
-    st.session_state.meta_account_id = st.secrets.get("META_AD_ACCOUNT_ID", "")
+    try:
+        st.session_state.meta_account_id = st.secrets.get("META_AD_ACCOUNT_ID", "") or ""
+    except Exception:
+        st.session_state.meta_account_id = os.getenv("META_AD_ACCOUNT_ID", "")
 
 # display_history: list of dicts with key "kind"
 # kind == "user":      {"kind": "user", "content": str}
@@ -673,134 +681,286 @@ with st.sidebar:
         st.markdown(f"**{icon} {label}**")
         st.caption(TOOL_DESCRIPTIONS[name])
 
-# ── Main header ───────────────────────────────────────────────────────────────
+# ── Interest search helper ────────────────────────────────────────────────────
 
-st.title("🚀 數位廣告 AI Agent")
-st.caption("輸入廣告問題，AI 自動選用工具，給出具體可執行建議")
-st.divider()
+@st.cache_data(ttl=300, show_spinner=False)
+def search_meta_interests(query: str, token: str, limit: int = 20) -> list[dict]:
+    resp = requests.get(
+        "https://graph.facebook.com/v21.0/search",
+        params={
+            "type": "adinterest",
+            "q": query,
+            "limit": limit,
+            "locale": "zh_TW",
+            "access_token": token,
+        },
+        timeout=10,
+    )
+    resp.raise_for_status()
+    return resp.json().get("data", [])
 
-# ── Replay display history ────────────────────────────────────────────────────
 
-for item in st.session_state.display_history:
-    kind = item["kind"]
-    if kind == "user":
-        with st.chat_message("user"):
-            st.write(item["content"])
-    elif kind == "assistant":
-        with st.chat_message("assistant"):
-            st.markdown(item["content"])
-    elif kind == "tool":
-        icon = TOOL_ICONS.get(item["tool_name"], "🔧")
-        label = TOOL_LABELS.get(item["tool_name"], item["tool_name"])
-        with st.expander(f"{icon} {label} — 點擊展開結果", expanded=False):
-            with st.container():
-                st.markdown("**輸入參數**")
-                st.json(item["input"])
-            st.divider()
-            st.markdown(item["result"])
+@st.cache_data(ttl=300, show_spinner=False)
+def get_meta_interest_suggestions(interest_ids: tuple[str, ...], token: str) -> list[dict]:
+    import json as _json
+    resp = requests.get(
+        "https://graph.facebook.com/v21.0/search",
+        params={
+            "type": "adinterestsuggestion",
+            "interest_list": _json.dumps(list(interest_ids)),
+            "access_token": token,
+        },
+        timeout=10,
+    )
+    resp.raise_for_status()
+    return resp.json().get("data", [])
 
-# ── Chat input ────────────────────────────────────────────────────────────────
 
-user_input: Optional[str] = st.chat_input("例如：幫我生成 Instagram 廣告文案、分析 Facebook 廣告數據…")
+# ── Main tabs ─────────────────────────────────────────────────────────────────
 
-if "pending_input" in st.session_state:
-    user_input = st.session_state.pop("pending_input")
+st.title("🚀 數位廣告工具箱")
+tab_agent, tab_interest = st.tabs(["💬 廣告 AI 顧問", "🎯 興趣標籤查詢"])
 
-# ── Agent execution ───────────────────────────────────────────────────────────
+# ══════════════════════════════════════════════════════════════════════════════
+# Tab 1 — 廣告 AI 顧問
+# ══════════════════════════════════════════════════════════════════════════════
 
-if user_input:
-    with st.chat_message("user"):
-        st.write(user_input)
+with tab_agent:
+    st.caption("輸入廣告問題，AI 自動選用工具，給出具體可執行建議")
+    st.divider()
 
-    st.session_state.display_history.append({"kind": "user", "content": user_input})
-    st.session_state.api_messages.append({"role": "user", "content": user_input})
-
-    messages: list[dict] = list(st.session_state.api_messages)
-
-    while True:
-        # Each iteration may produce an assistant text segment + optional tool calls
-        assistant_bubble = st.chat_message("assistant")
-        text_placeholder = assistant_bubble.empty()
-        stream_text = ""
-
-        with client.messages.stream(
-            model=MODEL,
-            max_tokens=4096,
-            thinking={"type": "adaptive"},
-            system=[
-                {
-                    "type": "text",
-                    "text": SYSTEM_PROMPT,
-                    "cache_control": {"type": "ephemeral"},
-                }
-            ],
-            tools=TOOLS,
-            messages=messages,
-        ) as stream:
-            for chunk in stream.text_stream:
-                stream_text += chunk
-                text_placeholder.markdown(stream_text + "▌")
-            response = stream.get_final_message()
-
-        # Finalise streamed text (remove cursor)
-        if stream_text:
-            text_placeholder.markdown(stream_text)
-        else:
-            text_placeholder.empty()
-
-        if response.stop_reason == "end_turn":
-            messages.append({"role": "assistant", "content": response.content})
-            if stream_text:
-                st.session_state.display_history.append(
-                    {"kind": "assistant", "content": stream_text}
-                )
-            break
-
-        if response.stop_reason == "tool_use":
-            messages.append({"role": "assistant", "content": response.content})
-            if stream_text:
-                st.session_state.display_history.append(
-                    {"kind": "assistant", "content": stream_text}
-                )
-
-            tool_results = []
-            for block in response.content:
-                if block.type != "tool_use":
-                    continue
-
-                label = TOOL_LABELS.get(block.name, block.name)
-                icon = TOOL_ICONS.get(block.name, "🔧")
-
-                with st.status(f"{icon} {label}…", expanded=True) as status:
+    for item in st.session_state.display_history:
+        kind = item["kind"]
+        if kind == "user":
+            with st.chat_message("user"):
+                st.write(item["content"])
+        elif kind == "assistant":
+            with st.chat_message("assistant"):
+                st.markdown(item["content"])
+        elif kind == "tool":
+            icon = TOOL_ICONS.get(item["tool_name"], "🔧")
+            label = TOOL_LABELS.get(item["tool_name"], item["tool_name"])
+            with st.expander(f"{icon} {label} — 點擊展開結果", expanded=False):
+                with st.container():
                     st.markdown("**輸入參數**")
-                    st.json(block.input)
-                    result = execute_tool(block.name, block.input)
-                    status.update(
-                        label=f"{icon} {label} 完成",
-                        state="complete",
-                        expanded=False,
+                    st.json(item["input"])
+                st.divider()
+                st.markdown(item["result"])
+
+    user_input: Optional[str] = st.chat_input("例如：幫我生成 Instagram 廣告文案、分析 Facebook 廣告數據…")
+
+    if "pending_input" in st.session_state:
+        user_input = st.session_state.pop("pending_input")
+
+    if user_input:
+        with st.chat_message("user"):
+            st.write(user_input)
+
+        st.session_state.display_history.append({"kind": "user", "content": user_input})
+        st.session_state.api_messages.append({"role": "user", "content": user_input})
+
+        messages: list[dict] = list(st.session_state.api_messages)
+
+        while True:
+            assistant_bubble = st.chat_message("assistant")
+            text_placeholder = assistant_bubble.empty()
+            stream_text = ""
+
+            with client.messages.stream(
+                model=MODEL,
+                max_tokens=4096,
+                thinking={"type": "adaptive"},
+                system=[
+                    {
+                        "type": "text",
+                        "text": SYSTEM_PROMPT,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
+                tools=TOOLS,
+                messages=messages,
+            ) as stream:
+                for chunk in stream.text_stream:
+                    stream_text += chunk
+                    text_placeholder.markdown(stream_text + "▌")
+                response = stream.get_final_message()
+
+            if stream_text:
+                text_placeholder.markdown(stream_text)
+            else:
+                text_placeholder.empty()
+
+            if response.stop_reason == "end_turn":
+                messages.append({"role": "assistant", "content": response.content})
+                if stream_text:
+                    st.session_state.display_history.append(
+                        {"kind": "assistant", "content": stream_text}
+                    )
+                break
+
+            if response.stop_reason == "tool_use":
+                messages.append({"role": "assistant", "content": response.content})
+                if stream_text:
+                    st.session_state.display_history.append(
+                        {"kind": "assistant", "content": stream_text}
                     )
 
-                st.session_state.display_history.append(
-                    {
-                        "kind": "tool",
-                        "tool_name": block.name,
-                        "input": block.input,
-                        "result": result,
-                    }
-                )
+                tool_results = []
+                for block in response.content:
+                    if block.type != "tool_use":
+                        continue
 
-                tool_results.append(
-                    {
-                        "type": "tool_result",
-                        "tool_use_id": block.id,
-                        "content": result,
-                    }
-                )
+                    label = TOOL_LABELS.get(block.name, block.name)
+                    icon = TOOL_ICONS.get(block.name, "🔧")
 
-            messages.append({"role": "user", "content": tool_results})
+                    with st.status(f"{icon} {label}…", expanded=True) as status:
+                        st.markdown("**輸入參數**")
+                        st.json(block.input)
+                        result = execute_tool(block.name, block.input)
+                        status.update(
+                            label=f"{icon} {label} 完成",
+                            state="complete",
+                            expanded=False,
+                        )
+
+                    st.session_state.display_history.append(
+                        {
+                            "kind": "tool",
+                            "tool_name": block.name,
+                            "input": block.input,
+                            "result": result,
+                        }
+                    )
+
+                    tool_results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": result,
+                        }
+                    )
+
+                messages.append({"role": "user", "content": tool_results})
+            else:
+                break
+
+        st.session_state.api_messages = messages
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Tab 2 — 興趣標籤查詢
+# ══════════════════════════════════════════════════════════════════════════════
+
+with tab_interest:
+    st.caption("直接查詢 Meta 可用的興趣標籤，支援關鍵字搜尋與推薦標籤")
+
+    # Token 設定
+    interest_token = (
+        st.session_state.get("meta_token")
+        or st.secrets.get("META_ACCESS_TOKEN", "")
+        or os.getenv("META_ACCESS_TOKEN", "")
+    )
+    if not interest_token:
+        st.warning("請先在側邊欄填入 Meta Access Token，或在 Streamlit Secrets 設定 META_ACCESS_TOKEN")
+        st.stop()
+
+    # 快速選詞
+    QUICK_KEYWORDS = ["pregnancy", "new mom", "parenting", "baby shower", "breastfeeding", "married women", "postpartum", "育兒", "媽媽", "孕婦"]
+    st.markdown("**快速選詞**")
+    cols = st.columns(5)
+    for i, kw in enumerate(QUICK_KEYWORDS):
+        if cols[i % 5].button(kw, key=f"quick_{kw}", use_container_width=True):
+            st.session_state.interest_query = kw
+
+    st.divider()
+
+    # 搜尋框
+    query = st.text_input(
+        "輸入關鍵字（中英文皆可，英文結果通常更多）",
+        value=st.session_state.get("interest_query", ""),
+        placeholder="例：pregnancy、媽媽、parenting…",
+        key="interest_query_input",
+    )
+
+    col_search, col_suggest = st.columns([1, 1])
+    do_search = col_search.button("🔍 搜尋標籤", type="primary", use_container_width=True)
+    do_suggest = col_suggest.button("✨ 推薦相關標籤", use_container_width=True,
+                                    help="根據已加入的標籤取得 Meta 推薦")
+
+    # 已選標籤
+    if "selected_interests" not in st.session_state:
+        st.session_state.selected_interests = []  # list of {"id": str, "name": str}
+
+    # 執行搜尋
+    if do_search and query:
+        with st.spinner(f"搜尋「{query}」中…"):
+            try:
+                results = search_meta_interests(query, interest_token)
+                st.session_state.interest_results = results
+                st.session_state.interest_query = query
+            except Exception as e:
+                st.error(f"API 錯誤：{e}")
+                st.session_state.interest_results = []
+
+    # 執行推薦
+    if do_suggest:
+        if not st.session_state.selected_interests:
+            st.warning("請先加入至少一個標籤再取得推薦")
         else:
-            # Unexpected stop reason — bail out
-            break
+            ids = tuple(item["id"] for item in st.session_state.selected_interests)
+            with st.spinner("取得推薦標籤中…"):
+                try:
+                    results = get_meta_interest_suggestions(ids, interest_token)
+                    st.session_state.interest_results = results
+                except Exception as e:
+                    st.error(f"API 錯誤：{e}")
 
-    st.session_state.api_messages = messages
+    # 顯示搜尋結果
+    if st.session_state.get("interest_results"):
+        results = st.session_state.interest_results
+        st.markdown(f"#### 搜尋結果（{len(results)} 筆）")
+
+        selected_ids = {item["id"] for item in st.session_state.selected_interests}
+
+        for item in results:
+            item_id = item.get("id", "")
+            name = item.get("name", "")
+            low = item.get("audience_size_lower_bound", 0)
+            high = item.get("audience_size_upper_bound", 0)
+            size_str = f"{low / 1_000_000:.1f}M ~ {high / 1_000_000:.1f}M" if low >= 1_000_000 else f"{low:,} ~ {high:,}" if low else "N/A"
+            path = " › ".join(item.get("path", []))
+
+            col_name, col_size, col_btn = st.columns([4, 3, 1])
+            col_name.markdown(f"**{name}**{'  \n`' + path + '`' if path else ''}")
+            col_size.markdown(f"👥 {size_str}")
+            already_added = item_id in selected_ids
+            if col_btn.button(
+                "✓" if already_added else "＋",
+                key=f"add_{item_id}",
+                disabled=already_added,
+                use_container_width=True,
+            ):
+                st.session_state.selected_interests.append({"id": item_id, "name": name})
+                st.rerun()
+
+    # 已選標籤清單
+    st.divider()
+    st.markdown("#### 已選標籤清單")
+    if not st.session_state.selected_interests:
+        st.caption("尚未加入任何標籤，點擊上方結果的 ＋ 加入")
+    else:
+        tag_cols = st.columns(4)
+        to_remove = None
+        for i, item in enumerate(st.session_state.selected_interests):
+            if tag_cols[i % 4].button(f"✕ {item['name']}", key=f"rm_{item['id']}_{i}", use_container_width=True):
+                to_remove = i
+        if to_remove is not None:
+            st.session_state.selected_interests.pop(to_remove)
+            st.rerun()
+
+        st.markdown("")
+        names_text = "\n".join(f"• {item['name']}" for item in st.session_state.selected_interests)
+        st.text_area("複製標籤名稱", value=names_text, height=120, key="copy_area")
+
+        if st.button("🗑️ 清空清單", type="secondary"):
+            st.session_state.selected_interests = []
+            st.rerun()
