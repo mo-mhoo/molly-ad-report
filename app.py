@@ -831,9 +831,7 @@ def update_budget_schedule(access_token, schedule_id, new_pct, campaign_id=None,
     if not campaign_id:
         return {"error": {"message": "缺少 campaign_id，無法重建排程"}}
 
-    # 刪除舊排程，用原始 time_start 重建（不推到未來，保留完整時段）
-    delete_budget_schedule(access_token, schedule_id)
-
+    # 先不刪舊排程，直接 POST 同樣時段給 campaign（Meta overlap 覆蓋機制）
     spec = [{
         "time_start": ts_start,
         "time_end": ts_end,
@@ -845,7 +843,8 @@ def update_budget_schedule(access_token, schedule_id, new_pct, campaign_id=None,
     if "error" not in result:
         return {"success": True}
 
-    # 原始 time_start 不被接受 → fallback：用當前時間重建（有 3 小時限制）
+    # overlap 覆蓋失敗 → 刪舊排程再重建（fallback，有 3 小時限制風險）
+    delete_budget_schedule(access_token, schedule_id)
     return create_budget_schedule(access_token, campaign_id, ts_start, ts_end, new_pct)
 
 def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_increase):
