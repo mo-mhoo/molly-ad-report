@@ -811,7 +811,7 @@ def delete_budget_schedule(access_token, schedule_id):
     return resp
 
 def update_budget_schedule(access_token, schedule_id, new_pct, campaign_id=None, time_start=None, time_end=None):
-    """修改現有預算排程：先試直接更新幅度，失敗才 delete+recreate"""
+    """修改現有預算排程：POST 相同時段給 campaign，失敗不動舊排程"""
     def _to_ts(v):
         try:
             return int(v)
@@ -831,7 +831,7 @@ def update_budget_schedule(access_token, schedule_id, new_pct, campaign_id=None,
     if not campaign_id:
         return {"error": {"message": "缺少 campaign_id，無法重建排程"}}
 
-    # 先不刪舊排程，直接 POST 同樣時段給 campaign（Meta overlap 覆蓋機制）
+    # POST 相同時段 + 新幅度給 campaign（不先刪，失敗舊排程保留）
     spec = [{
         "time_start": ts_start,
         "time_end": ts_end,
@@ -841,11 +841,18 @@ def update_budget_schedule(access_token, schedule_id, new_pct, campaign_id=None,
     payload = {"access_token": access_token, "budget_schedule_specs": json.dumps(spec)}
     result = requests.post(f"https://graph.facebook.com/v25.0/{campaign_id}", data=payload, timeout=30).json()
     if "error" not in result:
+        # POST 成功後刪除舊排程（避免重複）
+        delete_budget_schedule(access_token, schedule_id)
         return {"success": True}
 
-    # overlap 覆蓋失敗 → 刪舊排程再重建（fallback，有 3 小時限制風險）
-    delete_budget_schedule(access_token, schedule_id)
-    return create_budget_schedule(access_token, campaign_id, ts_start, ts_end, new_pct)
+    # 失敗 → 舊排程完整保留，回傳錯誤
+    _e = result.get("error", {})
+    _sub = _e.get("error_subcode", "")
+    _msg = _e.get("error_user_msg") or _e.get("message", "修改失敗")
+    if _sub == 3858094:
+        remaining_min = int((ts_end - now_ts) / 60)
+        return {"error": {"message": f"Meta 限制：距排程結束僅剩 {remaining_min} 分鐘（需 ≥ 3 小時才能修改幅度）。舊排程保留中。"}}
+    return result
 
 def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_increase):
     # 若開始時間已過，自動推到下一個 15 分鐘整點
