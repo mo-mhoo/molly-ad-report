@@ -829,6 +829,11 @@ def update_budget_schedule(access_token, schedule_id, new_pct, campaign_id=None,
     if ts_end <= now_ts:
         return {"error": {"message": "排程結束時間已過，無法修改，請重新新增排程"}}
 
+    # 剩餘時間 < 3 小時 → Meta 不允許建立，先擋避免刪了建不回來
+    remaining_min = int((ts_end - now_ts) / 60)
+    if ts_end - now_ts < 3 * 3600:
+        return {"error": {"message": f"距排程結束僅剩 {remaining_min} 分鐘（不足 3 小時），無法修改。舊排程保留中，明天可重新設定。"}}
+
     if not campaign_id:
         return {"error": {"message": "缺少 campaign_id，無法重建排程"}}
 
