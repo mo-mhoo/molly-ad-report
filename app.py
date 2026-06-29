@@ -831,28 +831,14 @@ def update_budget_schedule(access_token, schedule_id, new_pct, campaign_id=None,
     if not campaign_id:
         return {"error": {"message": "缺少 campaign_id，無法重建排程"}}
 
-    # POST 相同時段 + 新幅度給 campaign（不先刪，失敗舊排程保留）
-    spec = [{
-        "time_start": ts_start,
-        "time_end": ts_end,
-        "budget_value": int(new_pct),
-        "budget_value_type": "MULTIPLIER",
-    }]
-    payload = {"access_token": access_token, "budget_schedule_specs": json.dumps(spec)}
-    result = requests.post(f"https://graph.facebook.com/v25.0/{campaign_id}", data=payload, timeout=30).json()
-    if "error" not in result:
-        # POST 成功後刪除舊排程（避免重複）
-        delete_budget_schedule(access_token, schedule_id)
-        return {"success": True}
+    # 剩餘時間 < 3 小時 → Meta 建不回來，直接擋住保留舊排程
+    remaining_min = int((ts_end - now_ts) / 60)
+    if ts_end - now_ts < 3 * 3600:
+        return {"error": {"message": f"Meta 限制：距排程結束僅剩 {remaining_min} 分鐘（需 ≥ 3 小時才能修改）。舊排程保留中。"}}
 
-    # 失敗 → 舊排程完整保留，回傳錯誤
-    _e = result.get("error", {})
-    _sub = _e.get("error_subcode", "")
-    _msg = _e.get("error_user_msg") or _e.get("message", "修改失敗")
-    if _sub == 3858094:
-        remaining_min = int((ts_end - now_ts) / 60)
-        return {"error": {"message": f"Meta 限制：距排程結束僅剩 {remaining_min} 分鐘（需 ≥ 3 小時才能修改幅度）。舊排程保留中。"}}
-    return result
+    # 剩餘時間足夠 → 先刪再建
+    delete_budget_schedule(access_token, schedule_id)
+    return create_budget_schedule(access_token, campaign_id, ts_start, ts_end, new_pct)
 
 def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_increase):
     # 若開始時間已過，自動推到下一個 15 分鐘整點
