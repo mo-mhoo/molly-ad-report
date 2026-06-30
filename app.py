@@ -2147,7 +2147,10 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                             if _camp_map.get(cid, {}).get("smart_promotion_type") == "SHOPPING":
                                 st.warning(f"⚠️ {cname}：ASC 活動不支援預算排程，已跳過")
                                 continue
-                            result = create_budget_schedule(_token, cid, slot["_ts_start"], slot["_ts_end"], sched_actual_pct)
+                            try:
+                                result = create_budget_schedule(_token, cid, slot["_ts_start"], slot["_ts_end"], sched_actual_pct)
+                            except requests.exceptions.RequestException as e:
+                                result = {"error": {"message": f"連線逾時或失敗：{e}"}}
                             if result.get("success") or result.get("id"):
                                 note = result.get("note", "")
                                 label = f"【{slot_label}】" if len(slots_to_apply) > 1 else ""
