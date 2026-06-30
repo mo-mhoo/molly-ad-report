@@ -811,7 +811,7 @@ def delete_budget_schedule(access_token, schedule_id):
     return resp
 
 def update_budget_schedule(access_token, schedule_id, new_pct, campaign_id=None, time_start=None, time_end=None):
-    """修改現有預算排程：Meta 不支援直接 PATCH，改用刪除＋重建相同時段"""
+    """修改現有預算排程：POST 相同時段給 campaign，失敗不動舊排程"""
     def _to_ts(v):
         try:
             return int(v)
@@ -825,17 +825,19 @@ def update_budget_schedule(access_token, schedule_id, new_pct, campaign_id=None,
     ts_end   = _to_ts(time_end)
     now_ts   = int(datetime.now(timezone.utc).timestamp())
 
-    # 結束時間已過 → 先擋，不刪也不建，避免刪了卻建不回來
     if ts_end <= now_ts:
         return {"error": {"message": "排程結束時間已過，無法修改，請重新新增排程"}}
 
     if not campaign_id:
         return {"error": {"message": "缺少 campaign_id，無法重建排程"}}
 
-    # 1. 刪除舊排程（確認可以重建後才刪）
-    delete_budget_schedule(access_token, schedule_id)
+    # 剩餘時間 < 3 小時 → Meta 建不回來，直接擋住保留舊排程
+    remaining_min = int((ts_end - now_ts) / 60)
+    if ts_end - now_ts < 3 * 3600:
+        return {"error": {"message": f"Meta 限制：距排程結束僅剩 {remaining_min} 分鐘（需 ≥ 3 小時才能修改）。舊排程保留中。"}}
 
-    # 2. 重建相同時段、新幅度的排程
+    # 剩餘時間足夠 → 先刪再建
+    delete_budget_schedule(access_token, schedule_id)
     return create_budget_schedule(access_token, campaign_id, ts_start, ts_end, new_pct)
 
 def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_increase):
