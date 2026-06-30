@@ -1729,6 +1729,7 @@ def _do_load_campaigns(token, acct, force=False):
             _now_ts  = datetime.now(timezone.utc).timestamp()
             today_scheds = {}
             _errors      = []
+            _rate_limited = 0
 
             time.sleep(1)  # 避免和前面平行請求同時搶 rate limit
             # Batch API：47 個請求合成 1 次 HTTP，避免 rate limit
@@ -1769,8 +1770,10 @@ def _do_load_campaigns(token, acct, force=False):
                             msg  = body.get("error", {}).get("message", f"HTTP {item.get('code')}")
                         except Exception:
                             msg = f"HTTP {item.get('code')}"
-                        # rate limit 靜默跳過，不計入失敗
-                        if "rate limit" not in msg.lower():
+                        # rate limit 不計入「失敗」，但仍計數，避免排程資料默默消失而不自知
+                        if "rate limit" in msg.lower():
+                            _rate_limited += 1
+                        else:
                             _errors.append(msg)
                         continue
                     try:
@@ -1792,8 +1795,9 @@ def _do_load_campaigns(token, acct, force=False):
             st.session_state["today_scheds"] = today_scheds
             st.session_state["_load_ts"]     = time.time()
             _err_preview = f"｜⚠️{len(_errors)} 筆失敗：{_errors[0][:80]}" if _errors else ""
+            _rl_preview  = f"｜⏳{_rate_limited} 筆遭 rate limit 跳過，排程資料可能不完整，請稍後按「強制重整」" if _rate_limited else ""
             st.session_state["_load_msg"] = (
-                f"✅ {len(camps)} 活動 / {len(_active_camps)} ACTIVE → 今日排程={len(today_scheds)}{_err_preview}"
+                f"✅ {len(camps)} 活動 / {len(_active_camps)} ACTIVE → 今日排程={len(today_scheds)}{_err_preview}{_rl_preview}"
             )
         except Exception as e:
             st.session_state["_load_msg"] = f"❌ 載入錯誤：{e}"
