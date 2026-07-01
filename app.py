@@ -898,20 +898,23 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
             timeout=15,
         ).json()
         camp_end_str = camp_info.get("stop_time") or camp_info.get("end_time")
+        print(f"[DEBUG] 3858090 camp={campaign_id} camp_info={camp_info} camp_end_str={camp_end_str} time_end={time_end}")
         if camp_end_str:
             try:
                 camp_end_ts = int(datetime.strptime(camp_end_str, "%Y-%m-%dT%H:%M:%S%z").timestamp())
+                print(f"[DEBUG] 3858090 camp_end_ts={camp_end_ts} time_start={time_start} time_end={time_end}")
                 if camp_end_ts > int(time_start):
                     spec[0]["time_end"] = camp_end_ts
                     payload2 = {**payload, "budget_schedule_specs": json.dumps(spec)}
                     result2 = requests.post(f"https://graph.facebook.com/v25.0/{campaign_id}", data=payload2, timeout=30).json()
+                    print(f"[DEBUG] 3858090 truncated retry result={result2}")
                     if "error" not in result2:
                         return {"success": True, "level": "campaign", "note": f"（排程結束時間已調整為活動結束時間）"}
                     result = result2
                 else:
                     return {"error": {"message": "活動排期已結束，無法建立排程"}}
-            except Exception:
-                pass
+            except Exception as _e:
+                print(f"[DEBUG] 3858090 parse exception: {_e}")
 
     # 3858090 且無法縮短 → 先帶 daily_budget 重試 campaign 層（部分活動類型需要）
     if result.get("error", {}).get("error_subcode") == 3858090:
