@@ -930,12 +930,17 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
 
     # 3858090 且無法縮短（無結束時間）→ 嘗試 adset 層級
     if result.get("error", {}).get("error_subcode") == 3858090:
+        print(f"[DEBUG] 3858090 campaign={campaign_id} err={result.get('error')}")
         adsets = requests.get(
             f"https://graph.facebook.com/v25.0/{campaign_id}/adsets",
             params={"fields": "id,name,daily_budget,lifetime_budget", "access_token": access_token, "limit": 50},
             timeout=15,
         ).json().get("data", [])
         if adsets:
+            # 偵測 CBO：所有 adset 都沒有自己的預算 → budget_rebalance_flag 活動
+            all_cbo = all(not a.get("daily_budget") and not a.get("lifetime_budget") for a in adsets)
+            if all_cbo:
+                return {"error": {"message": "此為行銷活動預算（CBO）活動，排程 API 不支援。建議改用「快速加減碼」直接調整日預算，或在 Meta 廣告管理員設定預算排程。"}}
             ok, fail, invalid = 0, [], 0
             for a in adsets:
                 r = requests.post(f"https://graph.facebook.com/v25.0/{a['id']}", data=payload, timeout=30).json()
@@ -951,7 +956,7 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
                     msg += f"，{len(fail)} 個失敗"
                 return {"success": True, "level": "adset", "note": f"（{msg}）"}
             if invalid == len(adsets):
-                return {"error": {"message": "此活動的廣告組合不支援排程加碼（可能使用 lifetime 預算）。請改用活動管理員手動調整預算。"}}
+                return {"error": {"message": "此活動的廣告組合不支援排程加碼（使用 lifetime 預算）。請改用活動管理員手動調整預算。"}}
             if fail:
                 return {"error": {"message": " / ".join(fail)}}
         else:
