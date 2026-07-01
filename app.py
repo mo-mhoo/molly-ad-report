@@ -584,16 +584,28 @@ def parse_ad_dims(ad_name):
         if part in ACTIVITY_TYPES:
             activity_type = part
             found_activity_idx = i
+        else:
+            # 支援 2505｜常態｜蔓越莓 格式：｜分隔中含 ACTIVITY_TYPE
+            sub = [s.strip() for s in part.split('｜')]
+            for j, s in enumerate(sub):
+                if s in ACTIVITY_TYPES:
+                    activity_type = s
+                    found_activity_idx = i
+                    # 品類取 ACTIVITY_TYPE 後一個 ｜ 段（非純數字）
+                    if j + 1 < len(sub) and sub[j+1] and not sub[j+1][:4].isdigit():
+                        category = sub[j+1]
+                    break
     for i, part in enumerate(parts):
         if any(kw in part for kw in FORMAT_KEYWORDS):
             format_type = part
             found_format_idx = i
             break
-    ref_idx = max(found_format_idx, found_activity_idx)
-    if ref_idx >= 0 and ref_idx + 1 < len(parts):
-        cand = parts[ref_idx + 1]
-        if not (len(cand) >= 6 and cand[:4].isdigit()):
-            category = cand.split('x')[0]
+    if category == "未知":
+        ref_idx = max(found_format_idx, found_activity_idx)
+        if ref_idx >= 0 and ref_idx + 1 < len(parts):
+            cand = parts[ref_idx + 1]
+            if not (len(cand) >= 6 and cand[:4].isdigit()):
+                category = cand.split('x')[0]
     if "代言人" in name:
         creative_type = "代言人"
     elif any(kw in name for kw in ["獸醫", "醫生", "醫師", "醫"]):
