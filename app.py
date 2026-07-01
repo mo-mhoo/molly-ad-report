@@ -934,11 +934,13 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
     # 3858090 且無法縮短（無結束時間）→ 嘗試 adset 層級
     if result.get("error", {}).get("error_subcode") == 3858090:
         print(f"[DEBUG] 3858090 campaign={campaign_id} err={result.get('error')}")
-        adsets = requests.get(
+        _adsets_resp = requests.get(
             f"https://graph.facebook.com/v25.0/{campaign_id}/adsets",
             params={"fields": "id,name,daily_budget,lifetime_budget", "access_token": access_token, "limit": 50},
             timeout=15,
-        ).json().get("data", [])
+        ).json()
+        print(f"[DEBUG] 3858090 adsets_resp={_adsets_resp}")
+        adsets = _adsets_resp.get("data", [])
         if adsets:
             # 偵測 CBO：所有 adset 都沒有自己的預算 → budget_rebalance_flag 活動
             all_cbo = all(not a.get("daily_budget") and not a.get("lifetime_budget") for a in adsets)
