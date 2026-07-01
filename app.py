@@ -614,14 +614,15 @@ def parse_ad_dims(ad_name):
         creative_type = "一般"
     return {"活動類型": activity_type, "格式": format_type, "品類": category, "素材類型": creative_type}
 
-def fetch_meta_ad_insights(access_token, ad_account_id, since, until, account_type="general"):
+def fetch_meta_ad_insights(access_token, ad_account_id, since, until, account_type="general", level="ad"):
     url = f"https://graph.facebook.com/v25.0/act_{ad_account_id}/insights"
+    name_field = "adset_name" if level == "adset" else "ad_name"
     if account_type == "cpas":
-        fields = "campaign_name,ad_name,spend,impressions,inline_link_clicks,catalog_segment_actions,catalog_segment_value"
+        fields = f"campaign_name,{name_field},spend,impressions,inline_link_clicks,catalog_segment_actions,catalog_segment_value"
     else:
-        fields = "campaign_name,ad_name,spend,impressions,inline_link_clicks,actions,action_values"
+        fields = f"campaign_name,{name_field},spend,impressions,inline_link_clicks,actions,action_values"
     params = {
-        "level": "ad",
+        "level": level,
         "fields": fields,
         "time_range": json.dumps({"since": str(since), "until": str(until)}),
         "access_token": access_token,
@@ -651,9 +652,10 @@ def fetch_meta_ad_insights(access_token, ad_account_id, since, until, account_ty
         else:
             purchases = get_action(actions, "purchase")
             purchase_val = get_action(action_values, "purchase")
+        row_name = item.get(name_field, "")
         rows.append({
             "行銷活動名稱": item.get("campaign_name", ""),
-            "廣告名稱": item.get("ad_name", ""),
+            "廣告名稱": row_name,
             "花費": safe_float(item.get("spend")),
             "曝光": safe_float(item.get("impressions")),
             "點擊": safe_float(item.get("inline_link_clicks")),
@@ -1626,27 +1628,30 @@ if df_curr is not None and not df_curr.empty:
             else:
                 with st.spinner("正在抓取廣告層級數據..."):
                     try:
-                        df_ads_new = fetch_meta_ad_insights(token_d, acct_d, since_d, until_d, atype_d)
-                        st.session_state["df_ads"] = df_ads_new
                         comp_s = st.session_state.get("dim_comp_since")
                         comp_u = st.session_state.get("dim_comp_until")
-                        if comp_s:
-                            st.session_state["df_ads_comp"] = fetch_meta_ad_insights(token_d, acct_d, comp_s, comp_u, atype_d)
-                        else:
-                            st.session_state.pop("df_ads_comp", None)
-                        mom_s = st.session_state.get("dim_mom_since")
-                        mom_u = st.session_state.get("dim_mom_until")
-                        if mom_s:
-                            st.session_state["df_ads_mom"] = fetch_meta_ad_insights(token_d, acct_d, mom_s, mom_u, atype_d)
-                        else:
-                            st.session_state.pop("df_ads_mom", None)
-                        yoy_s = st.session_state.get("dim_yoy_since")
-                        yoy_u = st.session_state.get("dim_yoy_until")
-                        if yoy_s:
-                            st.session_state["df_ads_yoy"] = fetch_meta_ad_insights(token_d, acct_d, yoy_s, yoy_u, atype_d)
-                        else:
-                            st.session_state.pop("df_ads_yoy", None)
-                        st.success(f"✅ 抓到 {len(df_ads_new)} 個廣告")
+                        mom_s  = st.session_state.get("dim_mom_since")
+                        mom_u  = st.session_state.get("dim_mom_until")
+                        yoy_s  = st.session_state.get("dim_yoy_since")
+                        yoy_u  = st.session_state.get("dim_yoy_until")
+                        for lv in ("ad", "adset"):
+                            sfx = "" if lv == "ad" else "_as"
+                            df_new = fetch_meta_ad_insights(token_d, acct_d, since_d, until_d, atype_d, level=lv)
+                            st.session_state[f"df_ads{sfx}"] = df_new
+                            if comp_s:
+                                st.session_state[f"df_ads{sfx}_comp"] = fetch_meta_ad_insights(token_d, acct_d, comp_s, comp_u, atype_d, level=lv)
+                            else:
+                                st.session_state.pop(f"df_ads{sfx}_comp", None)
+                            if mom_s:
+                                st.session_state[f"df_ads{sfx}_mom"] = fetch_meta_ad_insights(token_d, acct_d, mom_s, mom_u, atype_d, level=lv)
+                            else:
+                                st.session_state.pop(f"df_ads{sfx}_mom", None)
+                            if yoy_s:
+                                st.session_state[f"df_ads{sfx}_yoy"] = fetch_meta_ad_insights(token_d, acct_d, yoy_s, yoy_u, atype_d, level=lv)
+                            else:
+                                st.session_state.pop(f"df_ads{sfx}_yoy", None)
+                        df_ads_new = st.session_state["df_ads"]
+                        st.success(f"✅ 抓到 {len(df_ads_new)} 個廣告 / {len(st.session_state['df_ads_as'])} 個廣告組合")
                     except Exception as e:
                         st.error(f"API 錯誤：{e}")
 
@@ -1709,6 +1714,74 @@ if df_curr is not None and not df_curr.empty:
                 else:
                     st.caption("無資料")
                 st.markdown("")
+
+            # ── Adset 成效 flat table ──────────────────────────────
+            def _build_flat_table(df_cur, df_c, df_m, df_y, name_col="廣告名稱"):
+                """將逐列數據彙總後顯示，含比較期欄位。"""
+                def _agg(df):
+                    if df is None or df.empty:
+                        return {}
+                    g = df.groupby(name_col, as_index=False).agg(
+                        花費=("花費", "sum"), 購買次數=("購買次數", "sum"),
+                        購買轉換值=("購買轉換值", "sum"), 曝光=("曝光", "sum"), 點擊=("點擊", "sum")
+                    )
+                    return {r[name_col]: r for _, r in g.iterrows()}
+                cur  = _agg(df_cur)
+                comp = _agg(df_c)
+                mom  = _agg(df_m)
+                yoy  = _agg(df_y)
+                rows = []
+                for name, r in sorted(cur.items(), key=lambda x: -x[1]["花費"]):
+                    roas = r["購買轉換值"] / r["花費"] if r["花費"] > 0 else 0
+                    cpa  = r["花費"] / r["購買次數"] if r["購買次數"] > 0 else None
+                    row = {
+                        name_col: name,
+                        "花費": f"${r['花費']:,.0f}",
+                        "購買": int(r["購買次數"]),
+                        "ROAS": f"{roas:.2f}" if roas > 0 else "—",
+                        "CPA": f"${cpa:,.0f}" if cpa else "—",
+                    }
+                    def _pct(a, b):
+                        if b and b > 0:
+                            v = (a - b) / b * 100
+                            c = "green" if v >= 0 else "red"
+                            sign = "+" if v >= 0 else ""
+                            return f'<span style="color:{c}">{sign}{v:.1f}%</span>'
+                        return "—"
+                    if comp:
+                        cr = comp.get(name, {})
+                        row["花費 WoW"] = _pct(r["花費"], cr.get("花費", 0)) if cr else "—"
+                        cr_roas = cr.get("購買轉換值", 0) / cr.get("花費", 1) if cr.get("花費", 0) > 0 else 0
+                        row["ROAS WoW"] = _pct(roas, cr_roas) if cr else "—"
+                    if mom:
+                        mr = mom.get(name, {})
+                        row["花費 MoM"] = _pct(r["花費"], mr.get("花費", 0)) if mr else "—"
+                        mr_roas = mr.get("購買轉換值", 0) / mr.get("花費", 1) if mr.get("花費", 0) > 0 else 0
+                        row["ROAS MoM"] = _pct(roas, mr_roas) if mr else "—"
+                    if yoy:
+                        yr = yoy.get(name, {})
+                        row["花費 YoY"] = _pct(r["花費"], yr.get("花費", 0)) if yr else "—"
+                        yr_roas = yr.get("購買轉換值", 0) / yr.get("花費", 1) if yr.get("花費", 0) > 0 else 0
+                        row["ROAS YoY"] = _pct(roas, yr_roas) if yr else "—"
+                    rows.append(row)
+                return pd.DataFrame(rows)
+
+            # adset flat table
+            df_ads_as_raw = st.session_state.get("df_ads_as")
+            if df_ads_as_raw is not None and not df_ads_as_raw.empty:
+                st.markdown("**📋 廣告組合（Adset）成效**")
+                df_as_c = st.session_state.get("df_ads_as_comp")
+                df_as_m = st.session_state.get("df_ads_as_mom")
+                df_as_y = st.session_state.get("df_ads_as_yoy")
+                tbl_as = _build_flat_table(df_ads_as_raw, df_as_c, df_as_m, df_as_y)
+                if not tbl_as.empty:
+                    components.html(tbl_as.to_html(escape=False, index=False), height=500, scrolling=True)
+
+            # ad flat table
+            st.markdown("**📝 廣告（Ad）成效**")
+            tbl_ad = _build_flat_table(df_f, df_fc, df_fm, df_fy)
+            if not tbl_ad.empty:
+                components.html(tbl_ad.to_html(escape=False, index=False), height=600, scrolling=True)
 
 else:
     if data_source == "Meta API 自動抓取":
