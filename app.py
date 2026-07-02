@@ -333,10 +333,14 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
 
     def _total_spend(m):
         return (m.get("ATL", {}).get("花費", 0) or 0) + (m.get("BTL", {}).get("花費", 0) or 0)
+    def _total_clicks(m):
+        return (m.get("ATL", {}).get("點擊", 0) or 0) + (m.get("BTL", {}).get("點擊", 0) or 0)
     def _total_roas(m):
         s = _total_spend(m)
         rev = m.get("BTL", {}).get("廣告收益", 0) or 0
         return rev / s if s > 0 else 0
+    def _total_rev(m):
+        return m.get("BTL", {}).get("廣告收益", 0) or 0
 
     body = ""
     prev_type = None
@@ -357,15 +361,20 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
         row += "</tr>"
         body += row
 
-    # 總計行
-    total_rows = [("總計", "花費", "currency", True, _total_spend),
-                  ("總計", "ROAS", "roas", True, _total_roas)]
+    # 總計行：花費 > 連結點擊 > ROAS > 廣告收益
+    total_rows = [
+        ("總計", "花費",     "currency", True,  _total_spend),
+        ("總計", "連結點擊", "count",    True,  _total_clicks),
+        ("總計", "ROAS",     "roas",     True,  _total_roas),
+        ("總計", "廣告收益", "currency", True,  _total_rev),
+    ]
+    n_total = len(total_rows)
     for i, (t, metric, style, hib, fn) in enumerate(total_rows):
         val = fn(curr_m)
         td_style = "font-weight:700;text-align:center;vertical-align:middle;border-top:2px solid #bbb"
         row = "<tr style='background:#f8f8f8'>"
         if i == 0:
-            row += f'<td rowspan="2" style="{td_style}">{t}</td>'
+            row += f'<td rowspan="{n_total}" style="{td_style}">{t}</td>'
         row += f"<td style='font-weight:600'>{metric}</td><td style='text-align:right;font-weight:600'>{fmt_val(val, style)}</td>"
         if comp_m is not None:
             row += f"<td style='text-align:right'>{_chg_color(pct_change(val, fn(comp_m)), hib)}</td>"
