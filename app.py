@@ -1948,12 +1948,9 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
         today_scheds    = st.session_state.get("today_scheds", {})
 
         if campaigns:
-            # ── 調整幅度 & 方向（2 欄，手機友好）
-            pc1, pc2 = st.columns(2)
-            with pc1:
-                sched_pct = st.number_input("調整幅度 (%)", min_value=1, max_value=10000, value=20, step=5, key="sched_pct")
-            with pc2:
-                sched_dir = st.radio("方向", ["加碼 ⬆️", "減碼 ⬇️"], key="sched_dir", horizontal=True)
+            # 從 session_state 取值（UI 元件在表格下方，此處僅讀取供建表格用）
+            sched_pct = st.session_state.get("sched_pct", 20)
+            sched_dir = st.session_state.get("sched_dir", "加碼 ⬆️")
             sched_actual_pct = sched_pct if "加碼" in sched_dir else -sched_pct
 
             # ── 排程時段設定（2 列排列，手機不擠）
@@ -2141,6 +2138,14 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             _now_tw = datetime.now(tz=timezone(timedelta(hours=8)))
             _hour_frac = _now_tw.hour + _now_tw.minute / 60
             _expected_pace = _hour_frac / 24  # 當前時間應達成進度
+
+            # ── 調整幅度 & 方向
+            pc1, pc2 = st.columns(2)
+            with pc1:
+                sched_pct = st.number_input("調整幅度 (%)", min_value=1, max_value=10000, value=int(sched_pct), step=5, key="sched_pct")
+            with pc2:
+                sched_dir = st.radio("方向", ["加碼 ⬆️", "減碼 ⬇️"], key="sched_dir", horizontal=True)
+            sched_actual_pct = sched_pct if "加碼" in sched_dir else -sched_pct
 
             # ── 快速選取按鈕
             qb1, qb2, qb3 = st.columns(3)
