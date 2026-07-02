@@ -399,10 +399,14 @@ def build_table_df(curr_m, comp_m, mom_m, yoy_m):
     ]
     def _total_spend(m):
         return (m.get("ATL", {}).get("花費", 0) or 0) + (m.get("BTL", {}).get("花費", 0) or 0)
+    def _total_clicks(m):
+        return (m.get("ATL", {}).get("點擊", 0) or 0) + (m.get("BTL", {}).get("點擊", 0) or 0)
     def _total_roas(m):
         s = _total_spend(m)
         rev = m.get("BTL", {}).get("廣告收益", 0) or 0
         return rev / s if s > 0 else 0
+    def _total_rev(m):
+        return m.get("BTL", {}).get("廣告收益", 0) or 0
 
     result = []
     for t, metric, style, hib in rows_def:
@@ -416,8 +420,12 @@ def build_table_df(curr_m, comp_m, mom_m, yoy_m):
             row["YoY"] = _fmt_chg(pct_change(val, yoy_m.get(t, {}).get(metric, 0)), hib)
         result.append(row)
 
-    for metric, style, hib, fn in [("花費", "currency", True, _total_spend),
-                                    ("ROAS", "roas", True, _total_roas)]:
+    for metric, style, hib, fn in [
+        ("花費",     "currency", True,  _total_spend),
+        ("連結點擊", "count",    True,  _total_clicks),
+        ("ROAS",     "roas",     True,  _total_roas),
+        ("廣告收益", "currency", True,  _total_rev),
+    ]:
         val = fn(curr_m)
         row = {"類型": "總計", "指標": metric, "實際數值": fmt_val(val, style)}
         if comp_m is not None:
