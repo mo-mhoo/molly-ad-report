@@ -1188,7 +1188,29 @@ def adjust_campaign_budget(access_token, campaign_id, multiplier_pct):
         ).json()
         if "error" not in result2:
             return {"success": True, "old_budget": old_b, "new_budget": new_b}
-        # 回傳完整錯誤供診斷
+        # campaign 層失敗 → 嘗試 adset 層級
+        adsets_r = requests.get(
+            f"https://graph.facebook.com/v25.0/{campaign_id}/adsets",
+            params={"fields": "id,name,daily_budget", "access_token": access_token, "limit": 50},
+            timeout=15,
+        ).json().get("data", [])
+        as_ok, as_fail = 0, []
+        for a in adsets_r:
+            if not a.get("daily_budget"):
+                continue
+            a_new_b = max(1, int(int(a["daily_budget"]) * multiplier_pct / 100))
+            r = requests.post(
+                f"https://graph.facebook.com/v25.0/{a['id']}",
+                data={"daily_budget": str(a_new_b), "access_token": access_token},
+                timeout=30,
+            ).json()
+            if "error" not in r:
+                as_ok += 1
+            else:
+                as_fail.append(a["name"])
+        if as_ok:
+            return {"success": True, "old_budget": old_b, "new_budget": new_b,
+                    "note": f"（adset 層級，{as_ok} 個成功{f'，{len(as_fail)} 個失敗' if as_fail else ''}）"}
         err = result2.get("error", {})
         return {"error": {"message": f"[ASC] {err.get('message','')} (code:{err.get('code')} sub:{err.get('error_subcode')})"}}
 
