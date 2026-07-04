@@ -382,10 +382,10 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
         row += "</tr>"
         body += row
 
-    # 總計行：花費 > 連結點擊 > ROAS > 廣告收益
+    # 總計行：花費 > 點擊 > ROAS > 廣告收益
     total_rows = [
-        ("總計", "花費",     "currency", True,  _total_spend),
-        ("總計", "連結點擊", "count",    True,  _total_clicks),
+        ("總計", "花費",  "currency", True,  _total_spend),
+        ("總計", "點擊",  "count",    True,  _total_clicks),
         ("總計", "ROAS",     "roas",     True,  _total_roas),
         ("總計", "廣告收益", "currency", True,  _total_rev),
     ]
@@ -463,7 +463,7 @@ def build_table_df(curr_m, comp_m, mom_m, yoy_m):
 
     for metric, style, hib, fn in [
         ("花費",     "currency", True,  _total_spend),
-        ("連結點擊", "count",    True,  _total_clicks),
+        ("點擊",     "count",    True,  _total_clicks),
         ("ROAS",     "roas",     True,  _total_roas),
         ("廣告收益", "currency", True,  _total_rev),
     ]:
