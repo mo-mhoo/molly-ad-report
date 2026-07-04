@@ -300,7 +300,14 @@ def fmt_change(v, higher_is_better=True):
     label = f"{sign}{v:.1f}%"
     return f'<span style="color:{"#16a34a" if good else "#dc2626"}">{label}</span>'
 
-def _fmt_chg(v, higher_is_better=True, ref_val=None, ref_style=None, ref_label=None):
+def _delta_str(curr_val, ref_val, style):
+    if curr_val is None or ref_val is None or ref_val == 0:
+        return ""
+    delta = curr_val - ref_val
+    direction = "增" if delta > 0 else "減"
+    return f"，{direction} {fmt_val(abs(delta), style)}"
+
+def _fmt_chg(v, higher_is_better=True, ref_val=None, ref_style=None, ref_label=None, curr_val=None):
     if v is None:
         return "—"
     sign = "+" if v >= 0 else ""
@@ -308,10 +315,10 @@ def _fmt_chg(v, higher_is_better=True, ref_val=None, ref_style=None, ref_label=N
     if ref_val is not None and ref_style is not None:
         ref_str = fmt_val(ref_val, ref_style)
         lbl = f"{ref_label}: " if ref_label else ""
-        txt += f" （{lbl}{ref_str}）"
+        txt += f" （{lbl}{ref_str}{_delta_str(curr_val, ref_val, ref_style)}）"
     return txt
 
-def _chg_color(v, hib, ref_val=None, ref_style=None, ref_label=None):
+def _chg_color(v, hib, ref_val=None, ref_style=None, ref_label=None, curr_val=None):
     """根據變化率與指標方向回傳 HTML 顏色 span"""
     if v is None:
         return "—"
@@ -323,7 +330,8 @@ def _chg_color(v, hib, ref_val=None, ref_style=None, ref_label=None):
     if ref_val is not None and ref_style is not None:
         ref_str = fmt_val(ref_val, ref_style)
         lbl = f"{ref_label}: " if ref_label else ""
-        result += f'<br><span style="color:#999;font-size:11px;font-weight:normal">（{lbl}{ref_str}）</span>'
+        detail = f"（{lbl}{ref_str}{_delta_str(curr_val, ref_val, ref_style)}）"
+        result += f'<br><span style="color:#999;font-size:11px;font-weight:normal">{detail}</span>'
     return result
 
 def build_table_html(curr_m, comp_m, mom_m, yoy_m):
@@ -364,13 +372,13 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
         row += f"<td>{metric}</td><td style='text-align:right'>{fmt_val(val, style)}</td>"
         if comp_m is not None:
             _cv = comp_m.get(t,{}).get(metric,0)
-            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, _cv), hib, _cv, style, '上週')}</td>"
+            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, _cv), hib, _cv, style, '上週', curr_val=val)}</td>"
         if mom_m is not None:
             _mv = mom_m.get(t,{}).get(metric,0)
-            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, _mv), hib, _mv, style, '上月')}</td>"
+            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, _mv), hib, _mv, style, '上月', curr_val=val)}</td>"
         if yoy_m is not None:
             _yv = yoy_m.get(t,{}).get(metric,0)
-            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, _yv), hib, _yv, style, '去年')}</td>"
+            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, _yv), hib, _yv, style, '去年', curr_val=val)}</td>"
         row += "</tr>"
         body += row
 
@@ -391,13 +399,13 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
         row += f"<td style='font-weight:600'>{metric}</td><td style='text-align:right;font-weight:600'>{fmt_val(val, style)}</td>"
         if comp_m is not None:
             _cv = fn(comp_m)
-            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, _cv), hib, _cv, style, '上週')}</td>"
+            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, _cv), hib, _cv, style, '上週', curr_val=val)}</td>"
         if mom_m is not None:
             _mv = fn(mom_m)
-            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, _mv), hib, _mv, style, '上月')}</td>"
+            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, _mv), hib, _mv, style, '上月', curr_val=val)}</td>"
         if yoy_m is not None:
             _yv = fn(yoy_m)
-            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, _yv), hib, _yv, style, '去年')}</td>"
+            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, _yv), hib, _yv, style, '去年', curr_val=val)}</td>"
         row += "</tr>"
         body += row
 
@@ -439,13 +447,13 @@ def build_table_df(curr_m, comp_m, mom_m, yoy_m):
         row = {"類型": t, "指標": metric, "實際數值": fmt_val(val, style)}
         if comp_m is not None:
             _cv = comp_m.get(t, {}).get(metric, 0)
-            row["WoW"] = _fmt_chg(pct_change(val, _cv), hib, _cv, style, "上週")
+            row["WoW"] = _fmt_chg(pct_change(val, _cv), hib, _cv, style, "上週", curr_val=val)
         if mom_m is not None:
             _mv = mom_m.get(t, {}).get(metric, 0)
-            row["MoM"] = _fmt_chg(pct_change(val, _mv), hib, _mv, style, "上月")
+            row["MoM"] = _fmt_chg(pct_change(val, _mv), hib, _mv, style, "上月", curr_val=val)
         if yoy_m is not None:
             _yv = yoy_m.get(t, {}).get(metric, 0)
-            row["YoY"] = _fmt_chg(pct_change(val, _yv), hib, _yv, style, "去年")
+            row["YoY"] = _fmt_chg(pct_change(val, _yv), hib, _yv, style, "去年", curr_val=val)
         result.append(row)
 
     for metric, style, hib, fn in [
@@ -458,13 +466,13 @@ def build_table_df(curr_m, comp_m, mom_m, yoy_m):
         row = {"類型": "總計", "指標": metric, "實際數值": fmt_val(val, style)}
         if comp_m is not None:
             _cv = fn(comp_m)
-            row["WoW"] = _fmt_chg(pct_change(val, _cv), hib, _cv, style, "上週")
+            row["WoW"] = _fmt_chg(pct_change(val, _cv), hib, _cv, style, "上週", curr_val=val)
         if mom_m is not None:
             _mv = fn(mom_m)
-            row["MoM"] = _fmt_chg(pct_change(val, _mv), hib, _mv, style, "上月")
+            row["MoM"] = _fmt_chg(pct_change(val, _mv), hib, _mv, style, "上月", curr_val=val)
         if yoy_m is not None:
             _yv = fn(yoy_m)
-            row["YoY"] = _fmt_chg(pct_change(val, _yv), hib, _yv, style, "去年")
+            row["YoY"] = _fmt_chg(pct_change(val, _yv), hib, _yv, style, "去年", curr_val=val)
         result.append(row)
 
     return pd.DataFrame(result)
