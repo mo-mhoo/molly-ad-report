@@ -398,7 +398,7 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期"):
         row += f"<td class='s2'>{metric}<br><span style='font-weight:normal;color:#333;font-size:13px'>{fmt_val(val, style)}</span></td>"
         if comp_m is not None:
             _cv = comp_m.get(t,{}).get(metric,0)
-            row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _cv), hib, _cv, style, '上週', curr_val=val)}</td>"
+            row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _cv), hib, _cv, style, comp_label, curr_val=val)}</td>"
         if mom_m is not None:
             _mv = mom_m.get(t,{}).get(metric,0)
             row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _mv), hib, _mv, style, '上月', curr_val=val)}</td>"
@@ -426,7 +426,7 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期"):
         row += f"<td class='s2' style='font-weight:600'>{metric}<br><span style='font-weight:normal;color:#333;font-size:13px'>{fmt_val(val, style)}</span></td>"
         if comp_m is not None:
             _cv = fn(comp_m)
-            row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _cv), hib, _cv, style, '上週', curr_val=val)}</td>"
+            row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _cv), hib, _cv, style, comp_label, curr_val=val)}</td>"
         if mom_m is not None:
             _mv = fn(mom_m)
             row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _mv), hib, _mv, style, '上月', curr_val=val)}</td>"
@@ -451,7 +451,7 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期"):
 <div class="scroll-wrap"><table>{header}{body}</table></div>
 </body></html>"""
 
-def build_table_df(curr_m, comp_m, mom_m, yoy_m):
+def build_table_df(curr_m, comp_m, mom_m, yoy_m, comp_label="前期"):
     rows_def = [
         ("ATL", "花費",    "currency", True),
         ("ATL", "點擊",    "count",    True),
@@ -486,7 +486,7 @@ def build_table_df(curr_m, comp_m, mom_m, yoy_m):
         row = {"類型": t, "指標": metric, "實際數值": fmt_val(val, style)}
         if comp_m is not None:
             _cv = comp_m.get(t, {}).get(metric, 0)
-            row["WoW"] = _fmt_chg(pct_change(val, _cv), hib, _cv, style, "上週", curr_val=val)
+            row["WoW"] = _fmt_chg(pct_change(val, _cv), hib, _cv, style, comp_label, curr_val=val)
         if mom_m is not None:
             _mv = mom_m.get(t, {}).get(metric, 0)
             row["MoM"] = _fmt_chg(pct_change(val, _mv), hib, _mv, style, "上月", curr_val=val)
@@ -506,7 +506,7 @@ def build_table_df(curr_m, comp_m, mom_m, yoy_m):
         row = {"類型": "總計", "指標": metric, "實際數值": fmt_val(val, style)}
         if comp_m is not None:
             _cv = fn(comp_m)
-            row["WoW"] = _fmt_chg(pct_change(val, _cv), hib, _cv, style, "上週", curr_val=val)
+            row["WoW"] = _fmt_chg(pct_change(val, _cv), hib, _cv, style, comp_label, curr_val=val)
         if mom_m is not None:
             _mv = fn(mom_m)
             row["MoM"] = _fmt_chg(pct_change(val, _mv), hib, _mv, style, "上月", curr_val=val)
