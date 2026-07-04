@@ -350,7 +350,7 @@ def _chg_color(v, hib, ref_val=None, ref_style=None, ref_label=None, curr_val=No
         ref_str = fmt_val(ref_val, ref_style)
         lbl = f"{ref_label}: " if ref_label else ""
         detail = f"（{lbl}{ref_str}{_delta_str(curr_val, ref_val, ref_style)}）"
-        result += f'<br class="ref-br"><span class="ref-info" style="color:#999;font-size:11px;font-weight:normal">{detail}</span>'
+        result += f'<br class="ref-br"><span class="ref-info" style="color:#999;font-size:12px;font-weight:normal">{detail}</span>'
     return result
 
 def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期", comp_header=None):
@@ -454,7 +454,7 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期", comp_hea
     td {{ padding:9px 16px; }}
     .chg-cell {{ min-width:160px; white-space:nowrap; }}
     .ref-br {{ display:none; }}
-    .ref-info {{ display:inline; margin-left:5px; font-size:12px; }}
+    .ref-info {{ display:inline; margin-left:5px; font-size:13px; }}
   }}
 </style></head><body>
 <div class="scroll-wrap"><table>{header}{body}</table></div>
