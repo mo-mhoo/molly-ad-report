@@ -450,14 +450,14 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期", comp_hea
   .s2 {{ position:sticky; left:44px; z-index:2; background:#fff; min-width:90px; box-shadow:2px 0 4px rgba(0,0,0,0.07); white-space:normal; }}
   tr:hover .s1, tr:hover .s2 {{ background:#f5f5f5; }}
   @media (min-width:520px) {{
-    body {{ font-size:16px; }}
-    th {{ padding:10px 16px; font-size:13px; }}
+    body {{ font-size:18px; }}
+    th {{ padding:10px 16px; font-size:14px; }}
     td {{ padding:9px 16px; }}
-    .chg-cell {{ min-width:220px; white-space:nowrap; }}
+    .chg-cell {{ min-width:240px; white-space:nowrap; }}
     .chg-inner {{ display:flex; align-items:baseline; gap:2px; }}
-    .pct-val {{ flex:0 0 70px; text-align:right; }}
+    .pct-val {{ flex:0 0 80px; text-align:right; }}
     .ref-br {{ display:none; }}
-    .ref-info {{ flex:1; font-size:16px; white-space:normal; }}
+    .ref-info {{ flex:1; font-size:18px; white-space:normal; }}
   }}
 </style></head><body>
 <div class="scroll-wrap"><table>{header}{body}</table></div>
