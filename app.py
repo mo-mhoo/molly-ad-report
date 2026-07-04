@@ -345,7 +345,7 @@ def _chg_color(v, hib, ref_val=None, ref_style=None, ref_label=None, curr_val=No
     txt = f"{sign}{v:.1f}%"
     is_good = (v >= 0 and hib) or (v < 0 and not hib)
     color = "#27ae60" if is_good else "#e74c3c"
-    result = f'<span style="color:{color};font-weight:bold">{txt}</span>'
+    result = f'<span style="color:{color};font-weight:bold;display:inline-block;min-width:65px;text-align:right">{txt}</span>'
     if ref_val is not None and ref_style is not None:
         ref_str = fmt_val(ref_val, ref_style)
         lbl = f"{ref_label}: " if ref_label else ""
