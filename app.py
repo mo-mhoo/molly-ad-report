@@ -416,7 +416,7 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
   table {{ border-collapse:collapse; min-width:700px; }}
   th {{ padding:8px 12px; text-align:left; border-bottom:2px solid #ccc; color:#555; font-size:12px; white-space:nowrap; }}
   td {{ padding:7px 12px; border-bottom:1px solid #e0e0e0; white-space:nowrap; }}
-  .chg-cell {{ text-align:right; min-width:130px; white-space:normal; }}
+  .chg-cell {{ text-align:right; min-width:105px; white-space:normal; }}
 </style></head><body>
 <div class="scroll-wrap"><table>{header}{body}</table></div>
 </body></html>"""
@@ -1587,7 +1587,7 @@ if df_curr is not None and not df_curr.empty:
         yoy_m  = calc_meta_metrics(df_yoy)  if df_yoy  is not None else None
 
         st.subheader("📈 Meta Ads 關鍵指標（ATL / BTL）")
-        components.html(build_table_html(curr_m, comp_m, mom_m, yoy_m), height=465, scrolling=False)
+        components.html(build_table_html(curr_m, comp_m, mom_m, yoy_m), height=620, scrolling=True)
 
         btl = curr_m.get("BTL", {})
         atl = curr_m.get("ATL", {})
