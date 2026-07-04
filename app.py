@@ -345,13 +345,14 @@ def _chg_color(v, hib, ref_val=None, ref_style=None, ref_label=None, curr_val=No
     txt = f"{sign}{v:.1f}%"
     is_good = (v >= 0 and hib) or (v < 0 and not hib)
     color = "#27ae60" if is_good else "#e74c3c"
-    result = f'<span style="color:{color};font-weight:bold;display:inline-block;min-width:65px;text-align:right">{txt}</span>'
+    pct_span = f'<span class="pct-val" style="color:{color};font-weight:bold">{txt}</span>'
     if ref_val is not None and ref_style is not None:
         ref_str = fmt_val(ref_val, ref_style)
         lbl = f"{ref_label}: " if ref_label else ""
         detail = f"（{lbl}{ref_str}{_delta_str(curr_val, ref_val, ref_style)}）"
-        result += f'<br class="ref-br"><span class="ref-info" style="color:#999;font-size:12px;font-weight:normal">{detail}</span>'
-    return result
+        ref_span = f'<br class="ref-br"><span class="ref-info" style="color:#999;font-size:12px;font-weight:normal">{detail}</span>'
+        return f'<div class="chg-inner">{pct_span}{ref_span}</div>'
+    return f'<div class="chg-inner">{pct_span}</div>'
 
 def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期", comp_header=None):
     rows_def = [
@@ -452,9 +453,11 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期", comp_hea
     body {{ font-size:15px; }}
     th {{ padding:10px 16px; font-size:13px; }}
     td {{ padding:9px 16px; }}
-    .chg-cell {{ min-width:160px; white-space:nowrap; }}
+    .chg-cell {{ min-width:240px; white-space:nowrap; }}
+    .chg-inner {{ display:flex; align-items:baseline; }}
+    .pct-val {{ flex:0 0 72px; text-align:right; }}
     .ref-br {{ display:none; }}
-    .ref-info {{ display:inline; margin-left:5px; font-size:14px; }}
+    .ref-info {{ flex:1; padding-left:8px; font-size:14px; white-space:normal; }}
   }}
 </style></head><body>
 <div class="scroll-wrap"><table>{header}{body}</table></div>
