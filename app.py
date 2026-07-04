@@ -118,6 +118,21 @@ def _fetch_raw_actions(access_token, ad_account_id, since, until):
     except Exception as e:
         return {"error": str(e)}
 
+def fetch_account_reach(access_token, ad_account_id, since, until):
+    url = f"https://graph.facebook.com/v25.0/act_{ad_account_id}/insights"
+    params = {
+        "level": "account",
+        "fields": "reach",
+        "time_range": json.dumps({"since": str(since), "until": str(until)}),
+        "access_token": access_token,
+    }
+    try:
+        data = requests.get(url, params=params, timeout=15).json()
+        rows = data.get("data", [])
+        return int(rows[0]["reach"]) if rows else 0
+    except Exception:
+        return 0
+
 def fetch_meta_insights(access_token, ad_account_id, since, until, account_type="general"):
     url = f"https://graph.facebook.com/v25.0/act_{ad_account_id}/insights"
 
@@ -364,6 +379,8 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
     def _total_rev(m):
         return m.get("BTL", {}).get("廣告收益", 0) or 0
     def _total_reach(m):
+        if m.get("_account_reach"):
+            return m["_account_reach"]
         return (m.get("ATL", {}).get("觸及人數", 0) or 0) + (m.get("BTL", {}).get("觸及人數", 0) or 0)
     def _total_cpr(m):
         s = _total_spend(m); r = _total_reach(m)
@@ -456,6 +473,8 @@ def build_table_df(curr_m, comp_m, mom_m, yoy_m):
     def _total_rev(m):
         return m.get("BTL", {}).get("廣告收益", 0) or 0
     def _total_reach(m):
+        if m.get("_account_reach"):
+            return m["_account_reach"]
         return (m.get("ATL", {}).get("觸及人數", 0) or 0) + (m.get("BTL", {}).get("觸及人數", 0) or 0)
     def _total_cpr(m):
         s = _total_spend(m); r = _total_reach(m)
@@ -1473,21 +1492,28 @@ if data_source == "Meta API 自動抓取":
                     st.session_state["selected_account_type"] = atype
                     df_curr = fetch_meta_insights(token, acct, curr_since, curr_until, atype)
                     st.session_state["df_curr"] = df_curr
+                    st.session_state["reach_curr"] = fetch_account_reach(token, acct, curr_since, curr_until)
                     if use_comp:
                         df_comp = fetch_meta_insights(token, acct, comp_since, comp_until, atype)
                         st.session_state["df_comp"] = df_comp
+                        st.session_state["reach_comp"] = fetch_account_reach(token, acct, comp_since, comp_until)
                     else:
                         st.session_state.pop("df_comp", None)
+                        st.session_state.pop("reach_comp", None)
                     if use_mom:
                         df_mom = fetch_meta_insights(token, acct, mom_since, mom_until, atype)
                         st.session_state["df_mom"] = df_mom
+                        st.session_state["reach_mom"] = fetch_account_reach(token, acct, mom_since, mom_until)
                     else:
                         st.session_state.pop("df_mom", None)
+                        st.session_state.pop("reach_mom", None)
                     if use_yoy:
                         df_yoy = fetch_meta_insights(token, acct, yoy_since, yoy_until, atype)
                         st.session_state["df_yoy"] = df_yoy
+                        st.session_state["reach_yoy"] = fetch_account_reach(token, acct, yoy_since, yoy_until)
                     else:
                         st.session_state.pop("df_yoy", None)
+                        st.session_state.pop("reach_yoy", None)
                     st.success(f"✅ 抓到 {len(df_curr)} 個行銷活動")
                     st.session_state["dim_since"] = curr_since
                     st.session_state["dim_until"] = curr_until
@@ -1604,6 +1630,11 @@ if df_curr is not None and not df_curr.empty:
         comp_m = calc_meta_metrics(df_comp) if df_comp is not None else None
         mom_m  = calc_meta_metrics(df_mom)  if df_mom  is not None else None
         yoy_m  = calc_meta_metrics(df_yoy)  if df_yoy  is not None else None
+        # 注入帳戶層級去重 reach（API 模式才有）
+        for _m, _key in [(curr_m, "reach_curr"), (comp_m, "reach_comp"),
+                         (mom_m,  "reach_mom"),  (yoy_m,  "reach_yoy")]:
+            if _m is not None and _key in st.session_state:
+                _m["_account_reach"] = st.session_state[_key]
 
         st.subheader("📈 Meta Ads 關鍵指標（ATL / BTL）")
         components.html(build_table_html(curr_m, comp_m, mom_m, yoy_m), height=660, scrolling=True)
