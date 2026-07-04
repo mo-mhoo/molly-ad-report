@@ -366,7 +366,7 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
     ]
     cols = ["WoW" if comp_m else None, "MoM" if mom_m else None, "YoY" if yoy_m else None]
     chg_headers = "".join(f"<th>{c}</th>" for c in cols if c)
-    header = f"<tr><th class='s1'>類型</th><th class='s2'>指標</th><th class='s3'>實際數值</th>{chg_headers}</tr>"
+    header = f"<tr><th class='s1'>類型</th><th class='s2'>指標 / 數值</th>{chg_headers}</tr>"
 
     def _total_spend(m):
         return (m.get("ATL", {}).get("花費", 0) or 0) + (m.get("BTL", {}).get("花費", 0) or 0)
@@ -395,7 +395,7 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
             span = sum(1 for r in rows_def if r[0] == t)
             row += f'<td rowspan="{span}" class="s1" style="font-weight:700;text-align:center;vertical-align:middle">{t}</td>'
             prev_type = t
-        row += f"<td class='s2'>{metric}</td><td class='s3'>{fmt_val(val, style)}</td>"
+        row += f"<td class='s2'>{metric}<br><span style='font-weight:normal;color:#333;font-size:13px'>{fmt_val(val, style)}</span></td>"
         if comp_m is not None:
             _cv = comp_m.get(t,{}).get(metric,0)
             row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _cv), hib, _cv, style, '上週', curr_val=val)}</td>"
@@ -423,7 +423,7 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
         row = "<tr style='background:#f8f8f8'>"
         if i == 0:
             row += f'<td rowspan="{n_total}" class="s1" style="{td_style}">{t}</td>'
-        row += f"<td class='s2' style='font-weight:600'>{metric}</td><td class='s3' style='font-weight:600'>{fmt_val(val, style)}</td>"
+        row += f"<td class='s2' style='font-weight:600'>{metric}<br><span style='font-weight:normal;color:#333;font-size:13px'>{fmt_val(val, style)}</span></td>"
         if comp_m is not None:
             _cv = fn(comp_m)
             row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _cv), hib, _cv, style, '上週', curr_val=val)}</td>"
@@ -445,9 +445,8 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
   td {{ padding:7px 10px; border-bottom:1px solid #e0e0e0; white-space:nowrap; }}
   .chg-cell {{ text-align:right; min-width:105px; white-space:normal; }}
   .s1 {{ position:sticky; left:0; z-index:2; background:#fff; min-width:44px; }}
-  .s2 {{ position:sticky; left:44px; z-index:2; background:#fff; min-width:72px; }}
-  .s3 {{ position:sticky; left:116px; z-index:2; background:#fff; text-align:right; box-shadow:2px 0 4px rgba(0,0,0,0.07); }}
-  tr:hover .s1, tr:hover .s2, tr:hover .s3 {{ background:#f5f5f5; }}
+  .s2 {{ position:sticky; left:44px; z-index:2; background:#fff; min-width:90px; box-shadow:2px 0 4px rgba(0,0,0,0.07); white-space:normal; }}
+  tr:hover .s1, tr:hover .s2 {{ background:#f5f5f5; }}
 </style></head><body>
 <div class="scroll-wrap"><table>{header}{body}</table></div>
 </body></html>"""
