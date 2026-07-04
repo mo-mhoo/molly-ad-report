@@ -353,7 +353,7 @@ def _chg_color(v, hib, ref_val=None, ref_style=None, ref_label=None, curr_val=No
         result += f'<br><span style="color:#999;font-size:11px;font-weight:normal">{detail}</span>'
     return result
 
-def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期"):
+def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期", comp_header=None):
     rows_def = [
         ("ATL", "花費",    "currency", True),
         ("ATL", "點擊",    "count",    True),
@@ -364,7 +364,8 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期"):
         ("BTL", "CPA",     "currency", False),
         ("BTL", "AOV",     "currency", True),
     ]
-    cols = [comp_label if comp_m else None, "MoM" if mom_m else None, "YoY" if yoy_m else None]
+    _comp_hdr = comp_header or comp_label
+    cols = [_comp_hdr if comp_m else None, "MoM" if mom_m else None, "YoY" if yoy_m else None]
     chg_headers = "".join(f"<th>{c}</th>" for c in cols if c)
     header = f"<tr><th class='s1'>類型</th><th class='s2'>指標 / 數值</th>{chg_headers}</tr>"
 
@@ -1641,10 +1642,12 @@ if df_curr is not None and not df_curr.empty:
         _until = st.session_state.get("dim_until")
         if _since and _until:
             _n = (_until - _since).days + 1
-            _comp_label = "昨天" if _n == 1 else "上週" if _n == 7 else "前期"
+            _comp_label  = "昨天" if _n == 1 else "上週" if _n == 7 else "前期"
+            _comp_header = "DoD"  if _n == 1 else "WoW"  if _n == 7 else "前期"
         else:
-            _comp_label = "前期"
-        components.html(build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label=_comp_label), height=660, scrolling=True)
+            _comp_label  = "前期"
+            _comp_header = "前期"
+        components.html(build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label=_comp_label, comp_header=_comp_header), height=660, scrolling=True)
 
         btl = curr_m.get("BTL", {})
         atl = curr_m.get("ATL", {})
