@@ -176,6 +176,7 @@ def fetch_meta_insights(access_token, ad_account_id, since, until, account_type=
             "行銷活動名稱": item.get("campaign_name", ""),
             "花費金額 (TWD)": safe_float(item.get("spend")),
             "曝光次數": safe_float(item.get("impressions")),
+            "觸及人數": safe_float(item.get("reach")),
             "連結點擊次數": safe_float(item.get("inline_link_clicks")),
             "購買次數": purchases,
             "購買轉換值": purchase_val,
@@ -238,6 +239,7 @@ def calc_meta_metrics(df):
         spend = sub["花費金額 (TWD)"].sum()
         clicks = sub["連結點擊次數"].sum()
         impr = sub["曝光次數"].sum()
+        reach = sub["觸及人數"].sum() if "觸及人數" in sub.columns else 0
         revenue = sub["購買轉換值"].sum()
         purchases = sub["購買次數"].sum()
         atc = sub["加到購物車次數"].sum()
@@ -250,6 +252,8 @@ def calc_meta_metrics(df):
             "廣告收益": revenue,
             "CPA": spend / purchases if purchases > 0 else 0,
             "AOV": revenue / purchases if purchases > 0 else 0,
+            "觸及人數": reach,
+            "觸及成本": spend / reach * 1000 if reach > 0 else 0,
             "購買次數": purchases,
             "加購次數": atc,
             "購物車成本": spend / atc if atc > 0 else 0,
@@ -359,6 +363,11 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
         return rev / s if s > 0 else 0
     def _total_rev(m):
         return m.get("BTL", {}).get("廣告收益", 0) or 0
+    def _total_reach(m):
+        return (m.get("ATL", {}).get("觸及人數", 0) or 0) + (m.get("BTL", {}).get("觸及人數", 0) or 0)
+    def _total_cpr(m):
+        s = _total_spend(m); r = _total_reach(m)
+        return s / r * 1000 if r > 0 else 0
 
     body = ""
     prev_type = None
@@ -382,12 +391,13 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
         row += "</tr>"
         body += row
 
-    # 總計行：花費 > 點擊 > ROAS > 廣告收益
+    # 總計行：花費 > 點擊 > ROAS > 廣告收益 > 觸及成本
     total_rows = [
-        ("總計", "花費",  "currency", True,  _total_spend),
-        ("總計", "點擊",  "count",    True,  _total_clicks),
+        ("總計", "花費",     "currency", True,  _total_spend),
+        ("總計", "點擊",     "count",    True,  _total_clicks),
         ("總計", "ROAS",     "roas",     True,  _total_roas),
         ("總計", "廣告收益", "currency", True,  _total_rev),
+        ("總計", "觸及成本", "currency", False, _total_cpr),
     ]
     n_total = len(total_rows)
     for i, (t, metric, style, hib, fn) in enumerate(total_rows):
@@ -445,6 +455,11 @@ def build_table_df(curr_m, comp_m, mom_m, yoy_m):
         return rev / s if s > 0 else 0
     def _total_rev(m):
         return m.get("BTL", {}).get("廣告收益", 0) or 0
+    def _total_reach(m):
+        return (m.get("ATL", {}).get("觸及人數", 0) or 0) + (m.get("BTL", {}).get("觸及人數", 0) or 0)
+    def _total_cpr(m):
+        s = _total_spend(m); r = _total_reach(m)
+        return s / r * 1000 if r > 0 else 0
 
     result = []
     for t, metric, style, hib in rows_def:
@@ -466,6 +481,7 @@ def build_table_df(curr_m, comp_m, mom_m, yoy_m):
         ("點擊",     "count",    True,  _total_clicks),
         ("ROAS",     "roas",     True,  _total_roas),
         ("廣告收益", "currency", True,  _total_rev),
+        ("觸及成本", "currency", False, _total_cpr),
     ]:
         val = fn(curr_m)
         row = {"類型": "總計", "指標": metric, "實際數值": fmt_val(val, style)}
@@ -1590,7 +1606,7 @@ if df_curr is not None and not df_curr.empty:
         yoy_m  = calc_meta_metrics(df_yoy)  if df_yoy  is not None else None
 
         st.subheader("📈 Meta Ads 關鍵指標（ATL / BTL）")
-        components.html(build_table_html(curr_m, comp_m, mom_m, yoy_m), height=620, scrolling=True)
+        components.html(build_table_html(curr_m, comp_m, mom_m, yoy_m), height=660, scrolling=True)
 
         btl = curr_m.get("BTL", {})
         atl = curr_m.get("ATL", {})
