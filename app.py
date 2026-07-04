@@ -372,13 +372,13 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
         row += f"<td>{metric}</td><td style='text-align:right'>{fmt_val(val, style)}</td>"
         if comp_m is not None:
             _cv = comp_m.get(t,{}).get(metric,0)
-            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, _cv), hib, _cv, style, '上週', curr_val=val)}</td>"
+            row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _cv), hib, _cv, style, '上週', curr_val=val)}</td>"
         if mom_m is not None:
             _mv = mom_m.get(t,{}).get(metric,0)
-            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, _mv), hib, _mv, style, '上月', curr_val=val)}</td>"
+            row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _mv), hib, _mv, style, '上月', curr_val=val)}</td>"
         if yoy_m is not None:
             _yv = yoy_m.get(t,{}).get(metric,0)
-            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, _yv), hib, _yv, style, '去年', curr_val=val)}</td>"
+            row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _yv), hib, _yv, style, '去年', curr_val=val)}</td>"
         row += "</tr>"
         body += row
 
@@ -399,24 +399,26 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
         row += f"<td style='font-weight:600'>{metric}</td><td style='text-align:right;font-weight:600'>{fmt_val(val, style)}</td>"
         if comp_m is not None:
             _cv = fn(comp_m)
-            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, _cv), hib, _cv, style, '上週', curr_val=val)}</td>"
+            row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _cv), hib, _cv, style, '上週', curr_val=val)}</td>"
         if mom_m is not None:
             _mv = fn(mom_m)
-            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, _mv), hib, _mv, style, '上月', curr_val=val)}</td>"
+            row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _mv), hib, _mv, style, '上月', curr_val=val)}</td>"
         if yoy_m is not None:
             _yv = fn(yoy_m)
-            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, _yv), hib, _yv, style, '去年', curr_val=val)}</td>"
+            row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _yv), hib, _yv, style, '去年', curr_val=val)}</td>"
         row += "</tr>"
         body += row
 
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>
   body {{ margin:0; padding:4px; font-family:sans-serif; font-size:14px; }}
-  table {{ border-collapse:collapse; width:100%; }}
-  th {{ padding:8px 12px; text-align:left; border-bottom:2px solid #ccc; color:#555; font-size:12px; }}
-  td {{ padding:7px 12px; border-bottom:1px solid #e0e0e0; }}
+  .scroll-wrap {{ overflow-x:auto; -webkit-overflow-scrolling:touch; }}
+  table {{ border-collapse:collapse; min-width:700px; }}
+  th {{ padding:8px 12px; text-align:left; border-bottom:2px solid #ccc; color:#555; font-size:12px; white-space:nowrap; }}
+  td {{ padding:7px 12px; border-bottom:1px solid #e0e0e0; white-space:nowrap; }}
+  .chg-cell {{ text-align:right; min-width:130px; white-space:normal; }}
 </style></head><body>
-<table>{header}{body}</table>
+<div class="scroll-wrap"><table>{header}{body}</table></div>
 </body></html>"""
 
 def build_table_df(curr_m, comp_m, mom_m, yoy_m):
