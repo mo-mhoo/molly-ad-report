@@ -347,7 +347,7 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
     ]
     cols = ["WoW" if comp_m else None, "MoM" if mom_m else None, "YoY" if yoy_m else None]
     chg_headers = "".join(f"<th>{c}</th>" for c in cols if c)
-    header = f"<tr><th>類型</th><th>指標</th><th style='text-align:right'>實際數值</th>{chg_headers}</tr>"
+    header = f"<tr><th class='s1'>類型</th><th class='s2'>指標</th><th style='text-align:right'>實際數值</th>{chg_headers}</tr>"
 
     def _total_spend(m):
         return (m.get("ATL", {}).get("花費", 0) or 0) + (m.get("BTL", {}).get("花費", 0) or 0)
@@ -367,9 +367,9 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
         row = "<tr>"
         if t != prev_type:
             span = sum(1 for r in rows_def if r[0] == t)
-            row += f'<td rowspan="{span}" style="font-weight:700;text-align:center;vertical-align:middle">{t}</td>'
+            row += f'<td rowspan="{span}" class="s1" style="font-weight:700;text-align:center;vertical-align:middle">{t}</td>'
             prev_type = t
-        row += f"<td>{metric}</td><td style='text-align:right'>{fmt_val(val, style)}</td>"
+        row += f"<td class='s2'>{metric}</td><td style='text-align:right'>{fmt_val(val, style)}</td>"
         if comp_m is not None:
             _cv = comp_m.get(t,{}).get(metric,0)
             row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _cv), hib, _cv, style, '上週', curr_val=val)}</td>"
@@ -395,8 +395,8 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
         td_style = "font-weight:700;text-align:center;vertical-align:middle;border-top:2px solid #bbb"
         row = "<tr style='background:#f8f8f8'>"
         if i == 0:
-            row += f'<td rowspan="{n_total}" style="{td_style}">{t}</td>'
-        row += f"<td style='font-weight:600'>{metric}</td><td style='text-align:right;font-weight:600'>{fmt_val(val, style)}</td>"
+            row += f'<td rowspan="{n_total}" class="s1" style="{td_style}">{t}</td>'
+        row += f"<td class='s2' style='font-weight:600'>{metric}</td><td style='text-align:right;font-weight:600'>{fmt_val(val, style)}</td>"
         if comp_m is not None:
             _cv = fn(comp_m)
             row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _cv), hib, _cv, style, '上週', curr_val=val)}</td>"
@@ -413,10 +413,13 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
 <style>
   body {{ margin:0; padding:4px; font-family:sans-serif; font-size:14px; }}
   .scroll-wrap {{ overflow-x:auto; -webkit-overflow-scrolling:touch; }}
-  table {{ border-collapse:collapse; min-width:700px; }}
-  th {{ padding:8px 12px; text-align:left; border-bottom:2px solid #ccc; color:#555; font-size:12px; white-space:nowrap; }}
-  td {{ padding:7px 12px; border-bottom:1px solid #e0e0e0; white-space:nowrap; }}
+  table {{ border-collapse:collapse; min-width:600px; }}
+  th {{ padding:8px 10px; text-align:left; border-bottom:2px solid #ccc; color:#555; font-size:12px; white-space:nowrap; }}
+  td {{ padding:7px 10px; border-bottom:1px solid #e0e0e0; white-space:nowrap; }}
   .chg-cell {{ text-align:right; min-width:105px; white-space:normal; }}
+  .s1 {{ position:sticky; left:0; z-index:2; background:#fff; min-width:44px; }}
+  .s2 {{ position:sticky; left:44px; z-index:2; background:#fff; box-shadow:2px 0 4px rgba(0,0,0,0.07); }}
+  tr:hover .s1, tr:hover .s2 {{ background:#f5f5f5; }}
 </style></head><body>
 <div class="scroll-wrap"><table>{header}{body}</table></div>
 </body></html>"""
