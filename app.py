@@ -454,7 +454,7 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期", comp_hea
     td {{ padding:9px 16px; }}
     .chg-cell {{ min-width:160px; white-space:nowrap; }}
     .ref-br {{ display:none; }}
-    .ref-info {{ display:inline; margin-left:5px; font-size:13px; }}
+    .ref-info {{ display:inline; margin-left:5px; font-size:14px; }}
   }}
 </style></head><body>
 <div class="scroll-wrap"><table>{header}{body}</table></div>
