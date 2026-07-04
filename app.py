@@ -123,12 +123,12 @@ def fetch_meta_insights(access_token, ad_account_id, since, until, account_type=
 
     if account_type == "cpas":
         fields = (
-            "campaign_name,spend,impressions,inline_link_clicks,"
+            "campaign_name,spend,impressions,reach,inline_link_clicks,"
             "actions,action_values,"
             "catalog_segment_actions,catalog_segment_value"
         )
     else:
-        fields = "campaign_name,spend,impressions,inline_link_clicks,actions,action_values"
+        fields = "campaign_name,spend,impressions,reach,inline_link_clicks,actions,action_values"
 
     params = {
         "level": "campaign",
