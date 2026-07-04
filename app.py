@@ -445,7 +445,7 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期", comp_hea
   table {{ border-collapse:collapse; min-width:600px; width:100%; }}
   th {{ padding:8px 10px; text-align:left; border-bottom:2px solid #ccc; color:#555; font-size:12px; white-space:nowrap; }}
   td {{ padding:7px 10px; border-bottom:1px solid #e0e0e0; white-space:nowrap; }}
-  .chg-cell {{ text-align:right; min-width:105px; white-space:normal; }}
+  .chg-cell {{ text-align:left; min-width:105px; white-space:normal; }}
   .ref-info {{ font-size:12px; }}
   .s1 {{ position:sticky; left:0; z-index:2; background:#fff; min-width:44px; }}
   .s2 {{ position:sticky; left:44px; z-index:2; background:#fff; min-width:90px; box-shadow:2px 0 4px rgba(0,0,0,0.07); white-space:normal; }}
