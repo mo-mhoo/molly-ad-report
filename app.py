@@ -441,7 +441,7 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期", comp_hea
 <style>
   body {{ margin:0; padding:4px; font-family:sans-serif; font-size:14px; }}
   .scroll-wrap {{ overflow-x:auto; -webkit-overflow-scrolling:touch; }}
-  table {{ border-collapse:collapse; min-width:600px; width:100%; }}
+  table {{ border-collapse:collapse; min-width:600px; }}
   th {{ padding:8px 10px; text-align:left; border-bottom:2px solid #ccc; color:#555; font-size:12px; white-space:nowrap; }}
   td {{ padding:7px 10px; border-bottom:1px solid #e0e0e0; white-space:nowrap; }}
   .chg-cell {{ text-align:right; min-width:105px; white-space:normal; }}
@@ -452,7 +452,7 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期", comp_hea
     body {{ font-size:15px; }}
     th {{ padding:10px 16px; font-size:13px; }}
     td {{ padding:9px 16px; }}
-    .chg-cell {{ min-width:160px; white-space:nowrap; }}
+    .chg-cell {{ min-width:220px; white-space:nowrap; }}
     .ref-br {{ display:none; }}
     .ref-info {{ display:inline; margin-left:5px; font-size:12px; }}
   }}
