@@ -455,9 +455,9 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期", comp_hea
     td {{ padding:9px 16px; }}
     .chg-cell {{ min-width:240px; white-space:nowrap; }}
     .chg-inner {{ display:flex; align-items:baseline; }}
-    .pct-val {{ flex:0 0 72px; text-align:right; }}
+    .pct-val {{ flex:0 0 62px; text-align:right; }}
     .ref-br {{ display:none; }}
-    .ref-info {{ flex:1; padding-left:8px; font-size:14px; white-space:normal; }}
+    .ref-info {{ flex:1; padding-left:4px; font-size:14px; white-space:normal; }}
   }}
 </style></head><body>
 <div class="scroll-wrap"><table>{header}{body}</table></div>
