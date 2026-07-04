@@ -353,7 +353,7 @@ def _chg_color(v, hib, ref_val=None, ref_style=None, ref_label=None, curr_val=No
         result += f'<br><span style="color:#999;font-size:11px;font-weight:normal">{detail}</span>'
     return result
 
-def build_table_html(curr_m, comp_m, mom_m, yoy_m):
+def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期"):
     rows_def = [
         ("ATL", "花費",    "currency", True),
         ("ATL", "點擊",    "count",    True),
@@ -364,7 +364,7 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
         ("BTL", "CPA",     "currency", False),
         ("BTL", "AOV",     "currency", True),
     ]
-    cols = ["WoW" if comp_m else None, "MoM" if mom_m else None, "YoY" if yoy_m else None]
+    cols = [comp_label if comp_m else None, "MoM" if mom_m else None, "YoY" if yoy_m else None]
     chg_headers = "".join(f"<th>{c}</th>" for c in cols if c)
     header = f"<tr><th class='s1'>類型</th><th class='s2'>指標 / 數值</th>{chg_headers}</tr>"
 
@@ -1637,7 +1637,14 @@ if df_curr is not None and not df_curr.empty:
                 _m["_account_reach"] = st.session_state[_key]
 
         st.subheader("📈 Meta Ads 關鍵指標（ATL / BTL）")
-        components.html(build_table_html(curr_m, comp_m, mom_m, yoy_m), height=660, scrolling=True)
+        _since = st.session_state.get("dim_since")
+        _until = st.session_state.get("dim_until")
+        if _since and _until:
+            _n = (_until - _since).days + 1
+            _comp_label = "昨天" if _n == 1 else "上週" if _n == 7 else "前期"
+        else:
+            _comp_label = "前期"
+        components.html(build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label=_comp_label), height=660, scrolling=True)
 
         btl = curr_m.get("BTL", {})
         atl = curr_m.get("ATL", {})
