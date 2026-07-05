@@ -1446,36 +1446,41 @@ st.subheader(f"📁 {acct_title} × {platform_sel}" if acct_title else f"📁 {p
 
 # 快速帳戶切換按鈕
 if accounts and len(accounts) > 1:
-    cur_idx      = st.session_state.get("acct_sel", 0)
-    total_mode   = st.session_state.get("total_mode_client", "")  # "" = 個別帳號
+    cur_idx    = st.session_state.get("acct_sel", 0)
+    total_mode = st.session_state.get("total_mode_client", "")
     # 找出所有品牌（保持順序）
     _clients_seen = []
     for _a in accounts:
         _c, _ = parse_account_name(_a["name"])
         if _c and _c not in _clients_seen:
             _clients_seen.append(_c)
-    _total_btns = len(_clients_seen)
-    _total_cols = _total_btns + len(accounts)
-    btn_cols = st.columns(_total_cols)
-    # 品牌總計按鈕
-    for _ci, _client in enumerate(_clients_seen):
-        _label = f"{CLIENT_PREFIX.get(_client, _client)} 總計"
-        _active = (total_mode == _client)
-        if btn_cols[_ci].button(_label, key=f"total_btn_{_ci}",
-                                type="primary" if _active else "secondary",
-                                use_container_width=True):
-            st.session_state["total_mode_client"] = _client
-            st.rerun()
-    # 個別帳號按鈕
-    for i, (acct) in enumerate(accounts):
-        label = acct["name"]
-        _active = (total_mode == "" and i == cur_idx)
-        if btn_cols[_total_btns + i].button(label, key=f"acct_btn_{i}",
-                      type="primary" if _active else "secondary",
-                      use_container_width=True):
-            st.session_state["acct_sel_pending"] = i
-            st.session_state["total_mode_client"] = ""
-            st.rerun()
+    # 建立按鈕順序：每個品牌的「總計」緊接著該品牌帳號前面
+    _btn_order = []  # list of ("total", client) or ("acct", i)
+    for _client in _clients_seen:
+        _btn_order.append(("total", _client))
+        for i, _a in enumerate(accounts):
+            if parse_account_name(_a["name"])[0] == _client:
+                _btn_order.append(("acct", i))
+    btn_cols = st.columns(len(_btn_order))
+    for _bi, (_btype, _bval) in enumerate(_btn_order):
+        if _btype == "total":
+            _label  = f"{CLIENT_PREFIX.get(_bval, _bval)} 總計"
+            _active = (total_mode == _bval)
+            if btn_cols[_bi].button(_label, key=f"total_btn_{_bval}",
+                                    type="primary" if _active else "secondary",
+                                    use_container_width=True):
+                st.session_state["total_mode_client"] = _bval
+                st.rerun()
+        else:
+            _i     = _bval
+            _label = accounts[_i]["name"]
+            _active = (total_mode == "" and _i == cur_idx)
+            if btn_cols[_bi].button(_label, key=f"acct_btn_{_i}",
+                                    type="primary" if _active else "secondary",
+                                    use_container_width=True):
+                st.session_state["acct_sel_pending"] = _i
+                st.session_state["total_mode_client"] = ""
+                st.rerun()
 
 df_curr = df_comp = df_mom = df_yoy = None
 
