@@ -1435,19 +1435,46 @@ with st.sidebar:
 
 # ── 資料載入 ─────────────────────────────────────────────
 
-acct_title = f"{client_sel} × {channel_sel}" if client_sel else ""
+_total_mode_client = st.session_state.get("total_mode_client", "")
+if _total_mode_client:
+    acct_title = f"{CLIENT_PREFIX.get(_total_mode_client, _total_mode_client)} 總計"
+    client_sel = _total_mode_client
+    channel_sel = "總計"
+else:
+    acct_title = f"{client_sel} × {channel_sel}" if client_sel else ""
 st.subheader(f"📁 {acct_title} × {platform_sel}" if acct_title else f"📁 {platform_sel}")
 
 # 快速帳戶切換按鈕
 if accounts and len(accounts) > 1:
-    cur_idx = st.session_state.get("acct_sel", 0)
-    btn_cols = st.columns(len(accounts))
-    for i, (col, acct) in enumerate(zip(btn_cols, accounts)):
+    cur_idx      = st.session_state.get("acct_sel", 0)
+    total_mode   = st.session_state.get("total_mode_client", "")  # "" = 個別帳號
+    # 找出所有品牌（保持順序）
+    _clients_seen = []
+    for _a in accounts:
+        _c, _ = parse_account_name(_a["name"])
+        if _c and _c not in _clients_seen:
+            _clients_seen.append(_c)
+    _total_btns = len(_clients_seen)
+    _total_cols = _total_btns + len(accounts)
+    btn_cols = st.columns(_total_cols)
+    # 品牌總計按鈕
+    for _ci, _client in enumerate(_clients_seen):
+        _label = f"{CLIENT_PREFIX.get(_client, _client)} 總計"
+        _active = (total_mode == _client)
+        if btn_cols[_ci].button(_label, key=f"total_btn_{_ci}",
+                                type="primary" if _active else "secondary",
+                                use_container_width=True):
+            st.session_state["total_mode_client"] = _client
+            st.rerun()
+    # 個別帳號按鈕
+    for i, (acct) in enumerate(accounts):
         label = acct["name"]
-        if col.button(label, key=f"acct_btn_{i}",
-                      type="primary" if i == cur_idx else "secondary",
+        _active = (total_mode == "" and i == cur_idx)
+        if btn_cols[_total_btns + i].button(label, key=f"acct_btn_{i}",
+                      type="primary" if _active else "secondary",
                       use_container_width=True):
             st.session_state["acct_sel_pending"] = i
+            st.session_state["total_mode_client"] = ""
             st.rerun()
 
 df_curr = df_comp = df_mom = df_yoy = None
@@ -1459,19 +1486,28 @@ if data_source == "Meta API 自動抓取":
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.markdown("**本期**")
+        _prev_preset = st.session_state.get("_date_preset_prev")
         preset = st.selectbox("快速選擇", preset_options, key="date_preset", label_visibility="collapsed")
-        if preset == "今日":
-            p_since = p_until = today
-        elif preset == "昨天":
-            p_since = p_until = today - timedelta(days=1)
-        elif preset == "過去7天":
-            p_since, p_until = today - timedelta(days=6), today
-        elif preset == "本月至今":
-            p_since, p_until = date(today.year, today.month, 1), today - timedelta(days=1)
-        else:
-            p_since, p_until = today - timedelta(days=6), today
-        curr_since = st.date_input("開始", p_since, key=f"api_curr_s_{preset}_{today}")
-        curr_until = st.date_input("結束", p_until, key=f"api_curr_e_{preset}_{today}")
+        # 只有在 preset 切換時才覆寫日期（自訂模式不動）
+        if preset != _prev_preset:
+            st.session_state["_date_preset_prev"] = preset
+            if preset == "今日":
+                st.session_state["api_curr_s"] = st.session_state["api_curr_e"] = today
+            elif preset == "昨天":
+                st.session_state["api_curr_s"] = st.session_state["api_curr_e"] = today - timedelta(days=1)
+            elif preset == "過去7天":
+                st.session_state["api_curr_s"] = today - timedelta(days=6)
+                st.session_state["api_curr_e"] = today
+            elif preset == "本月至今":
+                st.session_state["api_curr_s"] = date(today.year, today.month, 1)
+                st.session_state["api_curr_e"] = today - timedelta(days=1)
+            elif preset == "自訂" and "api_curr_s" not in st.session_state:
+                st.session_state["api_curr_s"] = today - timedelta(days=6)
+                st.session_state["api_curr_e"] = today
+        _default_s = st.session_state.get("api_curr_s", today - timedelta(days=6))
+        _default_e = st.session_state.get("api_curr_e", today)
+        curr_since = st.date_input("開始", _default_s, key="api_curr_s")
+        curr_until = st.date_input("結束", _default_e, key="api_curr_e")
 
     default_comp_since, default_comp_until = prev_week_range(curr_since, curr_until)
     default_mom_since,  default_mom_until  = mom_range(curr_since, curr_until)
@@ -1481,7 +1517,7 @@ if data_source == "Meta API 自動抓取":
         st.markdown("**對比期（WoW）**")
         comp_since = st.date_input("開始", default_comp_since, key=f"api_comp_s_{curr_since}_{curr_until}")
         comp_until = st.date_input("結束", default_comp_until, key=f"api_comp_e_{curr_since}_{curr_until}")
-        use_comp = st.checkbox("啟用 WoW", value=False)
+        use_comp = st.checkbox("啟用 WoW", value=True)
     with col3:
         st.markdown("**上月同期（MoM）**")
         mom_since = st.date_input("開始", default_mom_since, key=f"api_mom_s_{curr_since}_{curr_until}")
@@ -1493,41 +1529,61 @@ if data_source == "Meta API 自動抓取":
         yoy_until = st.date_input("結束", default_yoy_until, key=f"api_yoy_e_{curr_since}_{curr_until}")
         use_yoy = st.checkbox("啟用 YoY", value=True)
 
+    # 總計模式：找出該品牌所有帳號
+    _total_client = st.session_state.get("total_mode_client", "")
+    _total_accts  = [a for a in accounts if parse_account_name(a["name"])[0] == _total_client] if _total_client else []
+
     if st.button("🔄 從 Meta API 抓取數據", type="primary"):
         token = cfg.get("meta_token", "")
         acct  = selected_account_id
-        if not token or not acct:
+        if not token or (not acct and not _total_accts):
             st.error("請先在側欄填入 Access Token 和廣告帳戶 ID")
         else:
             with st.spinner("正在從 Meta API 抓取..."):
                 try:
-                    atype = selected_account_type
+                    def _fetch_merged(s, u):
+                        """合併品牌所有帳號的 DataFrame，總計模式用"""
+                        if not _total_accts:
+                            return fetch_meta_insights(token, acct, s, u, selected_account_type)
+                        dfs = []
+                        for _a in _total_accts:
+                            _df = fetch_meta_insights(token, _a["id"], s, u, _a.get("type","general"))
+                            if _df is not None and len(_df) > 0:
+                                dfs.append(_df)
+                        return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
+
+                    def _fetch_reach_total(s, u):
+                        if not _total_accts:
+                            return fetch_account_reach(token, acct, s, u)
+                        return sum(fetch_account_reach(token, _a["id"], s, u) for _a in _total_accts)
+
+                    atype = selected_account_type if not _total_accts else "general"
                     st.session_state["selected_account_type"] = atype
-                    df_curr = fetch_meta_insights(token, acct, curr_since, curr_until, atype)
+                    df_curr = _fetch_merged(curr_since, curr_until)
                     st.session_state["df_curr"] = df_curr
-                    st.session_state["reach_curr"] = fetch_account_reach(token, acct, curr_since, curr_until)
+                    st.session_state["reach_curr"] = _fetch_reach_total(curr_since, curr_until)
                     if use_comp:
-                        df_comp = fetch_meta_insights(token, acct, comp_since, comp_until, atype)
+                        df_comp = _fetch_merged(comp_since, comp_until)
                         st.session_state["df_comp"] = df_comp
-                        st.session_state["reach_comp"] = fetch_account_reach(token, acct, comp_since, comp_until)
+                        st.session_state["reach_comp"] = _fetch_reach_total(comp_since, comp_until)
                     else:
                         st.session_state.pop("df_comp", None)
                         st.session_state.pop("reach_comp", None)
                     if use_mom:
-                        df_mom = fetch_meta_insights(token, acct, mom_since, mom_until, atype)
+                        df_mom = _fetch_merged(mom_since, mom_until)
                         st.session_state["df_mom"] = df_mom
-                        st.session_state["reach_mom"] = fetch_account_reach(token, acct, mom_since, mom_until)
+                        st.session_state["reach_mom"] = _fetch_reach_total(mom_since, mom_until)
                     else:
                         st.session_state.pop("df_mom", None)
                         st.session_state.pop("reach_mom", None)
                     if use_yoy:
-                        df_yoy = fetch_meta_insights(token, acct, yoy_since, yoy_until, atype)
+                        df_yoy = _fetch_merged(yoy_since, yoy_until)
                         st.session_state["df_yoy"] = df_yoy
-                        st.session_state["reach_yoy"] = fetch_account_reach(token, acct, yoy_since, yoy_until)
+                        st.session_state["reach_yoy"] = _fetch_reach_total(yoy_since, yoy_until)
                     else:
                         st.session_state.pop("df_yoy", None)
                         st.session_state.pop("reach_yoy", None)
-                    st.success(f"✅ 抓到 {len(df_curr)} 個行銷活動")
+                    st.success(f"✅ 抓到 {len(df_curr)} 個行銷活動" + (f"（{len(_total_accts)} 個帳號合併）" if _total_accts else ""))
                     st.session_state["dim_since"] = curr_since
                     st.session_state["dim_until"] = curr_until
                     st.session_state["dim_token"] = token
@@ -1650,6 +1706,10 @@ if df_curr is not None and not df_curr.empty:
                 _m["_account_reach"] = st.session_state[_key]
 
         st.subheader("📈 Meta Ads 關鍵指標（ATL / BTL）")
+        st.markdown("""<style>
+[data-testid="stMetricDelta"] { white-space: normal !important; overflow: visible !important;
+  text-overflow: unset !important; font-size: 11px !important; line-height: 1.4; }
+</style>""", unsafe_allow_html=True)
         _since = st.session_state.get("dim_since")
         _until = st.session_state.get("dim_until")
         if _since and _until:
@@ -1671,19 +1731,20 @@ if df_curr is not None and not df_curr.empty:
         yoy_btl  = yoy_m.get("BTL",  {}) if yoy_m  else {}
 
         def funnel_delta(curr_val, comp_val, mom_val, yoy_val, higher_is_better=True):
+            def _fmt(c): return f"{'+' if c>=0 else ''}{round(c)}%"
             parts = []
             if comp_val:
                 c = pct_change(curr_val, comp_val)
                 if c is not None:
-                    parts.append(f"WoW {'+' if c>=0 else ''}{c:.1f}%")
+                    parts.append(f"{_comp_header} {_fmt(c)}")
             if mom_val:
                 c = pct_change(curr_val, mom_val)
                 if c is not None:
-                    parts.append(f"MoM {'+' if c>=0 else ''}{c:.1f}%")
+                    parts.append(f"M {_fmt(c)}")
             if yoy_val:
                 c = pct_change(curr_val, yoy_val)
                 if c is not None:
-                    parts.append(f"YoY {'+' if c>=0 else ''}{c:.1f}%")
+                    parts.append(f"Y {_fmt(c)}")
             return " | ".join(parts) if parts else None
 
         def funnel_color(curr_val, comp_val, higher_is_better=True):
@@ -2265,10 +2326,18 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             _hour_frac = _now_tw.hour + _now_tw.minute / 60
             _expected_pace = _hour_frac / 24  # 當前時間應達成進度
 
+            # ── 快速幅度按鈕
+            _sq_cols = st.columns(5)
+            for _si, _sv in enumerate([100, 250, 400, 550, 800]):
+                with _sq_cols[_si]:
+                    if st.button(f"+{_sv}%", key=f"sched_quick_{_sv}", use_container_width=True):
+                        st.session_state["sched_pct"] = _sv
+                        st.rerun()
+
             # ── 調整幅度 & 方向
             pc1, pc2 = st.columns(2)
             with pc1:
-                sched_pct = st.number_input("調整幅度 (%)", min_value=1, max_value=10000, value=int(sched_pct), step=5, key="sched_pct")
+                sched_pct = st.number_input("調整幅度 (%)", min_value=1, max_value=10000, value=int(sched_pct), step=50, key="sched_pct")
             with pc2:
                 sched_dir = st.radio("方向", ["加碼 ⬆️", "減碼 ⬇️"], key="sched_dir", horizontal=True)
             sched_actual_pct = sched_pct if "加碼" in sched_dir else -sched_pct
@@ -2840,10 +2909,18 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                         st.session_state["adj_insights_7d"] = fetch_today_campaign_insights(_token, selected_account_id, "last_7d")
                         st.rerun()
 
+                # 快速幅度按鈕
+                _quick_cols = st.columns(5)
+                for _qi, _qv in enumerate([100, 250, 400, 550, 800]):
+                    with _quick_cols[_qi]:
+                        if st.button(f"+{_qv}%", key=f"adj_quick_{_qv}", use_container_width=True):
+                            st.session_state["adj_pct_input"] = _qv
+                            st.rerun()
+
                 # 自訂幅度 + 確認
                 ca1, ca2 = st.columns([3, 2])
                 with ca1:
-                    adj_pct = st.number_input("調整幅度 (%)", min_value=1, max_value=10000, value=20, step=5, key="adj_pct_input")
+                    adj_pct = st.number_input("調整幅度 (%)", min_value=1, max_value=10000, value=20, step=50, key="adj_pct_input")
                 with ca2:
                     adj_dir = st.radio("方向", ["加碼 ⬆️", "減碼 ⬇️"], horizontal=True, key="adj_dir")
                 final_pct = adj_pct if "加碼" in adj_dir else -int(adj_pct)
