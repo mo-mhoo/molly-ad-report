@@ -2332,8 +2332,9 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             _expected_pace = _hour_frac / 24  # 當前時間應達成進度
 
             # ── 快速幅度按鈕
-            _sq_cols = st.columns(5)
-            for _si, _sv in enumerate([100, 250, 400, 550, 800]):
+            _sq_vals = [20, 50, 100, 250, 400, 550, 800]
+            _sq_cols = st.columns(len(_sq_vals))
+            for _si, _sv in enumerate(_sq_vals):
                 with _sq_cols[_si]:
                     if st.button(f"+{_sv}%", key=f"sched_quick_{_sv}", use_container_width=True):
                         st.session_state["sched_pct"] = _sv
