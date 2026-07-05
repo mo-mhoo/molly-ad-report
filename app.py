@@ -2899,8 +2899,8 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 st.markdown(f"**已選 {len(sel_camps)} 個活動**")
 
                 # 快捷幅度按鈕（立即套用）
-                PRESETS = [("−25%", -25), ("−10%", -10), ("+10%", 10), ("+25%", 25), ("+50%", 50)]
-                pc = st.columns(5)
+                PRESETS = [("+25%", 25), ("+30%", 30), ("−25%", -25), ("−30%", -30)]
+                pc = st.columns(4)
                 for i, (label, pct) in enumerate(PRESETS):
                     if pc[i].button(label, key=f"adj_preset_{pct}", use_container_width=True):
                         for camp in sel_camps:
@@ -2913,14 +2913,6 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                         st.session_state["adj_insights"]    = fetch_today_campaign_insights(_token, selected_account_id)
                         st.session_state["adj_insights_7d"] = fetch_today_campaign_insights(_token, selected_account_id, "last_7d")
                         st.rerun()
-
-                # 快速幅度按鈕
-                _quick_cols = st.columns(5)
-                for _qi, _qv in enumerate([100, 250, 400, 550, 800]):
-                    with _quick_cols[_qi]:
-                        if st.button(f"+{_qv}%", key=f"adj_quick_{_qv}", use_container_width=True):
-                            st.session_state["adj_pct_input"] = _qv
-                            st.rerun()
 
                 # 自訂幅度 + 確認
                 ca1, ca2 = st.columns([3, 2])
