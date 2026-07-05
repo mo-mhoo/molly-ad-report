@@ -2950,3 +2950,38 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
 
 st.markdown("---")
 st.caption("Powered by Claude Sonnet 4.6 · 毛孩時代 & 御熹堂廣告週報自動化")
+
+st.markdown("""
+<style>
+#back-to-top {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    z-index: 9999;
+    background: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+#back-to-top:hover { background: #c0392b; }
+</style>
+<button id="back-to-top" onclick="window.parent.document.querySelector('section.main').scrollTo({top:0,behavior:'smooth'})">↑</button>
+<script>
+(function(){
+    var btn = window.parent.document.getElementById('back-to-top');
+    var main = window.parent.document.querySelector('section.main');
+    if(!main || !btn) return;
+    main.addEventListener('scroll', function(){
+        btn.style.display = main.scrollTop > 300 ? 'flex' : 'none';
+    });
+})();
+</script>
+""", unsafe_allow_html=True)
