@@ -2338,6 +2338,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 with _sq_cols[_si]:
                     if st.button(f"+{_sv}%", key=f"sched_quick_{_sv}", use_container_width=True):
                         st.session_state["sched_pct"] = _sv
+                        st.session_state["_sched_btn_set"] = True
                         st.rerun()
 
             # ── 調整幅度 & 方向
