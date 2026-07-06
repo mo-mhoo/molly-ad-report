@@ -1764,7 +1764,7 @@ if df_curr is not None and not df_curr.empty:
                         花費=("花費", "sum"), 購買次數=("購買次數", "sum"),
                         購買轉換值=("購買轉換值", "sum"), 曝光=("曝光", "sum"), 點擊=("點擊", "sum")
                     )
-                    return {r[name_col]: r for _, r in g.iterrows()}
+                    return {r[name_col]: r.to_dict() for _, r in g.iterrows()}
                 cur  = _agg(df_cur)
                 comp = _agg(df_c)
                 mom  = _agg(df_m)
