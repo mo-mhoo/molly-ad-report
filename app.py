@@ -118,17 +118,32 @@ def _fetch_raw_actions(access_token, ad_account_id, since, until):
     except Exception as e:
         return {"error": str(e)}
 
+def fetch_account_reach(access_token, ad_account_id, since, until):
+    url = f"https://graph.facebook.com/v25.0/act_{ad_account_id}/insights"
+    params = {
+        "level": "account",
+        "fields": "reach",
+        "time_range": json.dumps({"since": str(since), "until": str(until)}),
+        "access_token": access_token,
+    }
+    try:
+        data = requests.get(url, params=params, timeout=15).json()
+        rows = data.get("data", [])
+        return int(rows[0]["reach"]) if rows else 0
+    except Exception:
+        return 0
+
 def fetch_meta_insights(access_token, ad_account_id, since, until, account_type="general"):
     url = f"https://graph.facebook.com/v25.0/act_{ad_account_id}/insights"
 
     if account_type == "cpas":
         fields = (
-            "campaign_name,spend,impressions,inline_link_clicks,"
+            "campaign_name,spend,impressions,reach,inline_link_clicks,"
             "actions,action_values,"
             "catalog_segment_actions,catalog_segment_value"
         )
     else:
-        fields = "campaign_name,spend,impressions,inline_link_clicks,actions,action_values"
+        fields = "campaign_name,spend,impressions,reach,inline_link_clicks,actions,action_values"
 
     params = {
         "level": "campaign",
@@ -176,6 +191,7 @@ def fetch_meta_insights(access_token, ad_account_id, since, until, account_type=
             "行銷活動名稱": item.get("campaign_name", ""),
             "花費金額 (TWD)": safe_float(item.get("spend")),
             "曝光次數": safe_float(item.get("impressions")),
+            "觸及人數": safe_float(item.get("reach")),
             "連結點擊次數": safe_float(item.get("inline_link_clicks")),
             "購買次數": purchases,
             "購買轉換值": purchase_val,
@@ -238,6 +254,7 @@ def calc_meta_metrics(df):
         spend = sub["花費金額 (TWD)"].sum()
         clicks = sub["連結點擊次數"].sum()
         impr = sub["曝光次數"].sum()
+        reach = sub["觸及人數"].sum() if "觸及人數" in sub.columns else 0
         revenue = sub["購買轉換值"].sum()
         purchases = sub["購買次數"].sum()
         atc = sub["加到購物車次數"].sum()
@@ -250,6 +267,8 @@ def calc_meta_metrics(df):
             "廣告收益": revenue,
             "CPA": spend / purchases if purchases > 0 else 0,
             "AOV": revenue / purchases if purchases > 0 else 0,
+            "觸及人數": reach,
+            "觸及成本": spend / reach * 1000 if reach > 0 else 0,
             "購買次數": purchases,
             "加購次數": atc,
             "購物車成本": spend / atc if atc > 0 else 0,
@@ -300,13 +319,25 @@ def fmt_change(v, higher_is_better=True):
     label = f"{sign}{v:.1f}%"
     return f'<span style="color:{"#16a34a" if good else "#dc2626"}">{label}</span>'
 
-def _fmt_chg(v, higher_is_better=True):
+def _delta_str(curr_val, ref_val, style):
+    if curr_val is None or ref_val is None or ref_val == 0:
+        return ""
+    delta = curr_val - ref_val
+    direction = "增" if delta > 0 else "減"
+    return f"，{direction} {fmt_val(abs(delta), style)}"
+
+def _fmt_chg(v, higher_is_better=True, ref_val=None, ref_style=None, ref_label=None, curr_val=None):
     if v is None:
         return "—"
     sign = "+" if v >= 0 else ""
-    return f"{sign}{v:.1f}%"
+    txt = f"{sign}{v:.1f}%"
+    if ref_val is not None and ref_style is not None:
+        ref_str = fmt_val(ref_val, ref_style)
+        lbl = f"{ref_label}: " if ref_label else ""
+        txt += f" （{lbl}{ref_str}{_delta_str(curr_val, ref_val, ref_style)}）"
+    return txt
 
-def _chg_color(v, hib):
+def _chg_color(v, hib, ref_val=None, ref_style=None, ref_label=None, curr_val=None):
     """根據變化率與指標方向回傳 HTML 顏色 span"""
     if v is None:
         return "—"
@@ -314,9 +345,16 @@ def _chg_color(v, hib):
     txt = f"{sign}{v:.1f}%"
     is_good = (v >= 0 and hib) or (v < 0 and not hib)
     color = "#27ae60" if is_good else "#e74c3c"
-    return f'<span style="color:{color};font-weight:bold">{txt}</span>'
+    pct_span = f'<span class="pct-val" style="color:{color};font-weight:bold">{txt}</span>'
+    if ref_val is not None and ref_style is not None:
+        ref_str = fmt_val(ref_val, ref_style)
+        lbl = f"{ref_label}: " if ref_label else ""
+        detail = f"（{lbl}{ref_str}{_delta_str(curr_val, ref_val, ref_style)}）"
+        ref_span = f'<br class="ref-br"><span class="ref-info" style="color:#999;font-weight:normal">{detail}</span>'
+        return f'<div class="chg-inner">{pct_span}{ref_span}</div>'
+    return f'<div class="chg-inner">{pct_span}</div>'
 
-def build_table_html(curr_m, comp_m, mom_m, yoy_m):
+def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期", comp_header=None):
     rows_def = [
         ("ATL", "花費",    "currency", True),
         ("ATL", "點擊",    "count",    True),
@@ -327,9 +365,10 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
         ("BTL", "CPA",     "currency", False),
         ("BTL", "AOV",     "currency", True),
     ]
-    cols = ["WoW" if comp_m else None, "MoM" if mom_m else None, "YoY" if yoy_m else None]
+    _comp_hdr = comp_header or comp_label
+    cols = [_comp_hdr if comp_m else None, "MoM" if mom_m else None, "YoY" if yoy_m else None]
     chg_headers = "".join(f"<th>{c}</th>" for c in cols if c)
-    header = f"<tr><th>類型</th><th>指標</th><th style='text-align:right'>實際數值</th>{chg_headers}</tr>"
+    header = f"<tr><th class='s1'>類型</th><th class='s2'>指標 / 數值</th>{chg_headers}</tr>"
 
     def _total_spend(m):
         return (m.get("ATL", {}).get("花費", 0) or 0) + (m.get("BTL", {}).get("花費", 0) or 0)
@@ -341,6 +380,13 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
         return rev / s if s > 0 else 0
     def _total_rev(m):
         return m.get("BTL", {}).get("廣告收益", 0) or 0
+    def _total_reach(m):
+        if m.get("_account_reach"):
+            return m["_account_reach"]
+        return (m.get("ATL", {}).get("觸及人數", 0) or 0) + (m.get("BTL", {}).get("觸及人數", 0) or 0)
+    def _total_cpr(m):
+        s = _total_spend(m); r = _total_reach(m)
+        return s / r * 1000 if r > 0 else 0
 
     body = ""
     prev_type = None
@@ -349,24 +395,28 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
         row = "<tr>"
         if t != prev_type:
             span = sum(1 for r in rows_def if r[0] == t)
-            row += f'<td rowspan="{span}" style="font-weight:700;text-align:center;vertical-align:middle">{t}</td>'
+            row += f'<td rowspan="{span}" class="s1" style="font-weight:700;text-align:center;vertical-align:middle">{t}</td>'
             prev_type = t
-        row += f"<td>{metric}</td><td style='text-align:right'>{fmt_val(val, style)}</td>"
+        row += f"<td class='s2'>{metric}<br><span style='font-weight:normal;color:#333;font-size:13px'>{fmt_val(val, style)}</span></td>"
         if comp_m is not None:
-            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, comp_m.get(t,{}).get(metric,0)), hib)}</td>"
+            _cv = comp_m.get(t,{}).get(metric,0)
+            row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _cv), hib, _cv, style, comp_label, curr_val=val)}</td>"
         if mom_m is not None:
-            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, mom_m.get(t,{}).get(metric,0)), hib)}</td>"
+            _mv = mom_m.get(t,{}).get(metric,0)
+            row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _mv), hib, _mv, style, '上月', curr_val=val)}</td>"
         if yoy_m is not None:
-            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, yoy_m.get(t,{}).get(metric,0)), hib)}</td>"
+            _yv = yoy_m.get(t,{}).get(metric,0)
+            row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _yv), hib, _yv, style, '去年', curr_val=val)}</td>"
         row += "</tr>"
         body += row
 
-    # 總計行：花費 > 連結點擊 > ROAS > 廣告收益
+    # 總計行：花費 > 點擊 > ROAS > 廣告收益 > 觸及成本
     total_rows = [
         ("總計", "花費",     "currency", True,  _total_spend),
-        ("總計", "連結點擊", "count",    True,  _total_clicks),
+        ("總計", "點擊",     "count",    True,  _total_clicks),
         ("總計", "ROAS",     "roas",     True,  _total_roas),
         ("總計", "廣告收益", "currency", True,  _total_rev),
+        ("總計", "觸及成本", "currency", False, _total_cpr),
     ]
     n_total = len(total_rows)
     for i, (t, metric, style, hib, fn) in enumerate(total_rows):
@@ -374,28 +424,47 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m):
         td_style = "font-weight:700;text-align:center;vertical-align:middle;border-top:2px solid #bbb"
         row = "<tr style='background:#f8f8f8'>"
         if i == 0:
-            row += f'<td rowspan="{n_total}" style="{td_style}">{t}</td>'
-        row += f"<td style='font-weight:600'>{metric}</td><td style='text-align:right;font-weight:600'>{fmt_val(val, style)}</td>"
+            row += f'<td rowspan="{n_total}" class="s1" style="{td_style}">{t}</td>'
+        row += f"<td class='s2' style='font-weight:600'>{metric}<br><span style='font-weight:normal;color:#333;font-size:13px'>{fmt_val(val, style)}</span></td>"
         if comp_m is not None:
-            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, fn(comp_m)), hib)}</td>"
+            _cv = fn(comp_m)
+            row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _cv), hib, _cv, style, comp_label, curr_val=val)}</td>"
         if mom_m is not None:
-            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, fn(mom_m)), hib)}</td>"
+            _mv = fn(mom_m)
+            row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _mv), hib, _mv, style, '上月', curr_val=val)}</td>"
         if yoy_m is not None:
-            row += f"<td style='text-align:right'>{_chg_color(pct_change(val, fn(yoy_m)), hib)}</td>"
+            _yv = fn(yoy_m)
+            row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _yv), hib, _yv, style, '去年', curr_val=val)}</td>"
         row += "</tr>"
         body += row
 
     return f"""<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>
   body {{ margin:0; padding:4px; font-family:sans-serif; font-size:14px; }}
-  table {{ border-collapse:collapse; width:100%; }}
-  th {{ padding:8px 12px; text-align:left; border-bottom:2px solid #ccc; color:#555; font-size:12px; }}
-  td {{ padding:7px 12px; border-bottom:1px solid #e0e0e0; }}
+  .scroll-wrap {{ overflow-x:auto; -webkit-overflow-scrolling:touch; }}
+  table {{ border-collapse:collapse; min-width:600px; width:100%; }}
+  th {{ padding:8px 10px; text-align:left; border-bottom:2px solid #ccc; color:#555; font-size:12px; white-space:nowrap; }}
+  td {{ padding:7px 10px; border-bottom:1px solid #e0e0e0; white-space:nowrap; }}
+  .chg-cell {{ text-align:left; min-width:105px; white-space:normal; }}
+  .ref-info {{ font-size:12px; }}
+  .s1 {{ position:sticky; left:0; z-index:2; background:#fff; min-width:44px; }}
+  .s2 {{ position:sticky; left:44px; z-index:2; background:#fff; min-width:90px; box-shadow:2px 0 4px rgba(0,0,0,0.07); white-space:normal; }}
+  tr:hover .s1, tr:hover .s2 {{ background:#f5f5f5; }}
+  @media (min-width:520px) {{
+    body {{ font-size:16px; }}
+    th {{ padding:10px 16px; font-size:13px; }}
+    td {{ padding:9px 16px; }}
+    .chg-cell {{ min-width:220px; white-space:nowrap; }}
+    .chg-inner {{ display:flex; align-items:baseline; gap:2px; }}
+    .pct-val {{ flex:0 0 70px; text-align:right; }}
+    .ref-br {{ display:none; }}
+    .ref-info {{ flex:1; font-size:14px; white-space:normal; text-align:left; }}
+  }}
 </style></head><body>
-<table>{header}{body}</table>
+<div class="scroll-wrap"><table>{header}{body}</table></div>
 </body></html>"""
 
-def build_table_df(curr_m, comp_m, mom_m, yoy_m):
+def build_table_df(curr_m, comp_m, mom_m, yoy_m, comp_label="前期"):
     rows_def = [
         ("ATL", "花費",    "currency", True),
         ("ATL", "點擊",    "count",    True),
@@ -416,33 +485,47 @@ def build_table_df(curr_m, comp_m, mom_m, yoy_m):
         return rev / s if s > 0 else 0
     def _total_rev(m):
         return m.get("BTL", {}).get("廣告收益", 0) or 0
+    def _total_reach(m):
+        if m.get("_account_reach"):
+            return m["_account_reach"]
+        return (m.get("ATL", {}).get("觸及人數", 0) or 0) + (m.get("BTL", {}).get("觸及人數", 0) or 0)
+    def _total_cpr(m):
+        s = _total_spend(m); r = _total_reach(m)
+        return s / r * 1000 if r > 0 else 0
 
     result = []
     for t, metric, style, hib in rows_def:
         val = curr_m.get(t, {}).get(metric, 0)
         row = {"類型": t, "指標": metric, "實際數值": fmt_val(val, style)}
         if comp_m is not None:
-            row["WoW"] = _fmt_chg(pct_change(val, comp_m.get(t, {}).get(metric, 0)), hib)
+            _cv = comp_m.get(t, {}).get(metric, 0)
+            row["WoW"] = _fmt_chg(pct_change(val, _cv), hib, _cv, style, comp_label, curr_val=val)
         if mom_m is not None:
-            row["MoM"] = _fmt_chg(pct_change(val, mom_m.get(t, {}).get(metric, 0)), hib)
+            _mv = mom_m.get(t, {}).get(metric, 0)
+            row["MoM"] = _fmt_chg(pct_change(val, _mv), hib, _mv, style, "上月", curr_val=val)
         if yoy_m is not None:
-            row["YoY"] = _fmt_chg(pct_change(val, yoy_m.get(t, {}).get(metric, 0)), hib)
+            _yv = yoy_m.get(t, {}).get(metric, 0)
+            row["YoY"] = _fmt_chg(pct_change(val, _yv), hib, _yv, style, "去年", curr_val=val)
         result.append(row)
 
     for metric, style, hib, fn in [
         ("花費",     "currency", True,  _total_spend),
-        ("連結點擊", "count",    True,  _total_clicks),
+        ("點擊",     "count",    True,  _total_clicks),
         ("ROAS",     "roas",     True,  _total_roas),
         ("廣告收益", "currency", True,  _total_rev),
+        ("觸及成本", "currency", False, _total_cpr),
     ]:
         val = fn(curr_m)
         row = {"類型": "總計", "指標": metric, "實際數值": fmt_val(val, style)}
         if comp_m is not None:
-            row["WoW"] = _fmt_chg(pct_change(val, fn(comp_m)), hib)
+            _cv = fn(comp_m)
+            row["WoW"] = _fmt_chg(pct_change(val, _cv), hib, _cv, style, comp_label, curr_val=val)
         if mom_m is not None:
-            row["MoM"] = _fmt_chg(pct_change(val, fn(mom_m)), hib)
+            _mv = fn(mom_m)
+            row["MoM"] = _fmt_chg(pct_change(val, _mv), hib, _mv, style, "上月", curr_val=val)
         if yoy_m is not None:
-            row["YoY"] = _fmt_chg(pct_change(val, fn(yoy_m)), hib)
+            _yv = fn(yoy_m)
+            row["YoY"] = _fmt_chg(pct_change(val, _yv), hib, _yv, style, "去年", curr_val=val)
         result.append(row)
 
     return pd.DataFrame(result)
@@ -1352,20 +1435,52 @@ with st.sidebar:
 
 # ── 資料載入 ─────────────────────────────────────────────
 
-acct_title = f"{client_sel} × {channel_sel}" if client_sel else ""
+_total_mode_client = st.session_state.get("total_mode_client", "")
+if _total_mode_client:
+    acct_title = f"{CLIENT_PREFIX.get(_total_mode_client, _total_mode_client)} 總計"
+    client_sel = _total_mode_client
+    channel_sel = "總計"
+else:
+    acct_title = f"{client_sel} × {channel_sel}" if client_sel else ""
 st.subheader(f"📁 {acct_title} × {platform_sel}" if acct_title else f"📁 {platform_sel}")
 
 # 快速帳戶切換按鈕
 if accounts and len(accounts) > 1:
-    cur_idx = st.session_state.get("acct_sel", 0)
-    btn_cols = st.columns(len(accounts))
-    for i, (col, acct) in enumerate(zip(btn_cols, accounts)):
-        label = acct["name"]
-        if col.button(label, key=f"acct_btn_{i}",
-                      type="primary" if i == cur_idx else "secondary",
-                      use_container_width=True):
-            st.session_state["acct_sel_pending"] = i
-            st.rerun()
+    cur_idx    = st.session_state.get("acct_sel", 0)
+    total_mode = st.session_state.get("total_mode_client", "")
+    # 找出所有品牌（保持順序）
+    _clients_seen = []
+    for _a in accounts:
+        _c, _ = parse_account_name(_a["name"])
+        if _c and _c not in _clients_seen:
+            _clients_seen.append(_c)
+    # 建立按鈕順序：每個品牌的「總計」緊接著該品牌帳號前面
+    _btn_order = []  # list of ("total", client) or ("acct", i)
+    for _client in _clients_seen:
+        _btn_order.append(("total", _client))
+        for i, _a in enumerate(accounts):
+            if parse_account_name(_a["name"])[0] == _client:
+                _btn_order.append(("acct", i))
+    btn_cols = st.columns(len(_btn_order))
+    for _bi, (_btype, _bval) in enumerate(_btn_order):
+        if _btype == "total":
+            _label  = f"{CLIENT_PREFIX.get(_bval, _bval)} 總計"
+            _active = (total_mode == _bval)
+            if btn_cols[_bi].button(_label, key=f"total_btn_{_bval}",
+                                    type="primary" if _active else "secondary",
+                                    use_container_width=True):
+                st.session_state["total_mode_client"] = _bval
+                st.rerun()
+        else:
+            _i     = _bval
+            _label = accounts[_i]["name"]
+            _active = (total_mode == "" and _i == cur_idx)
+            if btn_cols[_bi].button(_label, key=f"acct_btn_{_i}",
+                                    type="primary" if _active else "secondary",
+                                    use_container_width=True):
+                st.session_state["acct_sel_pending"] = _i
+                st.session_state["total_mode_client"] = ""
+                st.rerun()
 
 df_curr = df_comp = df_mom = df_yoy = None
 
@@ -1376,19 +1491,28 @@ if data_source == "Meta API 自動抓取":
     col1, col2, col3, col4 = st.columns(4)
     with col1:
         st.markdown("**本期**")
+        _prev_preset = st.session_state.get("_date_preset_prev")
         preset = st.selectbox("快速選擇", preset_options, key="date_preset", label_visibility="collapsed")
-        if preset == "今日":
-            p_since = p_until = today
-        elif preset == "昨天":
-            p_since = p_until = today - timedelta(days=1)
-        elif preset == "過去7天":
-            p_since, p_until = today - timedelta(days=6), today
-        elif preset == "本月至今":
-            p_since, p_until = date(today.year, today.month, 1), today - timedelta(days=1)
-        else:
-            p_since, p_until = today - timedelta(days=6), today
-        curr_since = st.date_input("開始", p_since, key=f"api_curr_s_{preset}_{today}")
-        curr_until = st.date_input("結束", p_until, key=f"api_curr_e_{preset}_{today}")
+        # 只有在 preset 切換時才覆寫日期（自訂模式不動）
+        if preset != _prev_preset:
+            st.session_state["_date_preset_prev"] = preset
+            if preset == "今日":
+                st.session_state["api_curr_s"] = st.session_state["api_curr_e"] = today
+            elif preset == "昨天":
+                st.session_state["api_curr_s"] = st.session_state["api_curr_e"] = today - timedelta(days=1)
+            elif preset == "過去7天":
+                st.session_state["api_curr_s"] = today - timedelta(days=6)
+                st.session_state["api_curr_e"] = today
+            elif preset == "本月至今":
+                st.session_state["api_curr_s"] = date(today.year, today.month, 1)
+                st.session_state["api_curr_e"] = today - timedelta(days=1)
+            elif preset == "自訂" and "api_curr_s" not in st.session_state:
+                st.session_state["api_curr_s"] = today - timedelta(days=6)
+                st.session_state["api_curr_e"] = today
+        _default_s = st.session_state.get("api_curr_s", today - timedelta(days=6))
+        _default_e = st.session_state.get("api_curr_e", today)
+        curr_since = st.date_input("開始", _default_s, key="api_curr_s")
+        curr_until = st.date_input("結束", _default_e, key="api_curr_e")
 
     default_comp_since, default_comp_until = prev_week_range(curr_since, curr_until)
     default_mom_since,  default_mom_until  = mom_range(curr_since, curr_until)
@@ -1398,7 +1522,7 @@ if data_source == "Meta API 自動抓取":
         st.markdown("**對比期（WoW）**")
         comp_since = st.date_input("開始", default_comp_since, key=f"api_comp_s_{curr_since}_{curr_until}")
         comp_until = st.date_input("結束", default_comp_until, key=f"api_comp_e_{curr_since}_{curr_until}")
-        use_comp = st.checkbox("啟用 WoW", value=False)
+        use_comp = st.checkbox("啟用 WoW", value=True)
     with col3:
         st.markdown("**上月同期（MoM）**")
         mom_since = st.date_input("開始", default_mom_since, key=f"api_mom_s_{curr_since}_{curr_until}")
@@ -1410,34 +1534,61 @@ if data_source == "Meta API 自動抓取":
         yoy_until = st.date_input("結束", default_yoy_until, key=f"api_yoy_e_{curr_since}_{curr_until}")
         use_yoy = st.checkbox("啟用 YoY", value=True)
 
+    # 總計模式：找出該品牌所有帳號
+    _total_client = st.session_state.get("total_mode_client", "")
+    _total_accts  = [a for a in accounts if parse_account_name(a["name"])[0] == _total_client] if _total_client else []
+
     if st.button("🔄 從 Meta API 抓取數據", type="primary"):
         token = cfg.get("meta_token", "")
         acct  = selected_account_id
-        if not token or not acct:
+        if not token or (not acct and not _total_accts):
             st.error("請先在側欄填入 Access Token 和廣告帳戶 ID")
         else:
             with st.spinner("正在從 Meta API 抓取..."):
                 try:
-                    atype = selected_account_type
+                    def _fetch_merged(s, u):
+                        """合併品牌所有帳號的 DataFrame，總計模式用"""
+                        if not _total_accts:
+                            return fetch_meta_insights(token, acct, s, u, selected_account_type)
+                        dfs = []
+                        for _a in _total_accts:
+                            _df = fetch_meta_insights(token, _a["id"], s, u, _a.get("type","general"))
+                            if _df is not None and len(_df) > 0:
+                                dfs.append(_df)
+                        return pd.concat(dfs, ignore_index=True) if dfs else pd.DataFrame()
+
+                    def _fetch_reach_total(s, u):
+                        if not _total_accts:
+                            return fetch_account_reach(token, acct, s, u)
+                        return sum(fetch_account_reach(token, _a["id"], s, u) for _a in _total_accts)
+
+                    atype = selected_account_type if not _total_accts else "general"
                     st.session_state["selected_account_type"] = atype
-                    df_curr = fetch_meta_insights(token, acct, curr_since, curr_until, atype)
+                    df_curr = _fetch_merged(curr_since, curr_until)
                     st.session_state["df_curr"] = df_curr
+                    st.session_state["reach_curr"] = _fetch_reach_total(curr_since, curr_until)
                     if use_comp:
-                        df_comp = fetch_meta_insights(token, acct, comp_since, comp_until, atype)
+                        df_comp = _fetch_merged(comp_since, comp_until)
                         st.session_state["df_comp"] = df_comp
+                        st.session_state["reach_comp"] = _fetch_reach_total(comp_since, comp_until)
                     else:
                         st.session_state.pop("df_comp", None)
+                        st.session_state.pop("reach_comp", None)
                     if use_mom:
-                        df_mom = fetch_meta_insights(token, acct, mom_since, mom_until, atype)
+                        df_mom = _fetch_merged(mom_since, mom_until)
                         st.session_state["df_mom"] = df_mom
+                        st.session_state["reach_mom"] = _fetch_reach_total(mom_since, mom_until)
                     else:
                         st.session_state.pop("df_mom", None)
+                        st.session_state.pop("reach_mom", None)
                     if use_yoy:
-                        df_yoy = fetch_meta_insights(token, acct, yoy_since, yoy_until, atype)
+                        df_yoy = _fetch_merged(yoy_since, yoy_until)
                         st.session_state["df_yoy"] = df_yoy
+                        st.session_state["reach_yoy"] = _fetch_reach_total(yoy_since, yoy_until)
                     else:
                         st.session_state.pop("df_yoy", None)
-                    st.success(f"✅ 抓到 {len(df_curr)} 個行銷活動")
+                        st.session_state.pop("reach_yoy", None)
+                    st.success(f"✅ 抓到 {len(df_curr)} 個行銷活動" + (f"（{len(_total_accts)} 個帳號合併）" if _total_accts else ""))
                     st.session_state["dim_since"] = curr_since
                     st.session_state["dim_until"] = curr_until
                     st.session_state["dim_token"] = token
@@ -1553,9 +1704,27 @@ if df_curr is not None and not df_curr.empty:
         comp_m = calc_meta_metrics(df_comp) if df_comp is not None else None
         mom_m  = calc_meta_metrics(df_mom)  if df_mom  is not None else None
         yoy_m  = calc_meta_metrics(df_yoy)  if df_yoy  is not None else None
+        # 注入帳戶層級去重 reach（API 模式才有）
+        for _m, _key in [(curr_m, "reach_curr"), (comp_m, "reach_comp"),
+                         (mom_m,  "reach_mom"),  (yoy_m,  "reach_yoy")]:
+            if _m is not None and _key in st.session_state:
+                _m["_account_reach"] = st.session_state[_key]
 
         st.subheader("📈 Meta Ads 關鍵指標（ATL / BTL）")
-        components.html(build_table_html(curr_m, comp_m, mom_m, yoy_m), height=465, scrolling=False)
+        st.markdown("""<style>
+[data-testid="stMetricDelta"] { white-space: normal !important; overflow: visible !important;
+  text-overflow: unset !important; font-size: 11px !important; line-height: 1.4; }
+</style>""", unsafe_allow_html=True)
+        _since = st.session_state.get("dim_since")
+        _until = st.session_state.get("dim_until")
+        if _since and _until:
+            _n = (_until - _since).days + 1
+            _comp_label  = "昨天" if _n == 1 else "上週" if _n == 7 else "前期"
+            _comp_header = "DoD"  if _n == 1 else "WoW"  if _n == 7 else "前期"
+        else:
+            _comp_label  = "前期"
+            _comp_header = "前期"
+        components.html(build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label=_comp_label, comp_header=_comp_header), height=660, scrolling=True)
 
         btl = curr_m.get("BTL", {})
         atl = curr_m.get("ATL", {})
@@ -1567,19 +1736,20 @@ if df_curr is not None and not df_curr.empty:
         yoy_btl  = yoy_m.get("BTL",  {}) if yoy_m  else {}
 
         def funnel_delta(curr_val, comp_val, mom_val, yoy_val, higher_is_better=True):
+            def _fmt(c): return f"{'+' if c>=0 else ''}{round(c)}%"
             parts = []
             if comp_val:
                 c = pct_change(curr_val, comp_val)
                 if c is not None:
-                    parts.append(f"WoW {'+' if c>=0 else ''}{c:.1f}%")
+                    parts.append(f"{_comp_header} {_fmt(c)}")
             if mom_val:
                 c = pct_change(curr_val, mom_val)
                 if c is not None:
-                    parts.append(f"MoM {'+' if c>=0 else ''}{c:.1f}%")
+                    parts.append(f"M {_fmt(c)}")
             if yoy_val:
                 c = pct_change(curr_val, yoy_val)
                 if c is not None:
-                    parts.append(f"YoY {'+' if c>=0 else ''}{c:.1f}%")
+                    parts.append(f"Y {_fmt(c)}")
             return " | ".join(parts) if parts else None
 
         def funnel_color(curr_val, comp_val, higher_is_better=True):
@@ -2161,10 +2331,20 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             _hour_frac = _now_tw.hour + _now_tw.minute / 60
             _expected_pace = _hour_frac / 24  # 當前時間應達成進度
 
+            # ── 快速幅度按鈕
+            _sq_vals = [20, 50, 100, 250, 400, 550, 800]
+            _sq_cols = st.columns(len(_sq_vals))
+            for _si, _sv in enumerate(_sq_vals):
+                with _sq_cols[_si]:
+                    if st.button(f"+{_sv}%", key=f"sched_quick_{_sv}", use_container_width=True):
+                        st.session_state["sched_pct"] = _sv
+                        st.session_state["_sched_btn_set"] = True
+                        st.rerun()
+
             # ── 調整幅度 & 方向
             pc1, pc2 = st.columns(2)
             with pc1:
-                sched_pct = st.number_input("調整幅度 (%)", min_value=1, max_value=10000, value=int(sched_pct), step=5, key="sched_pct")
+                sched_pct = st.number_input("調整幅度 (%)", min_value=1, max_value=10000, value=int(sched_pct), step=50, key="sched_pct")
             with pc2:
                 sched_dir = st.radio("方向", ["加碼 ⬆️", "減碼 ⬇️"], key="sched_dir", horizontal=True)
             sched_actual_pct = sched_pct if "加碼" in sched_dir else -sched_pct
@@ -2721,8 +2901,8 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 st.markdown(f"**已選 {len(sel_camps)} 個活動**")
 
                 # 快捷幅度按鈕（立即套用）
-                PRESETS = [("−25%", -25), ("−10%", -10), ("+10%", 10), ("+25%", 25), ("+50%", 50)]
-                pc = st.columns(5)
+                PRESETS = [("+25%", 25), ("+30%", 30), ("−25%", -25), ("−30%", -30)]
+                pc = st.columns(4)
                 for i, (label, pct) in enumerate(PRESETS):
                     if pc[i].button(label, key=f"adj_preset_{pct}", use_container_width=True):
                         for camp in sel_camps:
@@ -2739,7 +2919,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 # 自訂幅度 + 確認
                 ca1, ca2 = st.columns([3, 2])
                 with ca1:
-                    adj_pct = st.number_input("調整幅度 (%)", min_value=1, max_value=10000, value=20, step=5, key="adj_pct_input")
+                    adj_pct = st.number_input("調整幅度 (%)", min_value=1, max_value=10000, value=20, step=50, key="adj_pct_input")
                 with ca2:
                     adj_dir = st.radio("方向", ["加碼 ⬆️", "減碼 ⬇️"], horizontal=True, key="adj_dir")
                 final_pct = adj_pct if "加碼" in adj_dir else -int(adj_pct)
@@ -2764,3 +2944,38 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
 
 st.markdown("---")
 st.caption("Powered by Claude Sonnet 4.6 · 毛孩時代 & 御熹堂廣告週報自動化")
+
+st.markdown("""
+<style>
+#back-to-top {
+    position: fixed;
+    bottom: 28px;
+    right: 28px;
+    z-index: 9999;
+    background: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    font-size: 20px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+#back-to-top:hover { background: #c0392b; }
+</style>
+<button id="back-to-top" onclick="window.parent.document.querySelector('section.main').scrollTo({top:0,behavior:'smooth'})">↑</button>
+<script>
+(function(){
+    var btn = window.parent.document.getElementById('back-to-top');
+    var main = window.parent.document.querySelector('section.main');
+    if(!main || !btn) return;
+    main.addEventListener('scroll', function(){
+        btn.style.display = main.scrollTop > 300 ? 'flex' : 'none';
+    });
+})();
+</script>
+""", unsafe_allow_html=True)
