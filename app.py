@@ -999,9 +999,12 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
             s_end   = int(s["time_end"])   if str(s["time_end"]).isdigit()   else int(datetime.strptime(str(s["time_end"]),   "%Y-%m-%dT%H:%M:%S%z").timestamp())
         except Exception:
             continue
-        # 只要有重疊就刪
+        # 只要有重疊就刪；刪除失敗（Meta 拒絕）→ 中止建新排程，避免疊加
         if s_start < int(time_end) and s_end > int(time_start):
-            delete_budget_schedule(access_token, s["id"])
+            del_resp = delete_budget_schedule(access_token, s["id"])
+            if del_resp.get("error"):
+                err_msg = del_resp["error"].get("message", "刪除舊排程失敗")
+                return {"error": {"message": f"無法刪除重疊排程（{err_msg}），請先至 Meta 後台手動刪除後再新增。"}}
 
     # MULTIPLIER = 增加百分比：300 = +300%（Meta 花費達 4x）；負數 = 減碼
     budget_value = int(pct_increase)
