@@ -401,7 +401,7 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期", comp_hea
         row += f"<td class='s2'>{metric}<br><span style='font-weight:normal;color:#333;font-size:13px'>{fmt_val(val, style)}</span></td>"
         if mtd_m is not None:
             _mtdv = mtd_m.get(t,{}).get(metric,0)
-            row += f"<td style='text-align:right;color:#555;font-size:13px'>{fmt_val(_mtdv, style)}</td>"
+            row += f"<td style='text-align:left;color:#555;font-size:13px;padding-left:4px'>{fmt_val(_mtdv, style)}</td>"
         if comp_m is not None:
             _cv = comp_m.get(t,{}).get(metric,0)
             row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _cv), hib, _cv, style, comp_label, curr_val=val)}</td>"
@@ -432,7 +432,7 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期", comp_hea
         row += f"<td class='s2' style='font-weight:600'>{metric}<br><span style='font-weight:normal;color:#333;font-size:13px'>{fmt_val(val, style)}</span></td>"
         if mtd_m is not None:
             _mtdv = fn(mtd_m)
-            row += f"<td style='text-align:right;color:#555;font-size:13px'>{fmt_val(_mtdv, style)}</td>"
+            row += f"<td style='text-align:left;color:#555;font-size:13px;padding-left:4px'>{fmt_val(_mtdv, style)}</td>"
         if comp_m is not None:
             _cv = fn(comp_m)
             row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _cv), hib, _cv, style, comp_label, curr_val=val)}</td>"
