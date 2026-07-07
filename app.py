@@ -925,7 +925,7 @@ def delete_budget_schedule(access_token, schedule_id):
     return resp
 
 def update_budget_schedule(access_token, schedule_id, new_pct, campaign_id=None, time_start=None, time_end=None):
-    """修改現有預算排程：POST 相同時段給 campaign，失敗不動舊排程"""
+    """修改現有預算排程：優先直接 PATCH schedule node，失敗才退回刪除+重建"""
     def _to_ts(v):
         try:
             return int(v)
@@ -935,22 +935,32 @@ def update_budget_schedule(access_token, schedule_id, new_pct, campaign_id=None,
     if not time_start or not time_end:
         return {"error": {"message": "缺少排程時段資訊，請重新載入後再試"}}
 
-    ts_start = _to_ts(time_start)
-    ts_end   = _to_ts(time_end)
-    now_ts   = int(datetime.now(timezone.utc).timestamp())
+    ts_end = _to_ts(time_end)
+    now_ts = int(datetime.now(timezone.utc).timestamp())
 
     if ts_end <= now_ts:
         return {"error": {"message": "排程結束時間已過，無法修改，請重新新增排程"}}
 
+    # 先試直接 PATCH（Meta UI 的做法，不受 3 小時限制）
+    patch_resp = requests.post(
+        f"https://graph.facebook.com/v25.0/{schedule_id}",
+        params={"access_token": access_token},
+        json={"budget_value": int(new_pct), "budget_value_type": "MULTIPLIER"},
+        timeout=15,
+    ).json()
+    if patch_resp.get("success") or not patch_resp.get("error"):
+        return {"success": True}
+
+    # PATCH 失敗 → 退回刪除+重建（需 ≥ 3 小時）
+    ts_start  = _to_ts(time_start)
+    remaining = ts_end - now_ts
+    if remaining < 3 * 3600:
+        remaining_min = int(remaining / 60)
+        return {"error": {"message": f"距排程結束僅剩 {remaining_min} 分鐘（需 ≥ 3 小時才能用重建方式修改）。舊排程保留中。"}}
+
     if not campaign_id:
         return {"error": {"message": "缺少 campaign_id，無法重建排程"}}
 
-    # 剩餘時間 < 3 小時 → Meta 建不回來，直接擋住保留舊排程
-    remaining_min = int((ts_end - now_ts) / 60)
-    if ts_end - now_ts < 3 * 3600:
-        return {"error": {"message": f"Meta 限制：距排程結束僅剩 {remaining_min} 分鐘（需 ≥ 3 小時才能修改）。舊排程保留中。"}}
-
-    # 剩餘時間足夠 → 先刪再建
     delete_budget_schedule(access_token, schedule_id)
     return create_budget_schedule(access_token, campaign_id, ts_start, ts_end, new_pct)
 
