@@ -1496,7 +1496,7 @@ df_curr = df_comp = df_mom = df_yoy = None
 
 if data_source == "Meta API 自動抓取":
     today = datetime.now(timezone(timedelta(hours=8))).date()
-    preset_options = ["今日", "昨天", "過去7天", "本月至今", "本月（含今日）", "自訂"]
+    preset_options = ["今日", "昨天", "過去7天", "本月至昨日", "本月（含今日）", "自訂"]
 
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -1513,7 +1513,7 @@ if data_source == "Meta API 自動抓取":
             elif preset == "過去7天":
                 st.session_state["api_curr_s"] = today - timedelta(days=6)
                 st.session_state["api_curr_e"] = today
-            elif preset == "本月至今":
+            elif preset == "本月至昨日":
                 st.session_state["api_curr_s"] = date(today.year, today.month, 1)
                 st.session_state["api_curr_e"] = today - timedelta(days=1)
             elif preset == "本月（含今日）":
