@@ -2026,6 +2026,7 @@ def _do_load_campaigns(token, acct, force=False):
                 ins_today  = f_ins.result()
                 ins_7d_raw = f_ins_7d.result()
             st.session_state["campaigns"]         = camps
+            st.session_state["adj_campaigns"]     = camps  # 同步快速加減碼
             st.session_state["sched_insights"]    = ins_today
             st.session_state["sched_insights_7d"] = ins_7d_raw
 
@@ -2754,7 +2755,9 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                         f_camps  = ex.submit(fetch_campaigns_with_budget, _token, _acct)
                         f_ins    = ex.submit(fetch_today_campaign_insights, _token, _acct)
                         f_ins_7d = ex.submit(fetch_today_campaign_insights, _token, _acct, "last_7d")
-                        st.session_state["adj_campaigns"]   = f_camps.result()
+                        _camps_result = f_camps.result()
+                        st.session_state["adj_campaigns"]   = _camps_result
+                        st.session_state["campaigns"]       = _camps_result  # 同步排程區塊
                         st.session_state["adj_insights"]    = f_ins.result()
                         st.session_state["adj_insights_7d"] = f_ins_7d.result()
                 except Exception as e:
