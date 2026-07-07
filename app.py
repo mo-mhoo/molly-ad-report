@@ -354,7 +354,7 @@ def _chg_color(v, hib, ref_val=None, ref_style=None, ref_label=None, curr_val=No
         return f'<div class="chg-inner">{pct_span}{ref_span}</div>'
     return f'<div class="chg-inner">{pct_span}</div>'
 
-def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期", comp_header=None):
+def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期", comp_header=None, mtd_m=None):
     rows_def = [
         ("ATL", "花費",    "currency", True),
         ("ATL", "點擊",    "count",    True),
@@ -368,7 +368,8 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期", comp_hea
     _comp_hdr = comp_header or comp_label
     cols = [_comp_hdr if comp_m else None, "MoM" if mom_m else None, "YoY" if yoy_m else None]
     chg_headers = "".join(f"<th>{c}</th>" for c in cols if c)
-    header = f"<tr><th class='s1'>類型</th><th class='s2'>指標 / 數值</th>{chg_headers}</tr>"
+    mtd_header = "<th>MTD</th>" if mtd_m else ""
+    header = f"<tr><th class='s1'>類型</th><th class='s2'>指標 / 數值</th>{mtd_header}{chg_headers}</tr>"
 
     def _total_spend(m):
         return (m.get("ATL", {}).get("花費", 0) or 0) + (m.get("BTL", {}).get("花費", 0) or 0)
@@ -398,6 +399,9 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期", comp_hea
             row += f'<td rowspan="{span}" class="s1" style="font-weight:700;text-align:center;vertical-align:middle">{t}</td>'
             prev_type = t
         row += f"<td class='s2'>{metric}<br><span style='font-weight:normal;color:#333;font-size:13px'>{fmt_val(val, style)}</span></td>"
+        if mtd_m is not None:
+            _mtdv = mtd_m.get(t,{}).get(metric,0)
+            row += f"<td style='text-align:right;color:#555;font-size:13px'>{fmt_val(_mtdv, style)}</td>"
         if comp_m is not None:
             _cv = comp_m.get(t,{}).get(metric,0)
             row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _cv), hib, _cv, style, comp_label, curr_val=val)}</td>"
@@ -426,6 +430,9 @@ def build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label="前期", comp_hea
         if i == 0:
             row += f'<td rowspan="{n_total}" class="s1" style="{td_style}">{t}</td>'
         row += f"<td class='s2' style='font-weight:600'>{metric}<br><span style='font-weight:normal;color:#333;font-size:13px'>{fmt_val(val, style)}</span></td>"
+        if mtd_m is not None:
+            _mtdv = fn(mtd_m)
+            row += f"<td style='text-align:right;color:#555;font-size:13px'>{fmt_val(_mtdv, style)}</td>"
         if comp_m is not None:
             _cv = fn(comp_m)
             row += f"<td class='chg-cell'>{_chg_color(pct_change(val, _cv), hib, _cv, style, comp_label, curr_val=val)}</td>"
@@ -1601,6 +1608,13 @@ if data_source == "Meta API 自動抓取":
                     else:
                         st.session_state.pop("df_yoy", None)
                         st.session_state.pop("reach_yoy", None)
+                    # 固定抓 MTD（本月1日→今天）作為參照欄
+                    _mtd_s = date(today.year, today.month, 1)
+                    _mtd_e = today
+                    if _mtd_s == curr_since and _mtd_e == curr_until:
+                        st.session_state["df_mtd"] = df_curr  # 本期就是 MTD，共用
+                    else:
+                        st.session_state["df_mtd"] = _fetch_merged(_mtd_s, _mtd_e)
                     st.success(f"✅ 抓到 {len(df_curr)} 個行銷活動" + (f"（{len(_total_accts)} 個帳號合併）" if _total_accts else ""))
                     st.session_state["dim_since"] = curr_since
                     st.session_state["dim_until"] = curr_until
@@ -1717,6 +1731,8 @@ if df_curr is not None and not df_curr.empty:
         comp_m = calc_meta_metrics(df_comp) if df_comp is not None else None
         mom_m  = calc_meta_metrics(df_mom)  if df_mom  is not None else None
         yoy_m  = calc_meta_metrics(df_yoy)  if df_yoy  is not None else None
+        df_mtd = st.session_state.get("df_mtd")
+        mtd_m  = calc_meta_metrics(df_mtd)  if df_mtd  is not None and not df_mtd.empty else None
         # 注入帳戶層級去重 reach（API 模式才有）
         for _m, _key in [(curr_m, "reach_curr"), (comp_m, "reach_comp"),
                          (mom_m,  "reach_mom"),  (yoy_m,  "reach_yoy")]:
@@ -1737,7 +1753,8 @@ if df_curr is not None and not df_curr.empty:
         else:
             _comp_label  = "前期"
             _comp_header = "前期"
-        components.html(build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label=_comp_label, comp_header=_comp_header), height=660, scrolling=True)
+        _show_mtd = mtd_m is not None and not (_since == date(today.year, today.month, 1) and _until == today)
+        components.html(build_table_html(curr_m, comp_m, mom_m, yoy_m, comp_label=_comp_label, comp_header=_comp_header, mtd_m=mtd_m if _show_mtd else None), height=660, scrolling=True)
 
         btl = curr_m.get("BTL", {})
         atl = curr_m.get("ATL", {})
