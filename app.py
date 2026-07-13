@@ -2710,7 +2710,13 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
         del_scheds = st.session_state.get("del_scheds", {})
 
         if st.session_state.get("_del_all_msg"):
-            st.success(st.session_state["_del_all_msg"])
+            _dmsg = st.session_state["_del_all_msg"]
+            if "\n" in _dmsg:
+                first_line, rest = _dmsg.split("\n", 1)
+                st.success(first_line)
+                st.warning(rest)
+            else:
+                st.success(_dmsg)
 
         if del_scheds:
             tz_tw = timezone(timedelta(hours=8))
@@ -2722,14 +2728,19 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 exp_count = len(all_expired)
                 st.warning(f"共有 **{exp_count}** 筆過期排程")
                 if st.button(f"🗑️ 一鍵刪除所有過期排程（{exp_count} 筆）", type="primary", key="del_all_expired"):
-                    ok, fail = 0, 0
-                    for _, s in all_expired:
+                    ok, fail_msgs = 0, []
+                    for cid, s in all_expired:
                         res = delete_budget_schedule(_token, s["id"])
                         if res.get("success"):
                             ok += 1
                         else:
-                            fail += 1
-                    st.session_state["_del_all_msg"] = f"✅ 已刪除 {ok} 筆過期排程" + (f"，失敗 {fail} 筆" if fail else "")
+                            err = res.get("error", {})
+                            camp_name = del_scheds.get(cid, {}).get("campaign", {}).get("name", cid)
+                            fail_msgs.append(f"{camp_name}：{err.get('message','unknown')} (subcode:{err.get('error_subcode','-')})")
+                    msg = f"✅ 已刪除 {ok} 筆過期排程"
+                    if fail_msgs:
+                        msg += f"，失敗 {len(fail_msgs)} 筆：\n" + "\n".join(f"・{m}" for m in fail_msgs)
+                    st.session_state["_del_all_msg"] = msg
                     camps2 = fetch_campaigns_with_budget(_token, selected_account_id)
                     _now2 = datetime.now(timezone.utc).timestamp()
                     st.session_state["del_scheds"] = _batch_fetch_all_schedules(_token, camps2, _now2)
