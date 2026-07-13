@@ -893,6 +893,7 @@ def _batch_fetch_all_schedules(token, camps, now_ts):
             continue
         for c, item in zip(chunk, batch_resp):
             if not isinstance(item, dict) or item.get("code") != 200:
+                print(f"[DEBUG] batch_sched skip cid={c['id']} name={c['name']} code={item.get('code') if isinstance(item, dict) else 'N/A'} body={str(item)[:200]}")
                 continue
             try:
                 body  = json.loads(item.get("body", "{}"))
@@ -903,6 +904,8 @@ def _batch_fetch_all_schedules(token, camps, now_ts):
                         "active":  [s for s in scheds if _end_ts(s) > now_ts],
                         "expired": [s for s in scheds if _end_ts(s) <= now_ts],
                     }
+                else:
+                    print(f"[DEBUG] batch_sched empty cid={c['id']} name={c['name']} body={str(body)[:200]}")
             except Exception:
                 continue
     return result
