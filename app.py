@@ -1023,6 +1023,7 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
     result = requests.post(f"https://graph.facebook.com/v25.0/{campaign_id}", data=payload, timeout=30).json()
     if "error" not in result:
         return {"success": True, "level": "campaign"}
+    print(f"[DEBUG] create_budget_schedule campaign={campaign_id} full_error={result.get('error')}")
 
     # error_subcode 3858090：time_end 超出活動本身排期 → 縮短至活動結束時間重試
     if result.get("error", {}).get("error_subcode") == 3858090:
@@ -2723,9 +2724,29 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                             fail += 1
                     st.success(f"✅ 已刪除 {ok} 筆" + (f"，失敗 {fail} 筆" if fail else ""))
                     camps2 = fetch_campaigns_with_budget(_token, selected_account_id)
-                    st.session_state["del_scheds"] = _batch_fetch_all_schedules(
-                        _token, camps2, datetime.now(timezone.utc).timestamp()
-                    )
+                    _now2 = datetime.now(timezone.utc).timestamp()
+                    st.session_state["del_scheds"] = _batch_fetch_all_schedules(_token, camps2, _now2)
+                    # 同步更新 today_scheds（tab1 今日排程欄）
+                    _active2 = [c for c in camps2 if c.get("status") == "ACTIVE"]
+                    _new_today = {}
+                    _sched_field2 = "id,time_start,time_end,budget_value,budget_value_type,status"
+                    for _chunk_s in range(0, len(_active2), 50):
+                        _chunk2 = _active2[_chunk_s: _chunk_s + 50]
+                        _bp2 = [{"method": "GET", "relative_url": f"{c['id']}/budget_schedules?fields={_sched_field2}&limit=50"} for c in _chunk2]
+                        try:
+                            _br2 = requests.post("https://graph.facebook.com/v25.0/", data={"access_token": _token, "batch": json.dumps(_bp2)}, timeout=30).json()
+                            for c2, item2 in zip(_chunk2, _br2):
+                                if not isinstance(item2, dict) or item2.get("code") != 200:
+                                    continue
+                                _b2 = json.loads(item2.get("body", "{}"))
+                                _valid2 = [s for s in _b2.get("data", []) if _end_ts(s) > _now2]
+                                if _valid2:
+                                    _best2 = min(_valid2, key=lambda s: _end_ts(s))
+                                    _bv2 = int(_best2.get("budget_value", 100))
+                                    _new_today[c2["id"]] = {"tag": f"+{_bv2}%" if _bv2 >= 0 else f"{_bv2}%", "schedule_id": _best2["id"], "budget_value": _bv2, "time_start": _best2.get("time_start"), "time_end": _best2.get("time_end")}
+                        except Exception:
+                            pass
+                    st.session_state["today_scheds"] = _new_today
                     st.rerun()
             else:
                 st.success("✅ 沒有過期排程")
