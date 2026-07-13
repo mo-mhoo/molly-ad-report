@@ -2708,12 +2708,13 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                         st.error(f"錯誤：{e}")
 
         del_scheds = st.session_state.get("del_scheds", {})
+
+        if st.session_state.get("_del_all_msg"):
+            st.success(st.session_state["_del_all_msg"])
+
         if del_scheds:
             tz_tw = timezone(timedelta(hours=8))
             _token = cfg.get("meta_token", "")
-
-            if st.session_state.get("_del_all_msg"):
-                st.success(st.session_state["_del_all_msg"])
 
             # 統計過期排程數
             all_expired = [(cid, s) for cid, data in del_scheds.items() for s in data["expired"]]
