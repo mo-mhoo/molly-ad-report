@@ -2712,6 +2712,9 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             tz_tw = timezone(timedelta(hours=8))
             _token = cfg.get("meta_token", "")
 
+            if st.session_state.get("_del_all_msg"):
+                st.success(st.session_state["_del_all_msg"])
+
             # 統計過期排程數
             all_expired = [(cid, s) for cid, data in del_scheds.items() for s in data["expired"]]
             if all_expired:
@@ -2725,7 +2728,7 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                             ok += 1
                         else:
                             fail += 1
-                    st.success(f"✅ 已刪除 {ok} 筆" + (f"，失敗 {fail} 筆" if fail else ""))
+                    st.session_state["_del_all_msg"] = f"✅ 已刪除 {ok} 筆過期排程" + (f"，失敗 {fail} 筆" if fail else "")
                     camps2 = fetch_campaigns_with_budget(_token, selected_account_id)
                     _now2 = datetime.now(timezone.utc).timestamp()
                     st.session_state["del_scheds"] = _batch_fetch_all_schedules(_token, camps2, _now2)
