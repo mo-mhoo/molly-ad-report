@@ -1026,7 +1026,7 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
     result = requests.post(f"https://graph.facebook.com/v25.0/{campaign_id}", data=payload, timeout=30).json()
     if "error" not in result:
         return {"success": True, "level": "campaign"}
-    print(f"[DEBUG] create_budget_schedule campaign={campaign_id} full_error={result.get('error')}")
+    print(f"[DEBUG] create_budget_schedule camp={campaign_id} err={result.get('error')} spec={spec}")
 
     # error_subcode 3858090：time_end 超出活動本身排期 → 縮短至活動結束時間重試
     if result.get("error", {}).get("error_subcode") == 3858090:
@@ -1104,6 +1104,43 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
                 return {"error": {"message": " / ".join(fail)}}
         else:
             return {"error": {"message": "找不到廣告組合，無法建立排程（此活動可能需手動調整預算）"}}
+
+    # Invalid parameter（無特定 subcode）→ 查預算類型再嘗試 adset fallback
+    if "Invalid parameter" in result.get("error", {}).get("message", ""):
+        print(f"[DEBUG] campaign Invalid parameter camp={campaign_id} err={result.get('error')}")
+        _bi = requests.get(
+            f"https://graph.facebook.com/v25.0/{campaign_id}",
+            params={"fields": "daily_budget,lifetime_budget", "access_token": access_token},
+            timeout=15,
+        ).json()
+        print(f"[DEBUG] camp_budget_info={_bi}")
+        if _bi.get("lifetime_budget") and int(_bi.get("lifetime_budget", 0)) > 0:
+            return {"error": {"message": "此活動使用終生預算（Lifetime Budget），不支援 MULTIPLIER 排程加碼。請至 Meta 廣告管理員手動調整預算。"}}
+        _inv_adsets = requests.get(
+            f"https://graph.facebook.com/v25.0/{campaign_id}/adsets",
+            params={"fields": "id,name,daily_budget,lifetime_budget", "access_token": access_token, "limit": 50},
+            timeout=15,
+        ).json().get("data", [])
+        print(f"[DEBUG] Invalid parameter adsets={[a.get('id') for a in _inv_adsets]}")
+        if not _inv_adsets:
+            return {"error": {"message": f"此活動不支援排程加碼（{result.get('error', {}).get('message', 'Invalid parameter')}）"}}
+        ok, fail, invalid = 0, [], 0
+        for a in _inv_adsets:
+            r = requests.post(f"https://graph.facebook.com/v25.0/{a['id']}", data=payload, timeout=30).json()
+            if "error" not in r:
+                ok += 1
+            elif "Invalid parameter" in r.get("error", {}).get("message", ""):
+                invalid += 1
+            else:
+                fail.append(f"{a['name']}: {r['error']['message']}")
+        if ok:
+            msg = f"已套用至 {ok} 個廣告組合（adset 層級）"
+            if fail:
+                msg += f"，{len(fail)} 個失敗"
+            return {"success": True, "level": "adset", "note": f"（{msg}）"}
+        if invalid == len(_inv_adsets):
+            return {"error": {"message": "此活動的廣告組合均不支援排程加碼（可能使用終生預算）。請至 Meta 廣告管理員手動調整。"}}
+        return {"error": {"message": " / ".join(fail) if fail else result.get("error", {}).get("message", "排程建立失敗")}}
 
     # error_subcode 3858199 / 3858175：帶著 daily_budget 再試一次（ASC 活動需要）
     if result.get("error", {}).get("error_subcode") in (3858199, 3858175):
