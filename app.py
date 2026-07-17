@@ -1069,41 +1069,10 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
             if "error" not in _r_db:
                 return {"success": True, "level": "campaign", "note": "（帶 daily_budget 成功）"}
 
-    # 3858090 且無法縮短（無結束時間）→ 嘗試 adset 層級
+    # 3858090 且所有 campaign 層重試均失敗 → 回明確錯誤（budget_schedule_specs 僅支援 campaign 層，adset 不適用）
     if result.get("error", {}).get("error_subcode") == 3858090:
-        print(f"[DEBUG] 3858090 campaign={campaign_id} err={result.get('error')}")
-        _adsets_resp = requests.get(
-            f"https://graph.facebook.com/v25.0/{campaign_id}/adsets",
-            params={"fields": "id,name,daily_budget,lifetime_budget", "access_token": access_token, "limit": 50},
-            timeout=15,
-        ).json()
-        print(f"[DEBUG] 3858090 adsets_resp={_adsets_resp}")
-        adsets = _adsets_resp.get("data", [])
-        if adsets:
-            # 偵測 CBO：所有 adset 都沒有自己的預算 → budget_rebalance_flag 活動
-            all_cbo = all(not a.get("daily_budget") and not a.get("lifetime_budget") for a in adsets)
-            if all_cbo:
-                return {"error": {"message": "此為行銷活動預算（CBO）活動，排程 API 不支援。建議改用「快速加減碼」直接調整日預算，或在 Meta 廣告管理員設定預算排程。"}}
-            ok, fail, invalid = 0, [], 0
-            for a in adsets:
-                r = requests.post(f"https://graph.facebook.com/v25.0/{a['id']}", data=payload, timeout=30).json()
-                if "error" not in r:
-                    ok += 1
-                elif "Invalid parameter" in r.get("error", {}).get("message", ""):
-                    invalid += 1
-                else:
-                    fail.append(f"{a['name']}: {r['error']['message']}")
-            if ok:
-                msg = f"已套用至 {ok} 個廣告組合（adset 層級）"
-                if fail:
-                    msg += f"，{len(fail)} 個失敗"
-                return {"success": True, "level": "adset", "note": f"（{msg}）"}
-            if invalid == len(adsets):
-                return {"error": {"message": "此活動的廣告組合不支援排程加碼（使用 lifetime 預算）。請改用活動管理員手動調整預算。"}}
-            if fail:
-                return {"error": {"message": " / ".join(fail)}}
-        else:
-            return {"error": {"message": "找不到廣告組合，無法建立排程（此活動可能需手動調整預算）"}}
+        print(f"[DEBUG] 3858090 all retries failed campaign={campaign_id} err={result.get('error')}")
+        return {"error": {"message": "排程時段超出活動排期限制，三種方式均無法建立。請至 Meta 廣告管理員手動設定預算排程。"}}
 
     # error_subcode 3858199 / 3858175：帶著 daily_budget 再試一次（ASC 活動需要）
     if result.get("error", {}).get("error_subcode") in (3858199, 3858175):
