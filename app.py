@@ -1009,6 +1009,16 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
                 err_msg = del_resp["error"].get("message", "刪除舊排程失敗")
                 return {"error": {"message": f"無法刪除重疊排程（{err_msg}），請先至 Meta 後台手動刪除後再新增。"}}
 
+    # ── Meta budget_schedule_specs 已知錯誤處理順序（勿更動順序）──────────────
+    # subcode 3858090 → time_end 超出活動排期：縮短 time_end → 帶 daily_budget 重試
+    # subcode 3858199 / 3858175 → ASC/特殊活動需帶 daily_budget 才能建排程
+    # subcode 2446489 → budget_rebalance_flag 已廢棄（v7.0+），payload 絕對不能帶此欄位
+    # "Invalid parameter" 通用 catch-all → 必須放在所有已知 subcode handler 之後，
+    #   並排除 3858090/3858199/3858175，否則會攔截有專屬處理邏輯的錯誤
+    # budget_schedule_specs 只支援 campaign 層，adset 層一律 Invalid parameter，
+    #   不要對 adset 發 budget_schedule_specs 請求
+    # ─────────────────────────────────────────────────────────────────────────
+
     # MULTIPLIER = 增加百分比：300 = +300%（Meta 花費達 4x）；負數 = 減碼
     budget_value = int(pct_increase)
     spec = [{
