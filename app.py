@@ -2722,14 +2722,23 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 st.warning(f"共有 **{exp_count}** 筆過期排程")
                 if st.button(f"🗑️ 一鍵刪除所有過期排程（{exp_count} 筆）", type="primary", key="del_all_expired"):
                     ok, fail_msgs = 0, []
-                    for cid, s in all_expired:
-                        res = delete_budget_schedule(_token, s["id"])
-                        if res.get("success"):
-                            ok += 1
-                        else:
-                            err = res.get("error", {})
-                            camp_name = del_scheds.get(cid, {}).get("campaign", {}).get("name", cid)
-                            fail_msgs.append(f"{camp_name}：{err.get('message','unknown')} (subcode:{err.get('error_subcode','-')})")
+                    # Batch API 刪除，避免逐筆觸發 rate limit
+                    _del_chunks = [all_expired[i:i+50] for i in range(0, len(all_expired), 50)]
+                    for _chunk in _del_chunks:
+                        _batch_del = [{"method": "DELETE", "relative_url": f"{s['id']}?access_token={_token}"} for _, s in _chunk]
+                        try:
+                            _br = requests.post("https://graph.facebook.com/v25.0/", data={"access_token": _token, "batch": json.dumps(_batch_del)}, timeout=30).json()
+                            for (cid, s), item in zip(_chunk, _br):
+                                if isinstance(item, dict) and item.get("code") in (200, 204):
+                                    ok += 1
+                                else:
+                                    _body = json.loads(item.get("body", "{}")) if isinstance(item, dict) else {}
+                                    err = _body.get("error", {})
+                                    camp_name = del_scheds.get(cid, {}).get("campaign", {}).get("name", cid)
+                                    fail_msgs.append(f"{camp_name}：{err.get('message','unknown')} (subcode:{err.get('error_subcode','-')})")
+                        except Exception as _de:
+                            for cid, s in _chunk:
+                                fail_msgs.append(f"{s['id']}：{_de}")
                     msg = f"✅ 已刪除 {ok} 筆過期排程"
                     if fail_msgs:
                         msg += f"，失敗 {len(fail_msgs)} 筆：\n" + "\n".join(f"・{m}" for m in fail_msgs)
