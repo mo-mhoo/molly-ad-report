@@ -2741,7 +2741,14 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                                 fail_msgs.append(f"{s['id']}：{_de}")
                     msg = f"✅ 已刪除 {ok} 筆過期排程"
                     if fail_msgs:
-                        msg += f"，失敗 {len(fail_msgs)} 筆：\n" + "\n".join(f"・{m}" for m in fail_msgs)
+                        rl_count = sum(1 for m in fail_msgs if "request limit" in m.lower() or "#4" in m)
+                        other_msgs = [m for m in fail_msgs if "request limit" not in m.lower() and "#4" not in m]
+                        detail_parts = []
+                        if rl_count:
+                            detail_parts.append(f"⏳ {rl_count} 筆遭 rate limit，請稍後再按一次刪除")
+                        if other_msgs:
+                            detail_parts.append("\n".join(f"・{m}" for m in other_msgs))
+                        msg += f"，失敗 {len(fail_msgs)} 筆：\n" + "\n".join(detail_parts)
                     st.session_state["_del_all_msg"] = msg
                     camps2 = fetch_campaigns_with_budget(_token, selected_account_id)
                     _now2 = datetime.now(timezone.utc).timestamp()
