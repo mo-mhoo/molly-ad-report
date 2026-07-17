@@ -1075,7 +1075,7 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
         return {"error": {"message": "排程時段超出活動排期限制，三種方式均無法建立。請至 Meta 廣告管理員手動設定預算排程。"}}
 
     # Invalid parameter（無特定 subcode）→ 顯示原始錯誤，讓 logs 能追蹤
-    if "Invalid parameter" in result.get("error", {}).get("message", ""):
+    if "Invalid parameter" in result.get("error", {}).get("message", "") and result.get("error", {}).get("error_subcode") not in (3858199, 3858175, 3858090):
         print(f"[DEBUG] campaign Invalid parameter camp={campaign_id} err={result.get('error')}")
         _bi = requests.get(
             f"https://graph.facebook.com/v25.0/{campaign_id}",
