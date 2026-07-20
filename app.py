@@ -634,9 +634,7 @@ def mom_range(since, until):
 
 # ── UI ───────────────────────────────────────────────────
 
-st.markdown("## 📊 廣告週報產生器")
-st.markdown("Meta API 直抓 或 上傳 CSV，自動計算 WoW/YoY 並生成觀察與行動建議。")
-st.divider()
+
 
 cfg = load_config()
 
