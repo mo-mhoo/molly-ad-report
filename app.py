@@ -19,7 +19,7 @@ AGGRID_SCROLL_CSS = {
     ".ag-center-cols-viewport":   {"overflow-x": "auto !important"},
 }
 
-st.set_page_config(page_title="廣告週報產生器", page_icon="📊", layout="wide")
+st.set_page_config(page_title="Meta 廣告戰情室", page_icon="📊", layout="wide")
 
 REPORT_DIR = Path("/Users/a111111/Downloads/TSA/Report/")
 CONFIG_FILE = Path(__file__).parent / "config.json"
@@ -931,6 +931,53 @@ def delete_budget_schedule(access_token, schedule_id):
         timeout=15,
     ).json()
     return resp
+
+def _verify_campaign_active(access_token, campaign_id, was_active):
+    """寫入後讀回：確認 campaign 沒有被 Meta 自動暫停（僅在寫入前為 ACTIVE 時才檢查）"""
+    if not was_active:
+        return None
+    try:
+        info = requests.get(
+            f"https://graph.facebook.com/v25.0/{campaign_id}",
+            params={"fields": "status", "access_token": access_token},
+            timeout=15,
+        ).json()
+    except Exception:
+        return None
+    if info.get("status") == "PAUSED":
+        return "⚠️ 讀回驗證：活動寫入前為 ACTIVE，寫入後變成 PAUSED，可能被 Meta 自動暫停，請確認"
+    return None
+
+def _verify_daily_budget(access_token, entity_id, expected):
+    """寫入後讀回：確認 daily_budget 真的落地成預期值"""
+    try:
+        info = requests.get(
+            f"https://graph.facebook.com/v25.0/{entity_id}",
+            params={"fields": "daily_budget", "access_token": access_token},
+            timeout=15,
+        ).json()
+    except Exception:
+        return None
+    actual = info.get("daily_budget")
+    if actual is None or int(actual) != int(expected):
+        return f"⚠️ 讀回驗證：daily_budget 實際為 {actual}，預期 {expected}，請確認"
+    return None
+
+def _verify_schedule_landed(access_token, campaign_id, expected_budget_value):
+    """寫入後讀回：確認排程真的出現在 budget_schedules 列表中"""
+    try:
+        scheds = fetch_campaign_schedules(access_token, campaign_id)
+    except Exception:
+        return None
+    found = any(int(s.get("budget_value", -1) or -1) == int(expected_budget_value) for s in scheds)
+    if not found:
+        return f"⚠️ 讀回驗證：Meta 回傳成功，但排程列表中找不到 budget_value={expected_budget_value} 的排程，請人工確認"
+    return None
+
+def _attach_warning(result, warning):
+    if warning:
+        result["warning"] = (result.get("warning", "") + " " + warning).strip()
+    return result
 
 def update_budget_schedule(access_token, schedule_id, new_pct, campaign_id=None, time_start=None, time_end=None):
     """修改現有預算排程：優先直接 PATCH schedule node，失敗才退回刪除+重建"""
