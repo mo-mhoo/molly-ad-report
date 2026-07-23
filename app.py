@@ -996,6 +996,18 @@ def update_budget_schedule(access_token, schedule_id, new_pct, campaign_id=None,
     if ts_end <= now_ts:
         return {"error": {"message": "排程結束時間已過，無法修改，請重新新增排程"}}
 
+    # 寫入前先記錄 campaign 狀態，供寫入後讀回比對是否被自動暫停
+    was_active = None
+    if campaign_id:
+        try:
+            was_active = requests.get(
+                f"https://graph.facebook.com/v25.0/{campaign_id}",
+                params={"fields": "status", "access_token": access_token},
+                timeout=15,
+            ).json().get("status") == "ACTIVE"
+        except Exception:
+            was_active = None
+
     # 先試直接 PATCH（Meta UI 的做法，不受 3 小時限制）
     patch_resp = requests.post(
         f"https://graph.facebook.com/v25.0/{schedule_id}",
@@ -1004,7 +1016,20 @@ def update_budget_schedule(access_token, schedule_id, new_pct, campaign_id=None,
         timeout=15,
     ).json()
     if patch_resp.get("success") or not patch_resp.get("error"):
-        return {"success": True}
+        result = {"success": True}
+        try:
+            sched_info = requests.get(
+                f"https://graph.facebook.com/v25.0/{schedule_id}",
+                params={"fields": "budget_value", "access_token": access_token},
+                timeout=15,
+            ).json()
+            if int(sched_info.get("budget_value", -1) or -1) != int(new_pct):
+                result = _attach_warning(result, f"⚠️ 讀回驗證：排程 budget_value 實際為 {sched_info.get('budget_value')}，預期 {new_pct}，請確認")
+        except Exception:
+            pass
+        if campaign_id:
+            result = _attach_warning(result, _verify_campaign_active(access_token, campaign_id, was_active))
+        return result
 
     # PATCH 失敗 → 退回刪除+重建（需 ≥ 3 小時）
     ts_start  = _to_ts(time_start)
@@ -1064,6 +1089,21 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
     #   不要對 adset 發 budget_schedule_specs 請求
     # ─────────────────────────────────────────────────────────────────────────
 
+    # 寫入前先記錄 campaign 狀態，供寫入後讀回比對是否被自動暫停
+    try:
+        was_active = requests.get(
+            f"https://graph.facebook.com/v25.0/{campaign_id}",
+            params={"fields": "status", "access_token": access_token},
+            timeout=15,
+        ).json().get("status") == "ACTIVE"
+    except Exception:
+        was_active = None
+
+    def _finish(result):
+        result = _attach_warning(result, _verify_campaign_active(access_token, campaign_id, was_active))
+        result = _attach_warning(result, _verify_schedule_landed(access_token, campaign_id, budget_value))
+        return result
+
     # MULTIPLIER = 增加百分比：300 = +300%（Meta 花費達 4x）；負數 = 減碼
     budget_value = int(pct_increase)
     spec = [{
@@ -1080,7 +1120,7 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
     # 先嘗試 campaign 層級
     result = requests.post(f"https://graph.facebook.com/v25.0/{campaign_id}", data=payload, timeout=30).json()
     if "error" not in result:
-        return {"success": True, "level": "campaign"}
+        return _finish({"success": True, "level": "campaign"})
     print(f"[DEBUG] create_budget_schedule camp={campaign_id} err={result.get('error')} spec={spec}")
 
     # error_subcode 3858090：time_end 超出活動本身排期 → 縮短至活動結束時間重試
@@ -1102,7 +1142,7 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
                     result2 = requests.post(f"https://graph.facebook.com/v25.0/{campaign_id}", data=payload2, timeout=30).json()
                     print(f"[DEBUG] 3858090 truncated retry result={result2}")
                     if "error" not in result2:
-                        return {"success": True, "level": "campaign", "note": f"（排程結束時間已調整為活動結束時間）"}
+                        return _finish({"success": True, "level": "campaign", "note": f"（排程結束時間已調整為活動結束時間）"})
                     result = result2
                 else:
                     return {"error": {"message": "活動排期已結束，無法建立排程"}}
@@ -1122,7 +1162,7 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
             _r_db = requests.post(f"https://graph.facebook.com/v25.0/{campaign_id}", data=_payload_db, timeout=30).json()
             print(f"[DEBUG] 3858090+daily_budget retry result={_r_db}")
             if "error" not in _r_db:
-                return {"success": True, "level": "campaign", "note": "（帶 daily_budget 成功）"}
+                return _finish({"success": True, "level": "campaign", "note": "（帶 daily_budget 成功）"})
 
     # 3858090 且所有 campaign 層重試均失敗 → 回明確錯誤（budget_schedule_specs 僅支援 campaign 層，adset 不適用）
     if result.get("error", {}).get("error_subcode") == 3858090:
@@ -1151,21 +1191,26 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
             timeout=15,
         ).json()
         daily_budget = camp_info.get("daily_budget")
+        print(f"[DEBUG] 3858199 camp={campaign_id} daily_budget={daily_budget}")
         if daily_budget:
             payload2 = {**payload, "daily_budget": daily_budget}
             result2 = requests.post(f"https://graph.facebook.com/v25.0/{campaign_id}", data=payload2, timeout=30).json()
+            print(f"[DEBUG] 3858199 daily_budget retry result={result2}")
             if "error" not in result2:
-                return {"success": True, "level": "campaign"}
+                return _finish({"success": True, "level": "campaign"})
             result = result2  # 用新的錯誤繼續往下
 
         # adset 層級 fallback
-        adsets = requests.get(
+        _adsets_raw = requests.get(
             f"https://graph.facebook.com/v25.0/{campaign_id}/adsets",
             params={"fields": "id,name,daily_budget,lifetime_budget", "access_token": access_token, "limit": 50},
             timeout=15,
-        ).json().get("data", [])
+        ).json()
+        print(f"[DEBUG] 3858199 adsets_raw={str(_adsets_raw)[:300]}")
+        adsets = _adsets_raw.get("data", [])
         if not adsets:
-            return {"error": {"message": "找不到任何廣告組合"}}
+            _adsets_err = _adsets_raw.get("error", {})
+            return {"error": {"message": f"找不到任何廣告組合（{_adsets_err.get('message', 'API 回空')}）"}}
 
         ok, fail, invalid = 0, [], 0
         for a in adsets:
@@ -1181,7 +1226,7 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
             msg = f"已套用至 {ok} 個廣告組合（adset 層級）"
             if fail:
                 msg += f"；失敗 {len(fail)} 個"
-            return {"success": True, "note": msg}
+            return _attach_warning({"success": True, "note": msg}, _verify_campaign_active(access_token, campaign_id, was_active))
 
         err_msg = result.get("error", {}).get("message", "")
         return {"error": {"message": err_msg or (fail[0] if fail else "預算排程設定失敗")}}
@@ -1303,14 +1348,20 @@ def fetch_today_campaign_insights(access_token, ad_account_id, date_preset="toda
 def adjust_campaign_budget(access_token, campaign_id, multiplier_pct):
     camp = requests.get(
         f"https://graph.facebook.com/v25.0/{campaign_id}",
-        params={"fields": "daily_budget,smart_promotion_type,objective,special_ad_categories", "access_token": access_token},
+        params={"fields": "daily_budget,smart_promotion_type,objective,special_ad_categories,status", "access_token": access_token},
         timeout=15,
     ).json()
+    was_active = camp.get("status") == "ACTIVE"
     daily_budget = camp.get("daily_budget")
     if not daily_budget:
         return {"error": {"message": "終身預算活動不支援直接調整"}}
     old_b = int(daily_budget)
     new_b = max(1, int(old_b * multiplier_pct / 100))
+
+    def _finish(result):
+        result = _attach_warning(result, _verify_daily_budget(access_token, campaign_id, new_b))
+        result = _attach_warning(result, _verify_campaign_active(access_token, campaign_id, was_active))
+        return result
 
     payload = {"daily_budget": str(new_b), "access_token": access_token}
 
@@ -1320,7 +1371,7 @@ def adjust_campaign_budget(access_token, campaign_id, multiplier_pct):
         timeout=30,
     ).json()
     if "error" not in result:
-        return {"success": True, "old_budget": old_b, "new_budget": new_b}
+        return _finish({"success": True, "old_budget": old_b, "new_budget": new_b})
 
     # ASC 活動：帶 special_ad_categories 再試一次
     if camp.get("smart_promotion_type"):
@@ -1332,7 +1383,7 @@ def adjust_campaign_budget(access_token, campaign_id, multiplier_pct):
             timeout=30,
         ).json()
         if "error" not in result2:
-            return {"success": True, "old_budget": old_b, "new_budget": new_b}
+            return _finish({"success": True, "old_budget": old_b, "new_budget": new_b})
         # campaign 層失敗 → 嘗試 adset 層級
         adsets_r = requests.get(
             f"https://graph.facebook.com/v25.0/{campaign_id}/adsets",
@@ -1354,8 +1405,9 @@ def adjust_campaign_budget(access_token, campaign_id, multiplier_pct):
             else:
                 as_fail.append(a["name"])
         if as_ok:
-            return {"success": True, "old_budget": old_b, "new_budget": new_b,
-                    "note": f"（adset 層級，{as_ok} 個成功{f'，{len(as_fail)} 個失敗' if as_fail else ''}）"}
+            result = {"success": True, "old_budget": old_b, "new_budget": new_b,
+                      "note": f"（adset 層級，{as_ok} 個成功{f'，{len(as_fail)} 個失敗' if as_fail else ''}）"}
+            return _attach_warning(result, _verify_campaign_active(access_token, campaign_id, was_active))
         err = result2.get("error", {})
         return {"error": {"message": f"[ASC] {err.get('message','')} (code:{err.get('code')} sub:{err.get('error_subcode')})"}}
 
@@ -2556,6 +2608,8 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                                 note = result.get("note", "")
                                 label = f"【{slot_label}】" if len(slots_to_apply) > 1 else ""
                                 st.success(f"✅ {cname}{label}{note if note else '排程建立成功'}")
+                                if result.get("warning"):
+                                    st.warning(f"{cname}{label}{result['warning']}")
                                 st.session_state.setdefault("today_scheds", {})[cid] = {
                                     "tag": pct_sign,
                                     "schedule_id": result.get("id", ""),
@@ -2710,6 +2764,8 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                             )
                             if "error" not in result:
                                 st.success(f"✅ {cname} 已更新為 {new_sign}")
+                                if result.get("warning"):
+                                    st.warning(f"{cname}：{result['warning']}")
                                 st.session_state["today_scheds"][cid] = {
                                     "tag": new_sign,
                                     "schedule_id": sched_id,
@@ -3038,6 +3094,8 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                             res = adjust_campaign_budget(_token, camp["id"], 100 + pct)
                             if res.get("success"):
                                 st.success(f"✅ {camp['name']}：${res['old_budget']:,} → ${res['new_budget']:,}（{label}）")
+                                if res.get("warning"):
+                                    st.warning(f"{camp['name']}：{res['warning']}")
                             else:
                                 st.error(f"❌ {camp['name']}：{res.get('error', {}).get('message', str(res))}")
                         st.session_state["adj_campaigns"]   = fetch_campaigns_with_budget(_token, selected_account_id)
@@ -3059,6 +3117,8 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                         res = adjust_campaign_budget(_token, camp["id"], 100 + final_pct)
                         if res.get("success"):
                             st.success(f"✅ {camp['name']}：${res['old_budget']:,} → ${res['new_budget']:,}")
+                            if res.get("warning"):
+                                st.warning(f"{camp['name']}：{res['warning']}")
                         else:
                             st.error(f"❌ {camp['name']}：{res.get('error', {}).get('message', str(res))}")
                     st.session_state["adj_campaigns"]   = fetch_campaigns_with_budget(_token, selected_account_id)
