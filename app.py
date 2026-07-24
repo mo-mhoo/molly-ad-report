@@ -2522,6 +2522,10 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
 
                 row["今日ROAS"]  = _fmt_roas(row["今日ROAS"])
                 row["7天ROAS"]   = _fmt_roas(row["7天ROAS"])
+                row["今日CPA"]   = str(row["今日CPA"])   if row["今日CPA"]   is not None else "-"
+                row["轉換價值"]  = str(row["轉換價值"])  if row["轉換價值"]  is not None else "-"
+                row["CPC"]       = str(row["CPC"])       if row["CPC"]       is not None else "-"
+                row["觸及成本"]  = str(row["觸及成本"])  if row["觸及成本"]  is not None else "-"
 
             disp_cols_sched = ["建議加碼", "狀", "活動名稱", "日預算", "今日花費", "今日ROAS",
                                "7天ROAS", "今日排程", proj_col, "今日購買", "今日CPA", "轉換價值",
@@ -2548,8 +2552,8 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                     "CVR":       st.column_config.TextColumn("CVR",      width=70),
                     "加車率":    st.column_config.TextColumn("加車率",    width=70),
                     "CTR":       st.column_config.TextColumn("CTR",      width=70),
-                    "CPC":       st.column_config.NumberColumn("CPC",    width=65),
-                    "觸及成本":  st.column_config.NumberColumn("觸及成本", width=80),
+                    "CPC":       st.column_config.TextColumn("CPC",      width=65),
+                    "觸及成本":  st.column_config.TextColumn("觸及成本", width=80),
                 },
                 on_select="rerun",
                 selection_mode="multi-row",
@@ -3009,10 +3013,14 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             combined_adj = sorted(zip(adj_rows, adj_id_list), key=_adj_sort_key)
             adj_rows, adj_id_list = (list(z) for z in zip(*combined_adj)) if combined_adj else ([], [])
 
-            # 格式化欄位（ROAS 轉字串）
+            # 格式化欄位（ROAS 轉字串、None 數值欄補 "-"）
             for row in adj_rows:
                 row["今日ROAS"] = _fmt_roas(row["今日ROAS"])
                 row["7天ROAS"]  = _fmt_roas(row["7天ROAS"])
+                row["今日CPA"]  = str(row["今日CPA"]) if row["今日CPA"] is not None else "-"
+                row["轉換價值"] = str(row["轉換價值"]) if row["轉換價值"] is not None else "-"
+                row["CPC"]      = str(row["CPC"])      if row["CPC"]      is not None else "-"
+                row["觸及成本"] = str(row["觸及成本"]) if row["觸及成本"] is not None else "-"
                 row["今日CPA"]  = f"${row['今日CPA']:,}"    if row["今日CPA"]  is not None else "—"
                 row["轉換價值"] = f"${row['轉換價值']:,}"   if row["轉換價值"] is not None else "—"
 
@@ -3064,8 +3072,8 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                     "CVR":       st.column_config.TextColumn("CVR",      width=70),
                     "加車率":    st.column_config.TextColumn("加車率",    width=70),
                     "CTR":       st.column_config.TextColumn("CTR",      width=70),
-                    "CPC":       st.column_config.NumberColumn("CPC",    width=65),
-                    "觸及成本":  st.column_config.NumberColumn("觸及成本", width=80),
+                    "CPC":       st.column_config.TextColumn("CPC",      width=65),
+                    "觸及成本":  st.column_config.TextColumn("觸及成本", width=80),
                 },
                 on_select="rerun",
                 selection_mode="multi-row",
