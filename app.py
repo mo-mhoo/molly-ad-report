@@ -3017,8 +3017,6 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
             for row in adj_rows:
                 row["今日ROAS"] = _fmt_roas(row["今日ROAS"])
                 row["7天ROAS"]  = _fmt_roas(row["7天ROAS"])
-                row["今日CPA"]  = str(row["今日CPA"]) if row["今日CPA"] is not None else "-"
-                row["轉換價值"] = str(row["轉換價值"]) if row["轉換價值"] is not None else "-"
                 row["CPC"]      = str(row["CPC"])      if row["CPC"]      is not None else "-"
                 row["觸及成本"] = str(row["觸及成本"]) if row["觸及成本"] is not None else "-"
                 row["今日CPA"]  = f"${row['今日CPA']:,}"    if row["今日CPA"]  is not None else "—"
