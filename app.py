@@ -3151,26 +3151,25 @@ st.markdown("""
     color: white;
     border: none;
     border-radius: 50%;
-    width: 44px;
-    height: 44px;
-    font-size: 20px;
+    width: 48px;
+    height: 48px;
+    font-size: 22px;
     cursor: pointer;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
-    display: none;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    display: flex;
     align-items: center;
     justify-content: center;
+    opacity: 0.85;
 }
-#back-to-top:hover { background: #c0392b; }
+#back-to-top:hover { background: #c0392b; opacity: 1; }
 </style>
-<button id="back-to-top" onclick="window.parent.document.querySelector('section.main').scrollTo({top:0,behavior:'smooth'})">↑</button>
-<script>
-(function(){
-    var btn = window.parent.document.getElementById('back-to-top');
-    var main = window.parent.document.querySelector('section.main');
-    if(!main || !btn) return;
-    main.addEventListener('scroll', function(){
-        btn.style.display = main.scrollTop > 300 ? 'flex' : 'none';
-    });
-})();
-</script>
+<button id="back-to-top" onclick="(function(){
+    var p = window.parent || window;
+    var el = p.document.querySelector('section.main')
+          || p.document.querySelector('[data-testid=\"stAppViewContainer\"]')
+          || p.document.querySelector('[data-testid=\"stMainBlockContainer\"]')
+          || p.document.documentElement;
+    el.scrollTo({top:0,behavior:'smooth'});
+    p.scrollTo({top:0,behavior:'smooth'});
+})()">↑</button>
 """, unsafe_allow_html=True)
