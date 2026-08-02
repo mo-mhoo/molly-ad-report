@@ -3163,13 +3163,20 @@ st.markdown("""
 }
 #back-to-top:hover { background: #c0392b; opacity: 1; }
 </style>
-<button id="back-to-top" onclick="(function(){
-    var p = window.parent || window;
-    var el = p.document.querySelector('section.main')
-          || p.document.querySelector('[data-testid=\"stAppViewContainer\"]')
-          || p.document.querySelector('[data-testid=\"stMainBlockContainer\"]')
-          || p.document.documentElement;
-    el.scrollTo({top:0,behavior:'smooth'});
-    p.scrollTo({top:0,behavior:'smooth'});
-})()">↑</button>
+<button id="back-to-top">↑</button>
+<script>
+(function(){
+    var btn = window.parent.document.getElementById('back-to-top');
+    if(!btn) return;
+    btn.addEventListener('click', function(){
+        var p = window.parent;
+        var el = p.document.querySelector('section.main')
+              || p.document.querySelector('[data-testid=stAppViewContainer]')
+              || p.document.querySelector('[data-testid=stMainBlockContainer]')
+              || p.document.documentElement;
+        if(el) el.scrollTo({top:0,behavior:'smooth'});
+        p.scrollTo({top:0,behavior:'smooth'});
+    });
+})();
+</script>
 """, unsafe_allow_html=True)
