@@ -2482,6 +2482,59 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 sched_dir = st.radio("方向", ["加碼 ⬆️", "減碼 ⬇️"], key="sched_dir", horizontal=True)
             sched_actual_pct = sched_pct if "加碼" in sched_dir else -sched_pct
 
+            # ── 確認區塊（幅度下方，不用滑到底部）
+            _ci_sel = {i for i in st.session_state.get("sched_sel", set()) if i < len(camp_id_list)}
+            _ci_n   = len(_ci_sel)
+            _ci_pct_sign = f"+{sched_actual_pct}%" if sched_actual_pct > 0 else f"{sched_actual_pct}%"
+            if _ci_n > 0:
+                _ci_ids   = [camp_id_list[i] for i in sorted(_ci_sel)]
+                _ci_names = [rows[i]["活動名稱"] for i in sorted(_ci_sel)]
+                if sel_slot_rows:
+                    _ci_slots = [{"開始": r["開始"], "結束": r["結束"],
+                                  "_ts_start": int(r["_ts_start"]), "_ts_end": int(r["_ts_end"])}
+                                 for r in sel_slot_rows]
+                    _ci_desc = f"**{len(_ci_slots)}** 個時段"
+                else:
+                    _ci_ts_s = date_hour_to_ts(slot_s_date, slot_s_hour)
+                    _ci_ts_e = date_hour_to_ts(slot_e_date, slot_e_hour)
+                    _ci_slots = [{"開始": f"{slot_s_date} {slot_s_hour}",
+                                  "結束": f"{slot_e_date} {slot_e_hour}",
+                                  "_ts_start": _ci_ts_s, "_ts_end": _ci_ts_e}]
+                    _ci_desc = f"`{slot_s_date} {slot_s_hour} → {slot_e_date} {slot_e_hour}`"
+                _ci_dir = f"提升 {sched_pct}%" if sched_actual_pct > 0 else f"降低 {sched_pct}%"
+                st.info(f"已選 **{_ci_n}** 個活動 × {_ci_desc} = **{_ci_n * len(_ci_slots)}** 筆排程，預算{_ci_dir}")
+                if st.button("✅ 確認建立排程", type="primary", key="confirm_sched"):
+                    _token = cfg.get("meta_token", "")
+                    _camp_map = {c["id"]: c for c in campaigns}
+                    for _slot in _ci_slots:
+                        _slot_label = f"{_slot['開始']}→{_slot['結束']}"
+                        for cid, cname in zip(_ci_ids, _ci_names):
+                            if _camp_map.get(cid, {}).get("smart_promotion_type") == "SHOPPING":
+                                st.warning(f"⚠️ {cname}：ASC 活動不支援預算排程，已跳過")
+                                continue
+                            try:
+                                result = create_budget_schedule(_token, cid, _slot["_ts_start"], _slot["_ts_end"], sched_actual_pct)
+                            except requests.exceptions.RequestException as e:
+                                result = {"error": {"message": f"連線逾時或失敗：{e}"}}
+                            if result.get("success") or result.get("id"):
+                                note = result.get("note", "")
+                                label = f"【{_slot_label}】" if len(_ci_slots) > 1 else ""
+                                st.success(f"✅ {cname}{label}{note if note else '排程建立成功'}")
+                                if result.get("warning"):
+                                    st.warning(f"{cname}{label}{result['warning']}")
+                                st.session_state.setdefault("today_scheds", {})[cid] = {
+                                    "tag": _ci_pct_sign,
+                                    "schedule_id": result.get("id", ""),
+                                    "budget_value": sched_actual_pct,
+                                }
+                            else:
+                                _err = result.get("error", {})
+                                _err_msg = _err.get("message", str(result))
+                                _err_sub = _err.get("error_subcode", "")
+                                _err_usr = _err.get("error_user_msg", "")
+                                _detail = " | ".join(filter(None, [_err_usr, f"subcode:{_err_sub}" if _err_sub else ""]))
+                                st.error(f"❌ {cname}【{_slot_label}】{_err_msg}" + (f"（{_detail}）" if _detail else ""))
+
             # ── 快速選取按鈕
             qb1, qb2, qb3 = st.columns(3)
             if qb1.button("全選", key="sel_all", use_container_width=True):
@@ -2573,64 +2626,6 @@ if data_source == "Meta API 自動抓取" and platform_sel == "Meta":
                 st.session_state["sched_sel"] = new_sel
                 sel_indices = new_sel
 
-            sel_indices = {i for i in sel_indices if i < len(camp_id_list)}
-            selected_camp_ids   = [camp_id_list[i] for i in sorted(sel_indices) if i < len(camp_id_list)]
-            selected_camp_names = [rows[i]["活動名稱"] for i in sorted(sel_indices)]
-
-            n_camps = len(selected_camp_ids)
-            pct_sign = f"+{sched_actual_pct}%" if sched_actual_pct > 0 else f"{sched_actual_pct}%"
-
-            if n_camps > 0:
-                # 決定要套用的時段：有勾選批次清單 → 用清單；否則用上方單一時段
-                if sel_slot_rows:
-                    slots_to_apply = [{"開始": r["開始"], "結束": r["結束"],
-                                       "_ts_start": int(r["_ts_start"]), "_ts_end": int(r["_ts_end"])}
-                                      for r in sel_slot_rows]
-                    slot_desc = f"**{len(slots_to_apply)}** 個時段"
-                else:
-                    ts_s = date_hour_to_ts(slot_s_date, slot_s_hour)
-                    ts_e = date_hour_to_ts(slot_e_date, slot_e_hour)
-                    slots_to_apply = [{"開始": f"{slot_s_date} {slot_s_hour}",
-                                       "結束": f"{slot_e_date} {slot_e_hour}",
-                                       "_ts_start": ts_s, "_ts_end": ts_e}]
-                    slot_desc = f"`{slot_s_date} {slot_s_hour} → {slot_e_date} {slot_e_hour}`"
-
-                dir_label = f"提升 {sched_pct}%" if sched_actual_pct > 0 else f"降低 {sched_pct}%"
-                total = n_camps * len(slots_to_apply)
-                st.info(f"已選 **{n_camps}** 個活動 × {slot_desc} = **{total}** 筆排程，預算{dir_label}")
-
-                if st.button("✅ 確認建立排程", type="primary", key="confirm_sched"):
-                    _token = cfg.get("meta_token", "")
-                    _camp_map = {c["id"]: c for c in campaigns}
-                    for slot in slots_to_apply:
-                        slot_label = f"{slot['開始']}→{slot['結束']}"
-                        for cid, cname in zip(selected_camp_ids, selected_camp_names):
-                            # 只有 Advantage+ Shopping（SHOPPING）才不支援預算排程
-                            if _camp_map.get(cid, {}).get("smart_promotion_type") == "SHOPPING":
-                                st.warning(f"⚠️ {cname}：ASC 活動不支援預算排程，已跳過")
-                                continue
-                            try:
-                                result = create_budget_schedule(_token, cid, slot["_ts_start"], slot["_ts_end"], sched_actual_pct)
-                            except requests.exceptions.RequestException as e:
-                                result = {"error": {"message": f"連線逾時或失敗：{e}"}}
-                            if result.get("success") or result.get("id"):
-                                note = result.get("note", "")
-                                label = f"【{slot_label}】" if len(slots_to_apply) > 1 else ""
-                                st.success(f"✅ {cname}{label}{note if note else '排程建立成功'}")
-                                if result.get("warning"):
-                                    st.warning(f"{cname}{label}{result['warning']}")
-                                st.session_state.setdefault("today_scheds", {})[cid] = {
-                                    "tag": pct_sign,
-                                    "schedule_id": result.get("id", ""),
-                                    "budget_value": sched_actual_pct,
-                                }
-                            else:
-                                _err = result.get("error", {})
-                                err_msg = _err.get("message", str(result))
-                                err_sub = _err.get("error_subcode", "")
-                                err_usr = _err.get("error_user_msg", "")
-                                detail = " | ".join(filter(None, [err_usr, f"subcode:{err_sub}" if err_sub else ""]))
-                                st.error(f"❌ {cname}【{slot_label}】{err_msg}" + (f"（{detail}）" if detail else ""))
         else:
             st.info("請先點「載入活動與成效」")
 
