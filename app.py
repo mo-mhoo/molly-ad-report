@@ -1070,11 +1070,12 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
     if int(time_end) <= int(time_start):
         return {"error": {"message": "排程結束時間必須晚於開始時間，請重新選擇時段"}}
 
-    # 先刪除時段重疊的舊排程（避免堆疊）；若 API 不支援則跳過
+    # 先刪除時段重疊的舊排程（避免堆疊）
     try:
         existing = fetch_campaign_schedules(access_token, campaign_id)
-    except Exception:
-        existing = []
+    except Exception as _fe:
+        print(f"[DEBUG] fetch_campaign_schedules failed camp={campaign_id} err={_fe}")
+        return {"error": {"message": f"無法查詢既有排程（{_fe}），為避免重疊請稍後再試或先至 Meta 後台確認。"}}
     for s in existing:
         try:
             s_start = int(s["time_start"]) if str(s["time_start"]).isdigit() else int(datetime.strptime(str(s["time_start"]), "%Y-%m-%dT%H:%M:%S%z").timestamp())
