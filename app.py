@@ -10,6 +10,11 @@ import calendar
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import streamlit.components.v1 as components
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, ColumnsAutoSizeMode
+try:
+    from google_ads_fetcher import fetch_report as gads_fetch_report
+    _GADS_AVAILABLE = True
+except Exception:
+    _GADS_AVAILABLE = False
 
 # AgGrid 手機橫向滑動 CSS（注入進 iframe 內部）
 AGGRID_SCROLL_CSS = {
@@ -41,6 +46,10 @@ def load_config():
             cfg = {
                 "meta_token": st.secrets.get("meta_token", ""),
                 "meta_account_id": st.secrets.get("meta_account_id", ""),
+                "google_developer_token": st.secrets.get("google_developer_token", ""),
+                "google_client_id": st.secrets.get("google_client_id", ""),
+                "google_client_secret": st.secrets.get("google_client_secret", ""),
+                "google_refresh_token": st.secrets.get("google_refresh_token", ""),
             }
             if "meta_accounts" in st.secrets:
                 cfg["meta_accounts"] = [dict(a) for a in st.secrets["meta_accounts"]]
@@ -1485,14 +1494,11 @@ with st.sidebar:
     platform_sel = st.selectbox("平台", ["Meta", "Google"])
 
     st.divider()
-    data_source = st.radio(
-        "資料來源",
-        ["Meta API 自動抓取", "CSV 手動上傳"],
-        disabled=(platform_sel == "Google"),
-        help="Google 僅支援 CSV 上傳"
-    )
     if platform_sel == "Google":
-        data_source = "CSV 手動上傳"
+        _gads_source_options = ["Google API 自動抓取", "CSV 手動上傳"] if _GADS_AVAILABLE else ["CSV 手動上傳"]
+        data_source = st.radio("資料來源", _gads_source_options)
+    else:
+        data_source = st.radio("資料來源", ["Meta API 自動抓取", "CSV 手動上傳"])
 
     if data_source == "Meta API 自動抓取":
         meta_token = cfg.get("meta_token", "")
@@ -1598,7 +1604,54 @@ if accounts and len(accounts) > 1:
 
 df_curr = df_comp = df_mom = df_yoy = None
 
-if data_source == "Meta API 自動抓取":
+if data_source == "Google API 自動抓取":
+    _gads_dev_token     = cfg.get("google_developer_token", "")
+    _gads_client_id     = cfg.get("google_client_id", "")
+    _gads_client_secret = cfg.get("google_client_secret", "")
+    _gads_refresh_token = cfg.get("google_refresh_token", "")
+    _gads_creds_ok = all([_gads_dev_token, _gads_client_id, _gads_client_secret, _gads_refresh_token])
+
+    if not _gads_creds_ok:
+        st.warning("Google Ads 憑證未設定，請至 Streamlit Secrets 填入 google_developer_token / google_client_id / google_client_secret / google_refresh_token")
+    else:
+        _gads_today = datetime.now(timezone(timedelta(hours=8))).date()
+        _gcol1, _gcol2, _gcol3 = st.columns(3)
+        with _gcol1:
+            st.markdown("**帳號 Customer ID**")
+            _gads_cid = st.text_input("Customer ID（不含 -）", value="", key="gads_cid", placeholder="例：1234567890")
+        with _gcol2:
+            _gads_since = st.date_input("開始日期", value=_gads_today.replace(day=1), key="gads_since")
+        with _gcol3:
+            _gads_until = st.date_input("結束日期", value=_gads_today - timedelta(days=1), key="gads_until")
+
+        _gads_dim = st.selectbox("維度", ["campaign", "adgroup", "keyword"], key="gads_dim")
+
+        if st.button("📡 從 Google Ads API 抓取數據", key="gads_load"):
+            if not _gads_cid:
+                st.error("請輸入 Customer ID")
+            else:
+                with st.spinner("抓取中…"):
+                    try:
+                        _rows = gads_fetch_report(
+                            dimension=_gads_dim,
+                            customer_id=_gads_cid.replace("-", ""),
+                            developer_token=_gads_dev_token,
+                            client_id=_gads_client_id,
+                            client_secret=_gads_client_secret,
+                            refresh_token=_gads_refresh_token,
+                            date_from=_gads_since,
+                            date_to=_gads_until,
+                        )
+                        if _rows:
+                            _gdf = pd.DataFrame(_rows)
+                            st.success(f"✅ 抓到 {len(_gdf)} 筆資料（{_gads_since} ～ {_gads_until}）")
+                            st.dataframe(_gdf, use_container_width=True, hide_index=True)
+                        else:
+                            st.info("查無資料")
+                    except Exception as _ge:
+                        st.error(f"Google Ads API 錯誤：{_ge}")
+
+elif data_source == "Meta API 自動抓取":
     today = datetime.now(timezone(timedelta(hours=8))).date()
     preset_options = ["今日", "昨天", "過去7天", "本月至昨日", "本月（含今日）", "上個月", "自訂"]
 
