@@ -3,3 +3,5 @@ pandas
 requests
 streamlit-aggrid
 google-ads
+google-analytics-data
+google-auth

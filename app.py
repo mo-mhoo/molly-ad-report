@@ -1075,7 +1075,7 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
         existing = fetch_campaign_schedules(access_token, campaign_id)
     except Exception as _fe:
         print(f"[DEBUG] fetch_campaign_schedules failed camp={campaign_id} err={_fe}")
-        return {"error": {"message": f"無法查詢既有排程（{_fe}），為避免重疊請稍後再試或先至 Meta 後台確認。"}}
+        existing = []  # 查不到就繼續，讓 Meta API 自己擋
     for s in existing:
         try:
             s_start = int(s["time_start"]) if str(s["time_start"]).isdigit() else int(datetime.strptime(str(s["time_start"]), "%Y-%m-%dT%H:%M:%S%z").timestamp())
