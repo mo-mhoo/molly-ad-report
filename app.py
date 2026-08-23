@@ -1241,6 +1241,10 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
         err_msg = result.get("error", {}).get("message", "")
         return {"error": {"message": err_msg or (fail[0] if fail else "預算排程設定失敗")}}
 
+    # subcode 3858119：已達 50 段排程上限
+    if result.get("error", {}).get("error_subcode") == 3858119:
+        return {"error": {"message": "此活動已達 Meta 50 段排程上限。請至 Meta 廣告管理員 → 編輯活動 → 預算排程，刪除已結束的舊排程後再試。"}}
+
     return result
 
 def date_to_ts(d, is_start=False):
