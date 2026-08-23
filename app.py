@@ -1241,9 +1241,28 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
         err_msg = result.get("error", {}).get("message", "")
         return {"error": {"message": err_msg or (fail[0] if fail else "預算排程設定失敗")}}
 
-    # subcode 3858119：已達 50 段排程上限
+    # subcode 3858119：已達 50 段排程上限 → 自動清除已結束排程後重試
     if result.get("error", {}).get("error_subcode") == 3858119:
-        return {"error": {"message": "此活動已達 Meta 50 段排程上限。請至 Meta 廣告管理員 → 編輯活動 → 預算排程，刪除已結束的舊排程後再試。"}}
+        try:
+            all_scheds = fetch_campaign_schedules(access_token, campaign_id)
+        except Exception:
+            all_scheds = []
+        now_ts = int(datetime.now(timezone(timedelta(hours=8))).timestamp())
+        ended = [s for s in all_scheds if int(s.get("time_end", 0)) < now_ts]
+        print(f"[DEBUG] 3858119 total={len(all_scheds)} ended={len(ended)}")
+        deleted = 0
+        for s in ended:
+            dr = delete_budget_schedule(access_token, s["id"])
+            if not dr.get("error"):
+                deleted += 1
+        if deleted == 0:
+            return {"error": {"message": "已達 50 段排程上限，且無法自動清除已結束排程，請至 Meta 後台手動刪除後再試。"}}
+        # 刪完重試
+        result2 = requests.post(f"https://graph.facebook.com/v25.0/{campaign_id}", data=payload, timeout=30).json()
+        print(f"[DEBUG] 3858119 retry after delete={deleted} result={result2}")
+        if "error" not in result2:
+            return {"success": True, "level": "campaign", "note": f"（已自動清除 {deleted} 筆已結束排程）"}
+        result = result2
 
     return result
 
