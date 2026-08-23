@@ -1248,7 +1248,13 @@ def create_budget_schedule(access_token, campaign_id, time_start, time_end, pct_
         except Exception:
             all_scheds = []
         now_ts = int(datetime.now(timezone(timedelta(hours=8))).timestamp())
-        ended = [s for s in all_scheds if int(s.get("time_end", 0)) < now_ts]
+        def _s_end_ts(s):
+            v = s.get("time_end", 0)
+            try:
+                return int(v) if str(v).isdigit() else int(datetime.strptime(str(v), "%Y-%m-%dT%H:%M:%S%z").timestamp())
+            except Exception:
+                return 0
+        ended = [s for s in all_scheds if _s_end_ts(s) < now_ts]
         print(f"[DEBUG] 3858119 total={len(all_scheds)} ended={len(ended)}")
         deleted = 0
         for s in ended:
