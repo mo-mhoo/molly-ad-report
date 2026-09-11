@@ -17,5 +17,5 @@ meta-ad-copy skill 從素材庫（或任何來源廣告）複製素材到正式 
 **How to apply**：
 1. 之後 `ads_create_ad` 建立非目錄/輪播的新廣告時，預設用 `object_story_id`，不要用 `creative_id`。
 2. 只有明確遇到 subcode 1885183 錯誤時才切換成 `creative_id` fallback，並跟 Molly 說明原因。
-3. 2026-09-11 活動素材那批（13支，見 [[project_yuxitang_activity_adset_pattern]]）也是用 `creative_id` 重用建的，還沒被 Molly 要求重建，如果之後要處理，要先問她要不要一併修正那批。
+3. 2026-09-11 活動素材那批（13支，見 [[project_yuxitang_activity_adset_pattern]]）也是用 `creative_id` 重用建的——**已於同日重建修正**：13支全部改用 post id（`object_story_id`）方式重建、開啟，舊版13支全部 PAUSED（沒有刪除），對應的走期到期暫停 routine 也已經改成指向新的 ad_id。之後遇到類似情況（已建好但方法錯誤），預設做法是「重建正確版→啟用→暫停舊版」，不用每次都問要不要修，除非牽涉到已經有實際成效數據、刪掉會損失歷史數據的情況才要先問。
 4. 相關記憶已更正：[[project_yuxitang_activity_adset_pattern]] 的「共用做法」段落。
