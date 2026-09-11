@@ -1,0 +1,55 @@
+# Memory Index
+
+- [user_profile.md](user_profile.md) — 使用者背景：數位廣告從業者，使用繁體中文，偏好 Python 開發
+- [project_ad_agent.md](project_ad_agent.md) — 數位廣告 AI Agent 專案概況與架構
+- [feedback_spreadsheet_tools.md](feedback_spreadsheet_tools.md) — 試算表：用 gviz CSV API 讀資料，browser_batch 批次執行，不截圖導覽
+- [project_daily_report.md](project_daily_report.md) — 每日 Meta 廣告日報自動化：御熹堂＋毛孩時代，每天 9AM 發至 Google Chat
+- [project_ads_optimization_training.md](project_ads_optimization_training.md) — 目標2026-08前AI廣告優化判斷達人類90分，持續回饋訓練
+- [feedback_ads_optimization.md](feedback_ads_optimization.md) — 廣告優化建議回饋紀錄（AI vs 人類落差校正）
+- [project_molly_ad_report.md](project_molly_ad_report.md) — molly-ad-report Streamlit app：預算排程 bug 修法與 Meta API 筆記（meta-budget-pilot 寫入邏輯的源頭，需同步）
+- [reference_ecommerce_calendar.md](reference_ecommerce_calendar.md) — 電商重點檔期日曆：6/18(618)是H1大檔，分析數據時需排除檔期因素
+- [feedback_security.md](feedback_security.md) — 禁止讀取或顯示 .env / secrets.toml 等憑證檔案內容
+- [project_kaohsiung_events_radar.md](project_kaohsiung_events_radar.md) — 高雄週末活動雷達 Artifact，避免下班南下塞車，含追蹤場館清單與更新方法
+- [feedback_atl_btl_testing_logic.md](feedback_atl_btl_testing_logic.md) — ATL全互動CTR是刻意篩選指標非誤讀；且不同投放目的要用不同判斷指標，不可套同一套規則
+- [feedback_creative_report_template.md](feedback_creative_report_template.md) — 帶圖片的素材成效HTML報告製作模板：抓圖→壓縮→模板替換→PowerShell打包zip
+- [feedback_meta_ads_write_safety.md](feedback_meta_ads_write_safety.md) — Meta API 寫入/刪除類操作一律先確認；範圍也含推播到Chat等外部可見動作，先文字後確認再送
+- [feedback_data_comparison_range.md](feedback_data_comparison_range.md) — 分析/呈現廣告數據一律先列出比較區間的實際日期範圍，才給結論
+- [feedback_remote_trigger_mcp_connections.md](feedback_remote_trigger_mcp_connections.md) — 建排程routine時mcp_connections留空會自動掛已連connector，別信skill給的過期清單
+- [project_meta_insights_report.md](project_meta_insights_report.md) — meta_report.py「撈數據」三層報表工具；token 已於 2026-08-12 換新，下次到期 2026-10-13
+- [reference_meta_token_renewal.md](reference_meta_token_renewal.md) — Meta 60天 token 換新完整步驟（PowerShell）與常見錯誤對照
+- [project_ga4_integration.md](project_ga4_integration.md) — GA4 已串接 app.py，Service Account 驗證，毛孩時代 property 317413198 測試成功
+- [project_google_ads_integration.md](project_google_ads_integration.md) — Google Ads API已設定完成；毛孩時代帳號需合併主帳號+部落格子帳號；ATL/BTL分類與conversions欄位陷阱
+- [feedback_html_report_format.md](feedback_html_report_format.md) — 已確認滿意的HTML週報格式：API即時撈取、13指標WoW表、無底色徽章、Meta加購漏斗算法
+- [feedback_recurring_prompt_to_skill.md](feedback_recurring_prompt_to_skill.md) — 重複要講的指令做成skill，別做成中控台按鈕；中控台維持純網址啟動器
+- [feedback_meta_report_creative_level.md](feedback_meta_report_creative_level.md) — 「整理Meta成效」預設要切到素材(ad)層級分析，不能只停在campaign/adset層級
+- [feedback_meta_report_depth_and_format.md](feedback_meta_report_depth_and_format.md) — Meta成效報告標準：ATL絕不用ROAS、素材要有縮圖+格式/主題/信任元素分類、視覺化報告用Google簡報16:9
+- [feedback_composite_score_methodology.md](feedback_composite_score_methodology.md) — 素材綜合分（互動×ROAS）跑分法：ROAS貝氏收縮+絕對刻度；10顆星獨立成行、配色跟宿主文件
+- [feedback_google_ads_atl_keyword_optimization.md](feedback_google_ads_atl_keyword_optimization.md) — Google Ads ATL關鍵字優化：意圖字尾判斷不分比對類型、先測試再批次、勿信變更記錄頁面/當天未完數據
+- [project_maohai_official_campaign_structure.md](project_maohai_official_campaign_structure.md) — 毛孩時代_官網帳號新素材上稿要同時鋪BTL舊客/ASC成分bucket/ATL新客Interact三種campaign，工具自動比對只抓得到第一種
+- [project_competitor_ads_kol_report.md](project_competitor_ads_kol_report.md) — 競品/KOL廣告分析固定Artifact連結，用competitor-ads-update skill更新，嬌寵醫生page_id待確認
+- [feedback_drive_asset_search_by_flight_dates.md](feedback_drive_asset_search_by_flight_dates.md) — 找廣告素材圖檔先用走期日期＋命名慣例定位Drive資料夾，別用商品關鍵字盲搜
+- [reference_meta_asset_tracking_sheet.md](reference_meta_asset_tracking_sheet.md) — 御熹堂Meta素材進稿追蹤表連結，品項對應Drive圖檔連結欄位
+- [project_maohai_catalog_product_set.md](project_maohai_catalog_product_set.md) — 毛孩官網綁目錄商品要選「排除團購/贈品/經銷」，不能用「所有商品」
+- [project_activity_creative_flight_routine_pending.md](project_activity_creative_flight_routine_pending.md) — 活動素材走期自動暫停已實作(meta-ad-copy skill+routine)，若另一台電腦也有要統整成一個
+- [feedback_activity_creative_cloud_routine.md](feedback_activity_creative_cloud_routine.md) — 活動素材走期到期處理要用Claude雲端排程routine做，不是寫死進工具腳本或純靠人工
+- [project_meta_creative_tag_naming.md](project_meta_creative_tag_naming.md) — 御熹堂素材切角命名規範定案：[訴求角度]_[信任元素]，已做成meta-creative-tag-naming skill
+- [feedback_text_source_over_image_ocr.md](feedback_text_source_over_image_ocr.md) — 人名/專有名詞一律以文字資料源核對，不用截圖圖像辨識猜漢字，辨識完要先給用戶核對再定案
+- [feedback_verify_before_doubting.md](feedback_verify_before_doubting.md) — 使用者提「之前做過」先查 session 記錄查證，別要求對方反覆自證；Google Ads mutate 可透過 ad-hoc API 腳本執行
+- [project_pmax_asset_group_sop.md](project_pmax_asset_group_sop.md) — Google Ads API 建立/編輯 PMax 資產群組與額外資訊(Sitelink/Callout/Promotion)SOP：合併mutate、借用既有素材、原生start_date/end_date排程
+- [reference_tsa_inside_mcp.md](reference_tsa_inside_mcp.md) — TSA inside BI MCP(query_sales等)目前只有「御熹堂」品牌查詢權限，毛孩時代等其他品牌查無資料
+- [feedback_keyword_scope_precision.md](feedback_keyword_scope_precision.md) — 分析特定品項(如貓飼料)關鍵字比對要精準對應品項本身，不能用寬鬆上位詞(如「貓」)代表整個範圍
+- [feedback_catalog_sku_product_id_breakdown.md](feedback_catalog_sku_product_id_breakdown.md) — 查CPAS目錄單一SKU成效必須用product_id breakdown全帳號撈，廣告名稱關鍵字篩會漏量、方向可能算反
+- [project_google_ads_atl_review_skill.md](project_google_ads_atl_review_skill.md) — google-ads-atl-review skill：診斷+建議清單不寫入，每週一9點本機排程自動跑
+- [feedback_local_vs_cloud_scheduling.md](feedback_local_vs_cloud_scheduling.md) — 需要本機憑證/skill檔案的排程任務用本機scheduled-tasks，不能用雲端RemoteTrigger routine
+- [project_meta_cpas_app_dev_mode_blocker.md](project_meta_cpas_app_dev_mode_blocker.md) — 廣告建立卡subcode 1885183(App tsa000(M)開發模式)已找到解法：重用既有creative_id建新廣告即可繞過，不用等App切Live
+- [feedback_dont_anchor_on_past_diagnosis.md](feedback_dont_anchor_on_past_diagnosis.md) — 過去session的「無法解決/工具端擋死」結論要當假設重新驗證，不要直接照搬定錨
+- [feedback_meta_ad_copy_adset_via_mcp.md](feedback_meta_ad_copy_adset_via_mcp.md) — meta-ad-copy 查建議adset要用Meta Ads MCP直接查，不要卡在本機工具rate limit
+- [feedback_meta_ad_copy_ad_naming.md](feedback_meta_ad_copy_ad_naming.md) — meta-ad-copy 建新廣告的ad name要跟素材庫原名一致，不加adset/campaign後綴
+- [feedback_meta_ad_copy_adset_suggestion_list.md](feedback_meta_ad_copy_adset_suggestion_list.md) — meta-ad-copy 的 adset 判斷要給候選清單，工具警告不能直接當阻擋條件排除
+- [project_meta_budget_pilot.md](project_meta_budget_pilot.md) — meta-budget-pilot skill：預算排程實際機制跟 molly-ad-report 同步，TWD offset=1 安全機制
+- [feedback_local_scheduled_review_weekday.md](feedback_local_scheduled_review_weekday.md) — 本機排程覆盤任務要排週一到週五，避開週六日才不會拖到補跑
+- [project_ad_knowledge_base.md](project_ad_knowledge_base.md) — 廣告知識庫 knowledge/ 資料夾，Meta/Google Ads 官方文件整理，含互動索引 Artifact 連結
+- [feedback_meta_ad_copy_windows_tool_unavailable_mac.md](feedback_meta_ad_copy_windows_tool_unavailable_mac.md) — Mac上meta-ad-copy skill的CLI工具不存在，改用Meta Ads MCP手動比照判斷邏輯6步驟操作
+- [feedback_meta_ad_copy_staging_adset_not_final.md](feedback_meta_ad_copy_staging_adset_not_final.md) — 素材已存在「Ad素材庫」staging adset不代表已決定投放位置，仍要提案正式adset才能activate
+- [project_yuxitang_activity_adset_pattern.md](project_yuxitang_activity_adset_pattern.md) — 御熹堂官網活動素材鋪法歷史快照(僅供參考,每次要重新查證,見feedback_adset_choice_not_a_default)
+- [feedback_adset_choice_not_a_default.md](feedback_adset_choice_not_a_default.md) — 某次選定的adset不能升級成預設值,每次都要重新查帳號現況+重新問，不能只讀記憶就沿用

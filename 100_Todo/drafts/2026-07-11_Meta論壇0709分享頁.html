@@ -1,0 +1,538 @@
+<title>2026 Meta 創作者行銷趨勢論壇｜內部分享</title>
+<style>
+  :root {
+    --bg: #f7f8fb;
+    --surface: #ffffff;
+    --surface-2: #eef1f7;
+    --ink: #14202e;
+    --ink-2: #4a5a6e;
+    --ink-3: #7d8b9d;
+    --line: #dde3ec;
+    --accent: #0a66ff;
+    --accent-soft: #e7efff;
+    --accent-ink: #0a4fd6;
+    --warm: #d9540e;
+    --warm-soft: #fdeee2;
+    --good: #0d7a4f;
+    --shadow: 0 1px 2px rgba(20,32,46,.05), 0 8px 24px -12px rgba(20,32,46,.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0e141c;
+      --surface: #161e29;
+      --surface-2: #1d2735;
+      --ink: #e8edf4;
+      --ink-2: #a8b6c8;
+      --ink-3: #71808f;
+      --line: #2a3646;
+      --accent: #4d8dff;
+      --accent-soft: #1a2c4a;
+      --accent-ink: #7dabff;
+      --warm: #ff8a4d;
+      --warm-soft: #3a2416;
+      --good: #4dc492;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #f7f8fb; --surface: #ffffff; --surface-2: #eef1f7;
+    --ink: #14202e; --ink-2: #4a5a6e; --ink-3: #7d8b9d; --line: #dde3ec;
+    --accent: #0a66ff; --accent-soft: #e7efff; --accent-ink: #0a4fd6;
+    --warm: #d9540e; --warm-soft: #fdeee2; --good: #0d7a4f;
+    --shadow: 0 1px 2px rgba(20,32,46,.05), 0 8px 24px -12px rgba(20,32,46,.12);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e141c; --surface: #161e29; --surface-2: #1d2735;
+    --ink: #e8edf4; --ink-2: #a8b6c8; --ink-3: #71808f; --line: #2a3646;
+    --accent: #4d8dff; --accent-soft: #1a2c4a; --accent-ink: #7dabff;
+    --warm: #ff8a4d; --warm-soft: #3a2416; --good: #4dc492;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px -12px rgba(0,0,0,.5);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", -apple-system, sans-serif;
+    line-height: 1.75;
+    margin: 0;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 48px 24px 72px; }
+
+  /* ---- header ---- */
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 600; letter-spacing: .12em;
+    color: var(--accent-ink); text-transform: uppercase;
+  }
+  .eyebrow::before { content: ""; width: 22px; height: 3px; background: var(--accent); border-radius: 2px; }
+  h1 {
+    font-size: clamp(26px, 4.5vw, 38px); line-height: 1.3; font-weight: 700;
+    margin: 14px 0 10px; text-wrap: balance; letter-spacing: .01em;
+  }
+  .meta-line { color: var(--ink-3); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 22px; }
+  .thesis {
+    border-left: 4px solid var(--accent);
+    background: var(--surface); box-shadow: var(--shadow); border-radius: 0 12px 12px 0;
+    padding: 18px 22px; font-size: 16.5px; color: var(--ink-2); margin: 0 0 8px;
+  }
+  .thesis strong { color: var(--ink); }
+  .thesis .shift { white-space: nowrap; }
+  .thesis .shift b { color: var(--accent-ink); }
+
+  /* ---- stat band ---- */
+  .stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px; margin: 34px 0 10px;
+  }
+  .stat {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px 16px 13px; box-shadow: var(--shadow);
+  }
+  .stat .num {
+    font-size: 30px; font-weight: 700; color: var(--accent-ink);
+    font-variant-numeric: tabular-nums; line-height: 1.15; letter-spacing: -.01em;
+  }
+  .stat .num small { font-size: 16px; font-weight: 600; }
+  .stat .lbl { font-size: 13px; color: var(--ink-2); margin-top: 5px; line-height: 1.5; }
+  .stat.hot .num { color: var(--warm); }
+  .stats-src { font-size: 12.5px; color: var(--ink-3); margin: 0 0 6px; }
+
+  /* ---- sections ---- */
+  section { margin-top: 46px; }
+  .sec-head { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+  .sec-head h2 { font-size: 21px; font-weight: 700; margin: 0; letter-spacing: .01em; }
+  .sec-head .tag {
+    font-size: 12px; font-weight: 700; letter-spacing: .08em;
+    color: var(--accent-ink); background: var(--accent-soft);
+    padding: 3px 10px; border-radius: 99px; white-space: nowrap;
+  }
+  .sec-sub { color: var(--ink-3); font-size: 14px; margin: 0 0 18px; }
+
+  /* topic cards */
+  .topic {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: var(--shadow); padding: 22px 24px 18px; margin-bottom: 16px;
+  }
+  .topic h3 { font-size: 17px; margin: 0 0 4px; font-weight: 700; }
+  .topic .verdict {
+    font-size: 14.5px; color: var(--ink-2); margin: 0 0 12px;
+    padding-bottom: 12px; border-bottom: 1px dashed var(--line);
+  }
+  .topic .verdict b { color: var(--warm); font-weight: 700; }
+  .topic ul { margin: 0; padding-left: 20px; }
+  .topic li { margin: 7px 0; font-size: 14.5px; color: var(--ink-2); }
+  .topic li strong { color: var(--ink); font-weight: 600; }
+
+  /* steps */
+  .steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(185px, 1fr)); gap: 12px; }
+  .step {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px 16px 14px; box-shadow: var(--shadow); position: relative;
+  }
+  .step .n {
+    width: 26px; height: 26px; border-radius: 8px; background: var(--accent);
+    color: #fff; font-size: 14px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; margin-bottom: 10px;
+  }
+  .step h4 { margin: 0 0 4px; font-size: 15px; font-weight: 700; }
+  .step p { margin: 0; font-size: 13px; color: var(--ink-2); line-height: 1.65; }
+
+  /* prompt blocks */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+  .chip {
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: 99px;
+    padding: 5px 14px; font-size: 13.5px; color: var(--ink-2); font-weight: 500;
+  }
+  .chip b { color: var(--accent-ink); font-weight: 700; margin-right: 2px; }
+
+  /* two-col trends */
+  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 640px) { .cols { grid-template-columns: 1fr; } }
+  .col-card {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    box-shadow: var(--shadow); padding: 18px 20px 14px;
+  }
+  .col-card h3 { font-size: 15.5px; margin: 0 0 10px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .col-card h3 .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex: none; }
+  .col-card.warm h3 .dot { background: var(--warm); }
+  .cal { list-style: none; margin: 0; padding: 0; }
+  .cal li {
+    display: flex; gap: 12px; align-items: baseline;
+    padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 14px; color: var(--ink-2);
+  }
+  .cal li:last-child { border-bottom: 0; }
+  .cal .d {
+    font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent-ink);
+    min-width: 74px; font-size: 13.5px; flex: none;
+  }
+  .col-card.warm .cal .d { color: var(--warm); min-width: 0; }
+  .col-card ul.plain { margin: 0; padding-left: 18px; }
+  .col-card ul.plain li { font-size: 14px; color: var(--ink-2); margin: 6px 0; }
+
+  /* spec */
+  .spec-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+  .spec {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 15px 18px; box-shadow: var(--shadow); font-size: 14px; color: var(--ink-2);
+  }
+  .spec b { display: block; color: var(--ink); font-size: 14.5px; margin-bottom: 3px; }
+
+  /* table */
+  .tbl-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow); background: var(--surface); }
+  table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 14px; }
+  th, td { text-align: left; padding: 12px 16px; vertical-align: top; }
+  thead th {
+    font-size: 12.5px; letter-spacing: .06em; color: var(--ink-3); font-weight: 700;
+    border-bottom: 1px solid var(--line); background: var(--surface-2); white-space: nowrap;
+  }
+  tbody tr + tr td { border-top: 1px solid var(--line); }
+  td.who { font-weight: 700; color: var(--ink); white-space: nowrap; }
+  td.due { font-variant-numeric: tabular-nums; color: var(--warm); font-weight: 700; white-space: nowrap; }
+  td.task { color: var(--ink-2); }
+
+  /* closer */
+  .closer {
+    margin-top: 46px; background: linear-gradient(135deg, var(--accent-soft), var(--surface));
+    border: 1px solid var(--line); border-radius: 16px; padding: 26px 28px; box-shadow: var(--shadow);
+  }
+  .closer h2 { font-size: 18px; margin: 0 0 10px; }
+  .closer p { margin: 0; font-size: 15px; color: var(--ink-2); }
+  .closer b { color: var(--accent-ink); }
+
+  /* ---- extended reading band ---- */
+  .band {
+    margin-top: 52px; padding: 6px 0 0;
+    border-top: 3px solid var(--warm);
+  }
+  .band-eyebrow {
+    display: inline-block; font-size: 12.5px; font-weight: 700; letter-spacing: .1em;
+    color: var(--warm); background: var(--warm-soft); padding: 4px 12px; border-radius: 0 0 8px 8px;
+  }
+  .band h2.band-title { font-size: 22px; margin: 14px 0 4px; text-wrap: balance; }
+  .band .band-sub { color: var(--ink-2); font-size: 14.5px; margin: 0 0 8px; }
+
+  /* video structure flow */
+  .flow { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; margin-top: 4px; }
+  .flow .f {
+    flex: 1 1 150px; background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; padding: 13px 15px; box-shadow: var(--shadow); position: relative;
+  }
+  .flow .f .fs { font-size: 12px; font-weight: 700; color: var(--warm); letter-spacing: .05em; }
+  .flow .f h4 { margin: 3px 0 3px; font-size: 14.5px; }
+  .flow .f p { margin: 0; font-size: 12.5px; color: var(--ink-2); line-height: 1.6; }
+  .flow-note {
+    margin: 12px 0 0; font-size: 14px; color: var(--ink-2);
+    background: var(--warm-soft); border-radius: 10px; padding: 10px 16px;
+  }
+  .flow-note b { color: var(--warm); }
+
+  /* checklist */
+  .checks { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px 18px; }
+  @media (max-width: 640px) { .checks { grid-template-columns: 1fr; } }
+  .checks li {
+    font-size: 14px; color: var(--ink-2); padding: 8px 0 8px 28px; position: relative;
+    border-bottom: 1px solid var(--line);
+  }
+  .checks li::before {
+    content: "✓"; position: absolute; left: 4px; top: 8px;
+    color: var(--good); font-weight: 700;
+  }
+  .checks li strong { color: var(--ink); font-weight: 600; }
+
+  .quote-strip {
+    margin: 18px 0 0; padding: 16px 22px; border-radius: 12px;
+    background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--warm);
+    font-size: 15px; color: var(--ink-2); box-shadow: var(--shadow);
+  }
+  .quote-strip b { color: var(--ink); }
+
+  footer { margin-top: 40px; color: var(--ink-3); font-size: 12.5px; border-top: 1px solid var(--line); padding-top: 16px; }
+</style>
+
+<div class="wrap">
+  <header>
+    <span class="eyebrow">內部分享・活動紀錄</span>
+    <h1>2026 Meta 創作者行銷趨勢論壇 — 重點整理</h1>
+    <div class="meta-line">
+      <span>📅 活動日期：2026/07/09</span>
+      <span>🏢 TSA Group 數位廣告部・Molly</span>
+      <span>📝 整理自 deck 及社群筆記</span>
+    </div>
+    <p class="thesis">
+      一句話總結：廣告成效的決戰點，已從 <span class="shift">「受眾精準設定」→ <b>「素材多樣性與原生吸引力」</b></span>。<br>
+      <strong>單一品牌視角的素材餵不飽 AI 演算法</strong>，品牌要建立「創作者素材供應鏈」，讓 AI 拿多元素材去找到我們自己找不到的受眾。
+    </p>
+  </header>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="num">50<small>%+</small></div>
+      <div class="lbl">FB / IG / Threads 內容已由 AI 推薦分發</div>
+    </div>
+    <div class="stat hot">
+      <div class="num">−19<small>%</small></div>
+      <div class="lbl">常規廣告搭配合作廣告後的 CPA 降幅（再用 AI 推薦素材可續降 18%）</div>
+    </div>
+    <div class="stat">
+      <div class="num">80<small>%</small></div>
+      <div class="lbl">合作廣告觸及用戶中，常規廣告碰不到的新受眾（台港數據）</div>
+    </div>
+    <div class="stat">
+      <div class="num">5–6<small> 秒</small></div>
+      <div class="lbl">優質 Reels 的平均觀看秒數門檻</div>
+    </div>
+    <div class="stat">
+      <div class="num">10–30<small>%</small></div>
+      <div class="lbl">健康的貼文觸及率（÷粉絲數）；超過 50% 為極優異</div>
+    </div>
+  </div>
+  <p class="stats-src">數據出自論壇現場分享之 Meta 全球與台港市場數據；「50%+ AI 推薦」由 Meta 台灣暨香港總經理 Patrick 於論壇提出。</p>
+
+  <section>
+    <div class="sec-head"><h2>三大核心議題</h2><span class="tag">結論先行</span></div>
+
+    <div class="topic">
+      <h3>① AI 驅動下的 Meta 廣告底層邏輯轉變</h3>
+      <p class="verdict">結論：<b>適應 AI 演算法新常態</b>——AI 靠即時互動信號決定推播效益，素材要多樣、要原生。</p>
+      <ul>
+        <li><strong>演算法主導版位</strong>：FB / IG / Threads 超過一半內容由 AI 推薦；單一賣點素材已無法滿足 AI 尋找潛在受眾的需求。</li>
+        <li><strong>優質內容的信號標準</strong>：Reels 平均觀看 5–6 秒以上；貼文觸及率達粉絲數 10–30%（&gt;50% 極優）。</li>
+      </ul>
+    </div>
+
+    <div class="topic">
+      <h3>② 「合作廣告」與創作者素材供應鏈</h3>
+      <p class="verdict">結論：<b>單打獨鬥的品牌素材不敷使用</b>，用 Partnership Ads 拿到「品牌＋創作者」雙重信號。</p>
+      <ul>
+        <li><strong>降 CPA</strong>：常規＋合作廣告 CPA −19%；再採用合作廣告中心 AI 推薦素材，可再 −18%。</li>
+        <li><strong>開新客</strong>：台港市場合作廣告觸及的用戶，80% 是常規廣告覆蓋不到的新受眾。</li>
+        <li><strong>KOC 價值提升</strong>：粉絲數不再是唯一指標——積極配置微型（10K–50K）與奈米型（1K–10K）創作者，用 AI 從上千位名單篩出 5–10 位高互動候選人批量測試。</li>
+      </ul>
+    </div>
+
+    <div class="topic">
+      <h3>③ 2026 下半年趨勢與爆款企劃落地</h3>
+      <p class="verdict">結論：<b>前 3 秒 Hook 定生死</b>——用 AI＋結構化提示詞一鍵生成 Creator Brief，綁定下半年行事曆與新興話題。</p>
+      <ul>
+        <li><strong>素材交付規格化</strong>：1080p+、9:16 直式；15 秒導演版＋30 秒無浮水印乾淨版（供廣告後製優化）。</li>
+        <li><strong>授權先講清楚</strong>：付費廣告使用期明訂（如 90 天），自然流量永久保留。</li>
+        <li><strong>押注新興訊號</strong>：「AI 融入日常生活」「無糖減糖運動」「全民存股 / ETF 認同」等高共鳴話題。</li>
+      </ul>
+    </div>
+  </section>
+
+  <div class="band">
+    <span class="band-eyebrow">延伸解讀・同仁心得</span>
+    <h2 class="band-title">電商零售品牌怎麼接招：從「投放競賽」到「素材供給競賽」</h2>
+    <p class="band-sub">
+      過去比的是受眾包、興趣標籤、Lookalike 設定得多細；現在 Meta AI 看的是<strong>即時內容信號</strong>——
+      哪支素材留得住人、哪位創作者的受眾跟品牌重疊、哪支影片有擴量潛力。
+      單一品牌視角的素材，餵不飽 AI 對「個人化內容」的需求：真正的個人化不是所有人看同一則廣告，
+      而是讓不同受眾都覺得「這支內容好像是為我設計的」。<strong>未來的 Meta 廣告競爭，不只是預算競爭，而是素材供給能力的競爭。</strong>
+    </p>
+
+    <section>
+      <div class="sec-head"><h2>短影音的有效結構</h2><span class="tag">與談者分享</span></div>
+      <p class="sec-sub">有效的短影音不是開頭就介紹產品，而是這樣鋪陳：</p>
+      <div class="flow">
+        <div class="f">
+          <span class="fs">前 3–5 秒</span>
+          <h4>Hook 直擊痛點</h4>
+          <p>決定滑不滑走的生死線</p>
+        </div>
+        <div class="f">
+          <span class="fs">中段</span>
+          <h4>真實個人經驗</h4>
+          <p>創作者用自己的故事建立信任</p>
+        </div>
+        <div class="f">
+          <span class="fs">後段</span>
+          <h4>產品解決問題</h4>
+          <p>自然帶出產品如何回應痛點</p>
+        </div>
+        <div class="f">
+          <span class="fs">結尾</span>
+          <h4>呼籲購買</h4>
+          <p>CTA 放最後，不搶戲</p>
+        </div>
+      </div>
+      <p class="flow-note">
+        <b>品牌規格只佔約 25%</b>——品牌負責定義「要說什麼」，其餘空間留給創作者發揮「怎麼說，消費者才聽得下去」。
+      </p>
+    </section>
+
+    <section>
+      <div class="sec-head"><h2>合作廣告解決電商的三個實際瓶頸</h2></div>
+      <div class="spec-grid">
+        <div class="spec"><b>1. 補足新客開發</b>品牌素材疲乏、帳戶找不到便宜新客時，創作者受眾信號幫品牌打開新的流量池。</div>
+        <div class="spec"><b>2. 增加素材角度</b>品牌只會從功能、價格、優惠切入；創作者能從家庭、上班族、親子、寵物、健身、送禮等情境重新包裝——這正是 AI 投遞需要的多樣性。</div>
+        <div class="spec"><b>3. 讓廣告更像內容</b>消費者習慣略過品牌廣告；在 Reels、限動版位，內容夠不夠自然，比畫面精不精緻更重要。</div>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><h2>挑創作者的實戰指標</h2><span class="tag">不是粉絲越多越好</span></div>
+      <p class="sec-sub">Meta AI 推薦創作者看三個維度：產業相關性、品質信號（互動率／完播率／創意品質）、受眾重疊度。人工複核時看這六項：</p>
+      <ul class="checks">
+        <li><strong>最近 10 支影片的平均觀看數</strong>，不是歷史最高</li>
+        <li><strong>留言品質真實</strong>，不是只有表情符號或空泛稱讚</li>
+        <li><strong>收藏與分享數</strong>有一定基礎</li>
+        <li><strong>Reels 平均觀看 5–6 秒以上</strong></li>
+        <li><strong>觸及率達粉絲數 10–30%</strong>（&gt;50% 非常優秀）</li>
+        <li><strong>有自己的團購、社群或導購能力</strong></li>
+      </ul>
+      <p class="quote-strip">
+        別再只問「這個創作者有多少粉絲？」——要問：<b>內容能不能讓人看完？留言裡有沒有真實購買詢問？受眾跟我的 TA 重不重疊？他能不能提供品牌自己拍不出來的說法？拿去投廣告有沒有擴量潛力？</b>
+      </p>
+    </section>
+
+    <section>
+      <div class="sec-head"><h2>把「創作者素材供應鏈」當基本功經營</h2></div>
+      <p class="sec-sub">避免一次性煙火式合作，像經營廣告帳戶一樣持續經營創作者池與素材池。品牌應該開始累積：</p>
+      <ul class="checks">
+        <li>長期合作創作者名單</li>
+        <li>不同受眾類型的 KOC 分組</li>
+        <li>不同產品線的內容腳本資料庫</li>
+        <li>可重複使用的創作者 Brief 模板</li>
+        <li>素材授權與投放流程</li>
+        <li>合作廣告成效追蹤表</li>
+        <li>優勝素材再製與擴量機制</li>
+        <li>AI 輔助篩選與 Brief 生成流程</li>
+      </ul>
+      <p class="quote-strip">
+        真正帶來複利的不是某次爆紅合作，而是逐漸累積出「哪類創作者帶新客、哪種 Hook 提完播、哪種情境帶轉換、哪些素材能降 CPA」的資料——<b>這才是品牌自己的競爭壁壘</b>。
+      </p>
+    </section>
+
+    <section>
+      <div class="sec-head"><h2>電商零售品牌：先從三件事開始</h2></div>
+      <div class="steps">
+        <div class="step">
+          <div class="n">1</div>
+          <h4>盤點現有創作者素材</h4>
+          <p>確認過去的 KOL / KOC / 開箱 / 團購 / 顧客見證內容，進合作廣告中心看可用素材與 AI 推薦內容。</p>
+        </div>
+        <div class="step">
+          <div class="n">2</div>
+          <h4>用 AI 建第一版名單</h4>
+          <p>把產品定位、TA、客單價、賣點、過去成效整理成提示詞，讓 AI 縮小搜尋範圍，行銷人再做人工判斷。</p>
+        </div>
+        <div class="step">
+          <div class="n">3</div>
+          <h4>把合作廣告當測試系統</h4>
+          <p>每次合作都留數據：哪支 CTR 高、觀看秒數長、新客品質好、CPA 低、值得預熱後放進常規廣告組。</p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <section>
+    <div class="sec-head"><h2>爆款企劃 4 步驟 SOP</h2><span class="tag">現場實戰手冊</span></div>
+    <p class="sec-sub">從想法到 Creator Brief，論壇提供的一條龍工作流——每一步都能直接上手。</p>
+    <div class="steps">
+      <div class="step">
+        <div class="n">1</div>
+        <h4>挑 AI 神隊友</h4>
+        <p>任何順手的 AI 工具都行；meta.ai 不耗額度，佛心首選。</p>
+      </div>
+      <div class="step">
+        <div class="n">2</div>
+        <h4>備好王牌素材</h4>
+        <p>上傳原始簡報（草稿也 OK）、過往成效報告，或手動輸入產品亮點。</p>
+      </div>
+      <div class="step">
+        <div class="n">3</div>
+        <h4>套用指令模板</h4>
+        <p>用官方 Prompt 模板改掉標示區塊，秒生成客製 Brief，直接貼進表單給代理商 / KOL，溝通零失誤。</p>
+      </div>
+      <div class="step">
+        <div class="n">4</div>
+        <h4>加料引爆流量</h4>
+        <p>套用 2026 下半年台灣 Threads 爆款話題預測，替企劃加料放大聲量。</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>AI 匹配創作者：結構化提示詞</h2><span class="tag">活動釋出模板</span></div>
+    <p class="sec-sub">Meta AI ＋ 結構化提示詞 ＋ 創作者搜尋引擎 Skill（本次活動提供）＝ 從名單自動產出專屬網紅推薦。模板六大區塊：</p>
+    <div class="chips">
+      <span class="chip"><b>1</b>品牌脈絡 Brand Context</span>
+      <span class="chip"><b>2</b>廣告活動脈絡 Campaign Context</span>
+      <span class="chip"><b>3</b>創意與素材要求</span>
+      <span class="chip"><b>4</b>活動目標與受眾</span>
+      <span class="chip"><b>5</b>網紅條件設定（含品牌安全紅旗、競品衝突）</span>
+      <span class="chip"><b>6</b>輸入資料清單（種子輪廓、已合作、排除名單）</span>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>2026 下半年值得押注的新興訊號</h2></div>
+    <div class="cols" style="grid-template-columns: 1fr;">
+      <div class="col-card warm">
+        <h3><span class="dot"></span>新興訊號（值得現在押注）</h3>
+        <ul class="cal">
+          <li><span class="d">🤖</span>AI 融入日常生活——「你最依賴 AI 做的事」</li>
+          <li><span class="d">🧵</span>Threads 品牌社群：用「脆友」語氣互動 &gt; 品牌說教</li>
+          <li><span class="d">📱</span>UGC 素人真實內容 &gt; KOL 精修</li>
+          <li><span class="d">🍵</span>無糖減糖運動、健康打卡</li>
+          <li><span class="d">📈</span>全民存股 / ETF 認同</li>
+          <li><span class="d">🎓</span>60 秒知識型短影音（Edutainment）</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>素材交付與授權：談合作前先講好</h2></div>
+    <div class="spec-grid">
+      <div class="spec"><b>技術規格</b>1080p+ 解析度、9:16 直式優先（4:5 可選）、.mp4 / .mov、音樂用 Meta Sound Collection 免版稅曲庫。</div>
+      <div class="spec"><b>兩版交付</b>15 秒「導演版」（創作者個人風格）＋ 30 秒「乾淨版」（無文字、無浮水印，供品牌後製與廣告優化）。</div>
+      <div class="spec"><b>授權框架</b>付費廣告使用期明訂（如 90 天）；創作者自然流量貼文永久保留；可加購原始檔 / 專案檔。</div>
+      <div class="spec"><b>合作廣告權限</b>內容層級（Ad Code）或帳號層級（Agile Collaboration）；投放可選品牌 / 創作者 / 雙掛名版位。</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><h2>值得參考的方向</h2><span class="tag">論壇分享的思路</span></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>任務性質</th><th>可以參考的做法</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="who">帳戶端</td>
+            <td class="task">盤點現有 KOL / KOC 歷史素材，開通 Meta 合作廣告中心權限，從中找出具擴量潛力的舊素材做投放測試。</td>
+          </tr>
+          <tr>
+            <td class="who">AI 工具端</td>
+            <td class="task">「AI 匹配創作者提示詞模板」可以拿來設定品牌脈絡與受眾條件，篩出 5–10 位 KOC 作為第一階段測試名單。</td>
+          </tr>
+          <tr>
+            <td class="who">內容端</td>
+            <td class="task">結合 8/8 父親節與 Threads 爆款趨勢產出 Creator Brief，讓候選創作者發想 2 款影片 Hook 供參考。</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="closer">
+    <h2>🎣 一個好記的比喻</h2>
+    <p>
+      過去的 Meta 廣告像在<b>人造魚塭</b>用單一規格的漁網反覆撈魚（精準受眾＋單一素材），魚群會疲乏枯竭。
+      未來要打造一支<b>多元化的遠洋船隊</b>（創作者素材供應鏈），靠聲納系統（AI 推薦演算法）在大海自動導航——
+      每艘船（不同領域創作者）掛上專屬誘餌（客製原生 Hook），替品牌從未知海域源源不絕捕獲全新魚群。
+    </p>
+    <p style="margin-top:14px; font-size:15px; color:var(--ink-2); border-top:1px dashed var(--line); padding-top:14px;">
+      <b>結語：</b>AI 廣告時代，最有價值的品牌不是最會投放的，而是<b>最會生產能被演算法放大的有效素材</b>的。
+      下一階段的競爭不只是誰更會買流量，而是誰更懂得用創作者與 AI，持續生產好內容。
+    </p>
+  </div>
+
+  <footer>
+    整理：Molly（依據 2026/07/09 Meta 創作者行銷趨勢論壇官方簡報「Creator Campaign 實戰手冊」「AI 匹配創作者提示詞」，及社群整理筆記）・僅供內部參考
+  </footer>
+</div>

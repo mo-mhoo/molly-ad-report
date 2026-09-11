@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>毛孩時代｜競品/KOL 廣告分析</title>
+<style>
+:root{--bg:#f4f7fb;--card:#fff;--ink:#122034;--muted:#6b7a90;--line:#d8e1ec;--blue:#1f4d92;--soft:#edf4ff;--shadow:0 2px 10px rgba(16,24,40,.06);--warn:#b45309;--warnbg:#fff7ed;--warnline:#fed7aa;--chip:#eef4ff;--kpi:#fff;}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#0f1620;--card:#161f2c;--ink:#e7edf6;--muted:#93a3b8;--line:#293346;--blue:#7fa8e8;--soft:#1b2537;--shadow:0 2px 14px rgba(0,0,0,.35);--warn:#f0b458;--warnbg:#2a2010;--warnline:#5c4419;--chip:#1b2537;--kpi:#131b27;}
+}
+:root[data-theme="dark"]{--bg:#0f1620;--card:#161f2c;--ink:#e7edf6;--muted:#93a3b8;--line:#293346;--blue:#7fa8e8;--soft:#1b2537;--shadow:0 2px 14px rgba(0,0,0,.35);--warn:#f0b458;--warnbg:#2a2010;--warnline:#5c4419;--chip:#1b2537;--kpi:#131b27;}
+:root[data-theme="light"]{--bg:#f4f7fb;--card:#fff;--ink:#122034;--muted:#6b7a90;--line:#d8e1ec;--blue:#1f4d92;--soft:#edf4ff;--shadow:0 2px 10px rgba(16,24,40,.06);--warn:#b45309;--warnbg:#fff7ed;--warnline:#fed7aa;--chip:#eef4ff;--kpi:#fff;}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans TC',sans-serif;}
+.page{max-width:1440px;margin:0 auto;padding:28px 20px 56px}
+.hero,.brand-block,.card{background:var(--card);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow)}
+.hero,.brand-block{padding:26px;margin-bottom:22px}
+.card{padding:18px}
+h1{margin:0 0 8px;font-size:38px;line-height:1.2} h2{margin:0 0 8px;font-size:28px} h3{margin:0 0 12px;font-size:20px}
+.subtitle{color:var(--muted);font-size:17px;margin-bottom:18px}
+.notice{background:var(--soft);border-left:4px solid var(--blue);padding:14px 16px;border-radius:10px;margin-bottom:18px}
+.warnbox{background:var(--warnbg);border:1px solid var(--warnline);border-left:4px solid var(--warn);padding:16px 18px;border-radius:10px;margin-bottom:18px}
+.warnbox h3{color:var(--warn);margin:0 0 8px;font-size:16px}
+.warnbox ul{margin:0;padding-left:20px} .warnbox li{margin-bottom:4px}
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px} .kpi{border:1px solid var(--line);border-radius:18px;padding:16px;background:var(--kpi)}
+.label{color:var(--muted);font-size:13px;margin-bottom:8px} .value{font-size:28px;font-weight:800;color:var(--blue)} .sub{font-size:13px;color:var(--muted);margin-top:6px}
+.brand-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;margin-bottom:16px} .subline{color:var(--muted)} .pill{background:var(--chip);color:var(--blue);padding:8px 12px;border-radius:999px;font-weight:700;white-space:nowrap}
+.pill.pending{background:var(--warnbg);color:var(--warn)}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px} .note-card p{margin-top:0}
+.bar{height:30px;background:#edf2f7;border-radius:999px;overflow:hidden;display:flex;margin-bottom:12px} .seg{height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:8px 16px} .legend-item{font-size:13px} .sw{display:inline-block;width:10px;height:10px;border-radius:999px;margin-right:6px} .muted{color:var(--muted)}
+.metric-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px} .metric{border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center;background:#fff} .metric strong{display:block;font-size:24px;color:var(--blue)} .metric span{font-size:13px;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:10px} .chip{background:var(--chip);color:var(--blue);padding:8px 12px;border-radius:999px;font-weight:700}
+.tablewrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px} th,td{padding:10px 12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top} th{background:var(--soft)} a{color:var(--blue);text-decoration:none;font-weight:700} a:hover{text-decoration:underline}
+ul{margin:0;padding-left:20px} .footer{font-size:12px;color:var(--muted);margin-top:18px}
+@media (max-width:1100px){.kpis,.two-col{grid-template-columns:1fr}}
+@media (max-width:700px){.page{padding:16px 10px 40px} h1{font-size:30px} .kpis{grid-template-columns:1fr} .brand-head{flex-direction:column;align-items:flex-start} table{font-size:13px}}
+</style>
+</head>
+<body>
+<div class="page">
+  <section class="hero">
+    <h1>寵物保健品 Meta 廣告策略比較報告（更新版）</h1>
+    <div class="subtitle">抓取日期 2026-09-07（上次更新 2026-09-06，原版抓取日期 2026-07-09）。整理各品牌目前投放中/近期投放的素材主軸、內容策略與代表素材，並持續追蹤同品類素人／KOL 貼文觀察。</div>
+    <div class="notice">
+      <strong>本次更新摘要（跟 09-06 版比較）：</strong>
+      <strong>最重要變化：嬌寵醫生確認恢復投放，且改用登入版瀏覽器抓到完整廣告文案</strong>——Molly 先提供 Meta 廣告檔案庫截圖，顯示品牌「嬌寵醫生」目前有多筆刊登中廣告，推翻先前連續四次（08-12、08-26、08-31、09-06）「查無投放」的紀錄；API 的 search_terms 一開始查不到，後來用中英混合關鍵字「Proudpet 嬌寵醫生」才比對到，找出正確 page_id <strong>571533563053275</strong>；但 API 本身只回傳連結標題文字，Molly 追問「你去找方法」抓完整廣告示意圖後，改用 Claude in Chrome（登入 Facebook 的真實瀏覽器）直接開啟該品牌的 Ads Library 頁面，成功抓到<strong>約 74 則廣告的完整文案全文</strong>（不只連結標題），內容遠比 API 豐富，細節見下方嬌寵醫生區塊。這個「API 查不到細節時改用登入瀏覽器」的技巧之後其他品牌若有類似需求也可以比照使用。其餘品牌變化相對平緩：汪喵星球 Ads Library 估計總量微降（169→168），既有促購/凍乾/貓砂主軸持續在投，無新素材主軸；木入森總量回升（58→64），內容組合與上版一致（皮膚保健、腸胃益生菌、魚油粉、排毛粉、眼睛保健並存），新看到一支「魚油買二送一超優惠」促購素材；毛孩時代總量微升（705→713），momo 站外導購（$200折價券、補貨貓砂送藤編窩、買1送1、3重送+85折up）仍是最新素材主力，魚油系列（SPD去腥、95%高濃度）仍在投但屬較早素材；KOL 觀察部分「午後毛語筆記本」投放量持平（47→46），本輪新看到一支「貓飼料推薦」比較文，既有候選卡默Camo、美術老師是隻貓、Abao阿寶（新文案：「當餐桌上多了一包餐包，挑嘴貓竟然乖乖坐好…」）本輪皆再度出現，方向不變；本丸的成長日記_薩摩耶本輪未出現在樣本中（屬正常抽樣波動，非確認停止投放），維持在候選名單持續追蹤；未發現全新的候選 KOL 帳號。
+    </div>
+    <div class="warnbox">
+      <h3>⚠️ 本版方法論與原版不同，請先看這段</h3>
+      <ul>
+        <li>原版資料來自完整匯出的 CSV（358 則素材，逐則人工/演算法判讀漏斗層級與內容主軸）。本版改用 Meta Ads Library API 即時查詢，<strong>每品牌最多只能取回 50 則樣本</strong>（無法分頁），無法涵蓋完整素材庫。</li>
+        <li>Meta Ads Library API 回傳欄位僅有「頁面名稱、廣告連結標題文字、開始投放時間、廣告連結」，<strong>沒有完整文案全文、沒有圖片、也沒有結束投放時間</strong>；因此汪喵星球／木入森／毛孩時代三個品牌的「內容主軸」仍是用連結標題文字關鍵字比對出來的<strong>粗判</strong>，不是逐則人工核對，準確度低於原版。<strong>嬌寵醫生區塊是例外</strong>——本輪改用登入版瀏覽器直接讀取 Ads Library 頁面，抓到約 74 則廣告的完整文案全文，該區塊的判讀比其他三個品牌準確得多，細節見下方說明。</li>
+        <li><strong>嬌寵醫生的 search_terms 查詢很敏感</strong>：純中文「嬌寵醫生」「嬌寥」或純英文「ProudPet」「ProudPet.TW」都查無結果（API 找不到匹配時會 fallback 回傳不相關的熱門廣告），要用中英混合「Proudpet 嬌寵醫生」才查得到。已知正確 page_id 為 571533563053275。</li>
+        <li>素人／KOL 部分：Ads Library 只看得到「有下廣告」的貼文，看不到單純自然發文；本版以寵物魚油、肉泥、益生菌、關節保健等品類關鍵字搜尋，除既有 4 個候選帳號外，尚無法判斷是否有更多值得觀察的 KOL，僅記錄供之後追蹤，非全面掃描。</li>
+      </ul>
+    </div>
+    <div class="kpis">
+      <div class="kpi"><div class="label">已查品牌數</div><div class="value">4</div><div class="sub">汪喵星球／木入森／毛孩時代（API）＋嬌寵醫生（登入瀏覽器完整讀取）</div></div>
+      <div class="kpi"><div class="label">樣本則數</div><div class="value">約 224</div><div class="sub">汪喵星球/木入森/毛孩時代各 50 則上限＋嬌寵醫生約 74 則（完整文案）</div></div>
+      <div class="kpi"><div class="label">毛孩時代 Ads Library 總量</div><div class="value">713</div><div class="sub">目前查得到的歷史廣告總數（估計值，較 09-06 版的 705 則微幅上升，屬正常波動）</div></div>
+      <div class="kpi"><div class="label">KOL/素人候選帳號</div><div class="value">4</div><div class="sub">既有 4 個持續追蹤，本輪 3 個再度出現（卡默Camo、美術老師是隻貓、Abao阿寶），未發現全新面孔</div></div>
+    </div>
+  </section>
+
+  <section class="brand-block">
+    <div class="brand-head">
+      <div><h2>汪喵星球 DogCatStar</h2><div class="subline">page_id 836293449765984｜Ads Library 估計歷史總量 168 則（09-06 版為 169 則，08-31 版為 155 則），本次取樣 50 則</div></div>
+      <div class="pill">主重心：轉換／促購</div>
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <h3>樣本內容主軸（粗判，50則中的代表創意）</h3>
+        <div class="chips">
+          <span class="chip">促購優惠（免運/限時/新會員體驗/新品上市/買1送1）約 40%</span>
+          <span class="chip">商品訴求（凍乾零食/肉泥/主食泥機能）約 35%</span>
+          <span class="chip">問題教育／專業權威（隱血尿檢、離胺酸眼部）約 20%</span>
+          <span class="chip">社會證明／比較式文案 少量</span>
+        </div>
+        <h3 style="margin-top:16px">品類分布（粗判）</h3>
+        <div class="chips">
+          <span class="chip">貓砂（木薯砂/豆腐砂/無痕砂/隱血砂）多支同時在投</span>
+          <span class="chip">凍乾零食（SGS認證/台灣製造訴求，持續投放）</span>
+          <span class="chip">肉泥／主食罐（鮮主食泥、純肉泥，買1送1促購）</span>
+          <span class="chip">眼睛/泌尿保健（離胺酸、隱血砂）</span>
+        </div>
+      </div>
+      <div class="card note-card">
+        <h3>與上次比較</h3>
+        <p>整體方向與 09-06 版一致，仍是貓砂＋肉泥＋凍乾零食三線並行，Ads Library 估計歷史總量微幅回落（169→168），屬正常波動。「9/8-14 天天送1折券、主食罐買1送1」限時促購素材、凍乾零食 SGS 認證、木薯砂「矛盾大對決」比較式文案、鮮主食泥全新登場等既有主軸皆持續在投，本輪未觀察到新的素材主軸或新品類。</p>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>代表素材樣本（近期投放，樣本非全量）</h3>
+      <div class="tablewrap"><table>
+        <thead><tr><th>推測類型</th><th>廣告文案（連結標題）</th><th>廣告連結</th></tr></thead>
+        <tbody>
+          <tr><td>促購優惠</td><td>9/8-14 只有現在🎁天天送1折券 🎉主食罐買1送1、</td><td><a href="https://www.facebook.com/ads/library/?id=2540736299774115" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>商品訴求</td><td>【凍乾也要面試】台灣製造、SGS 認證可查，安心才錄取🐾</td><td><a href="https://www.facebook.com/ads/library/?id=4692814370954690" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>社會證明／比較</td><td>【矛盾大對決】當鏟屎官遇上不黏底木薯砂，究竟誰會勝出！🔥</td><td><a href="https://www.facebook.com/ads/library/?id=1501023068455721" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>促購優惠</td><td>汪喵瞬凝木薯砂【新品上市】2 包 $399 免運</td><td><a href="https://www.facebook.com/ads/library/?id=1864077337905317" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>問題教育</td><td>【看到外出籠就失控？】在家每天監測，默默守護貓咪健康🐱💛</td><td><a href="https://www.facebook.com/ads/library/?id=1502677148541317" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>商品訴求</td><td>汪喵全新登場【鮮主食泥】4種口味 x 2 種機能添加｜吃肉泥補營養，挑食也不怕</td><td><a href="https://www.facebook.com/ads/library/?id=1073824045586946" target="_blank" rel="noopener">查看廣告</a></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section class="brand-block">
+    <div class="brand-head">
+      <div><h2>木入森 MORESON</h2><div class="subline">page_id 1538149306265360｜Ads Library 目前總量 64 則（09-06 版為 58 則，08-31 版為 62 則）</div></div>
+      <div class="pill">主重心：保健品專業教育</div>
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <h3>樣本內容主軸（粗判）</h3>
+        <div class="chips">
+          <span class="chip">商品機能訴求（皮膚保健/魚油粉/排毛粉/腸胃益生菌）約 50%</span>
+          <span class="chip">促購優惠（魚油買二送一、問題導入式文案）約 30%</span>
+          <span class="chip">社會證明（千位飼主好評）少量</span>
+        </div>
+        <h3 style="margin-top:16px">品類分布（粗判）</h3>
+        <div class="chips">
+          <span class="chip">皮膚保健（膚立好）持續投放</span>
+          <span class="chip">魚油/魚油粉（高適口性訴求、買二送一促購）</span>
+          <span class="chip">排毛粉（千位飼主好評）</span>
+          <span class="chip">腸胃益生菌（活菌寶系列）、關節保健仍在投</span>
+        </div>
+      </div>
+      <div class="card note-card">
+        <h3>與上次比較</h3>
+        <p>Ads Library 總量回升（58→64 則）。09-06 版觀察到 VIP 回饋活動、7天安心體驗保證話術本次仍未再出現在樣本中；內容組合與上版大致一致，皮膚保健、魚油粉、排毛粉、腸胃益生菌、關節保健並存。本輪新看到一支「魚油買二送一超優惠」（863547646726946）與「銷售No.1的寵物魚油粉」促購素材，屬既有魚油品類的促購延伸，非全新品類。</p>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>代表素材樣本</h3>
+      <div class="tablewrap"><table>
+        <thead><tr><th>推測類型</th><th>廣告文案（連結標題）</th><th>廣告連結</th></tr></thead>
+        <tbody>
+          <tr><td>商品訴求</td><td>活力養膚一次到位</td><td><a href="https://www.facebook.com/ads/library/?id=2036245627020489" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>商品訴求</td><td>全方位守護貓咪腸胃健康！</td><td><a href="https://www.facebook.com/ads/library/?id=1582059573597731" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>促購優惠（新）</td><td>魚油買二送一超優惠</td><td><a href="https://www.facebook.com/ads/library/?id=863547646726946" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>商品訴求</td><td>高適口性「魚油粉」</td><td><a href="https://www.facebook.com/ads/library/?id=1099883835883921" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>社會證明</td><td>千位飼主好評「排毛粉」</td><td><a href="https://www.facebook.com/ads/library/?id=2109500563286750" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>商品訴求</td><td>貓咪顏值由我守護！（膚立好）</td><td><a href="https://www.facebook.com/ads/library/?id=1093432466520953" target="_blank" rel="noopener">查看廣告</a></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section class="brand-block">
+    <div class="brand-head">
+      <div><h2>嬌寵醫生</h2><div class="subline">page_id 571533563053275｜粉專 facebook.com/ProudPet.TW（陳正倫獸醫師／廖凱悅獸醫師共同創辦）｜Ads Library 估計歷史總量約 74 則，本次用登入瀏覽器完整讀取</div></div>
+      <div class="pill">主重心：創辦人專業背書＋深度成分教育</div>
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <h3>內容主軸（本次抓到完整文案後的判讀，非僅連結標題粗判）</h3>
+        <div class="chips">
+          <span class="chip">創辦人第一人稱背書體：幾乎每則都以「我是嬌寵創辦人陳正倫獸醫師」開場，用個人化故事＋臨床經驗建立信任，佔比最高的敘事框架</span>
+          <span class="chip">深度成分/劑量教育文（不是單純促購），常見「多數同類產品劑量不足」的對比論述</span>
+          <span class="chip">KOL 異業合作業配：「茶茶 and 三三」貓帳號、「狗與鹿」狗帳號</span>
+          <span class="chip">B2B 招商合作廣告（徵團購主/貓犬舍/實體店鋪/海外經銷商）</span>
+        </div>
+        <h3 style="margin-top:16px">品類分布</h3>
+        <div class="chips">
+          <span class="chip">眼部保健：晶透靚眼眼睛保養口服液（主打「血視網膜障壁」獨家吸收訴求）</span>
+          <span class="chip">離胺酸：極精萃左旋純離胺酸 黑酵母升級版（淚痕/眼屎/噴嚏）</span>
+          <span class="chip">魚油：極精萃頂級專利魚油S（Omega-3 98.6%，酪蛋白舒壓配方）</span>
+          <span class="chip">體態管理：極精萃胖貓專科體態管理機能糧（「低升糖控卡」2.0世代）</span>
+          <span class="chip">泌尿保健：極精萃護泌尿（雙前花青素，脂溶+水溶雙效）</span>
+          <span class="chip">皮膚益生菌：極精萃皮膚專科益生菌（台大研究背書，100億活菌）</span>
+        </div>
+      </div>
+      <div class="card note-card">
+        <h3>怎麼抓到這批資料</h3>
+        <p>Meta Ads Library API 的 search_terms 對這個品牌很不友善（純中文/純英文都查無結果），改用中英混合「Proudpet 嬌寵醫生」才找到 page_id 571533563053275；但即使用 page_id 查，API 也<strong>只回傳連結標題文字，不含完整文案跟圖片</strong>。Molly 追問「你去找方法」抓廣告示意圖後，改用 Claude in Chrome（Molly 自己登入 Facebook 的真實瀏覽器）直接開啟這個品牌在 Ads Library 的頁面，成功讀出約 74 則廣告的<strong>完整文案全文</strong>（含品牌故事、成分細節、KOL 業配內容），資訊量遠超過 API。Ads Library 頁面顯示的「~74筆結果」與 API 查到的 75 則基本吻合。這個方法（API 查 page_id／keyword 不夠用時，改用登入版瀏覽器直接讀取 Ads Library 頁面）之後遇到類似狀況可以直接比照使用，但注意這需要 Molly 的 Chrome 已登入 Facebook。</p>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>代表素材樣本（完整文案節錄，樣本非全量）</h3>
+      <div class="tablewrap"><table>
+        <thead><tr><th>開始刊登</th><th>類型</th><th>文案節錄</th><th>廣告連結</th></tr></thead>
+        <tbody>
+          <tr><td>2025-08-31</td><td>眼部保健</td><td>「紅眼、流淚、眼睛乾、眼屎多、瞳孔霧霧⋯」晶透靚眼眼睛保養口服液，寵物界唯一可通過血視網膜障壁的全眼照護</td><td><a href="https://www.facebook.com/ads/library/?id=1133722701950685" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>2025-08-31</td><td>離胺酸</td><td>「淚痕，該和它說再見了。」極精萃左旋純離胺酸｜黑酵母升級版，日本Ajinomoto大廠100%純離胺酸</td><td><a href="https://www.facebook.com/ads/library/?id=1458177902053698" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>2026-02-23</td><td>KOL業配（魚油）</td><td>「茶茶 and 三三」#三茶試吃趣：三茶麻有什麼問題總會請教熟悉的獸醫師，「預防醫學」取代昂貴醫療；極精萃頂級專利魚油S，Omega-3高達98.6%</td><td><a href="https://www.facebook.com/ads/library/?id=939819808393954" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>2026-03-29</td><td>魚油</td><td>你給毛孩吃的魚油有挑對嗎？魚油粉/罐裝/散裝的風險——額外添加物多、無法避光、易氧化酸敗；挑選魚油3大關鍵</td><td><a href="https://www.facebook.com/ads/library/?id=907016652375944" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>2026-05-01</td><td>泌尿保健</td><td>「這顆石頭，代表貓咪的健康及荷包在向你求救」極精萃護泌尿，雙前花青素脂溶+水溶雙效吸收，穩定血中濃度</td><td><a href="https://www.facebook.com/ads/library/?id=1408810394383332" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>2026-05-23</td><td>體態管理</td><td>「感謝傳統1.0處方糧過去50年的貢獻！」極精萃胖貓專科體態管理機能糧，「低升糖控卡」保健黑科技，開啟2.0時代</td><td><a href="https://www.facebook.com/ads/library/?id=1218652873549048" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>2026-06-02</td><td>B2B招商</td><td>【嬌寵醫生】合作招商中！嬌寵醫生已滿五歲，徵求團購主、貓犬舍、實體店鋪、海外經銷商、寵物旅館、友善餐廳合作</td><td><a href="https://www.facebook.com/ads/library/?id=4245616215656758" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>2026-06-11</td><td>皮膚益生菌</td><td>毛孩的益生菌總菌數怎麼看？極精萃皮膚專科益生菌，台灣大學研究團隊27例複雜皮膚犬研究證實對敏感皮膚有幫助</td><td><a href="https://www.facebook.com/ads/library/?id=1333604875384114" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>2026-06-11</td><td>KOL業配（眼部）</td><td>「狗與鹿」與嬌寵醫生：晶透靚眼眼睛保養口服液，深入眼球結構【血視網膜障壁】進行作用，全齡貓狗適用</td><td><a href="https://www.facebook.com/ads/library/?id=1668370691053961" target="_blank" rel="noopener">查看廣告</a></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <section class="hero">
+    <h2>同品類素人／KOL 觀察</h2>
+    <div class="notice">用「寵物魚油」「貓咪肉泥」「寵物益生菌」「寵物關節保健」等品類關鍵字在 Meta Ads Library（TW，目前投放中）搜尋，篩出幾個看起來像飼主/部落客帳號風格（非明顯品牌官方帳號）、且正在下廣告推內容的粉專，供內容策略參考。本次搜尋結果中反覆出現的仍以品牌官方帳號為主（蘑菇生技Mowoods、IN-Plus零食系寵物保健品、寵物大藥房、Dr.Wa-Mi汪咪博士、奧汎OurPet、Enpett英汎特寵物生醫、Labivet TW 等），與上版觀察一致。既有 4 個候選帳號中有 3 個本輪再度出現，記錄如下供之後追蹤。</div>
+    <div class="two-col">
+      <div class="card">
+        <h3>午後毛語筆記本（page_id 726139693914329）</h3>
+        <p style="margin-top:0">最值得注意的一個——內容是「排行/比較」型部落格文章，且<strong>直接點名比較毛孩時代與其他品牌</strong>，屬於同品類飼主決策關鍵字上的內容型競爭。本次查得 Ads Library 累積約 <strong>46 則</strong>廣告（09-06 版為 47 則，持平），全系列品類（肉泥、魚油、飼料、皮膚保健、口腔潔牙粉）持續輪流上稿，方向與前幾次觀察一致。本輪新看到一支「貓飼料推薦」比較文（898005556395766），延續其一貫的「XX年最完整實測心得」系列格式。</p>
+        <div class="tablewrap"><table>
+          <thead><tr><th>廣告文案（連結標題）</th><th>廣告連結</th></tr></thead>
+          <tbody>
+            <tr><td>狗狗皮膚病怎麼辦？六大狗狗皮膚保健食品排行榜＋實測心得評價(2026年最完整)</td><td><a href="https://www.facebook.com/ads/library/?id=2546319715903930" target="_blank" rel="noopener">查看廣告</a></td></tr>
+            <tr><td>【2026最新】10款貓咪肉泥推薦比較｜ciao、汪喵星球、毛孩時代哪個好？成分、適口性、CP值全評比</td><td><a href="https://www.facebook.com/ads/library/?id=1034431692710054" target="_blank" rel="noopener">查看廣告</a></td></tr>
+            <tr><td>⛅2026年最完整的「貓飼料推薦」實測心得 - 最多人買的6大貓飼料比較(2026年更新)</td><td><a href="https://www.facebook.com/ads/library/?id=898005556395766" target="_blank" rel="noopener">查看廣告</a></td></tr>
+            <tr><td>2026年最完整的「寵物魚油」實測心得 - ptt 最完整的貓狗魚油品牌比較(2026年更新)</td><td><a href="https://www.facebook.com/ads/library/?id=1292626222817830" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+      <div class="card">
+        <h3>其他既有候選帳號（內容多為圖片/影片，無文字標題可判讀）</h3>
+        <ul>
+          <li><strong>微躺毛星人阿洛</strong>（page_id 941946159010433）</li>
+          <li><strong>里長伯阿柴</strong>（page_id 1115695014956852）</li>
+          <li><strong>Liz n 毛星人日記</strong>（page_id 713567165181967）</li>
+        </ul>
+        <p style="margin-top:8px;color:var(--muted);font-size:13px">本輪對這三個帳號合併查詢（page_ids 一次帶入 3 個），API 僅回傳合併後的總數約 9 則，無法拆出個別帳號的數字（與 09-06 版分別查詢加總的 5+2+2=9 則量級一致），屬 API 已知限制，下次更新建議仍分開查詢以取得個別數字。</p>
+      </div>
+    </div>
+    <div class="card note-card" style="margin-top:16px">
+      <h3>本次持續追蹤的待驗證候選（風格像個人帳號，尚未確認是否值得列入常態觀察）</h3>
+      <p style="margin-top:0">以下帳號在本輪寵物益生菌、寵物關節保健、貓咪肉泥等品類關鍵字掃描中的出現狀況：</p>
+      <ul>
+        <li><strong>卡默 Camo</strong>（page_id 305284765998519）— 本輪再度在寵物益生菌、寵物關節保健兩輪關鍵字搜尋中出現，文案仍為貓砂體驗組促購（「低粉塵貓砂界神隊友！體驗組兩入只要$399」），與上次觀察一致。</li>
+        <li><strong>美術老師是隻貓</strong>（page_id 479224871948739）— 本輪再度在貓咪肉泥關鍵字搜尋中出現，命名風格偏個人化（非品牌命名），但廣告標題目前仍為空白，尚無法判讀內容方向。</li>
+        <li><strong>Abao阿寶</strong>（page_id 2397397350290964）— 本輪在貓咪肉泥關鍵字搜尋中出現，新文案「當餐桌上多了一包餐包，挑嘴貓竟然乖乖坐好…」，延續飼主好奇心式口吻，與上次「這到底是甚麼❓一拿出來貓咪就黏上來了......」風格一致，持續有新素材產出。</li>
+        <li><strong>本丸的成長日記_薩摩耶</strong>（page_id 114484720018614）— 本輪 4 個品類關鍵字搜尋中皆未出現，屬正常抽樣波動（Ads Library 關鍵字搜尋每次回傳的樣本本就會浮動），非確認停止投放，維持在候選名單中持續追蹤。</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="brand-block">
+    <div class="brand-head">
+      <div><h2>毛孩時代（本品牌）</h2><div class="subline">page_id 102542811256235｜Ads Library 估計歷史總量 713 則（09-06 版為 705 則），本次 50 則樣本僅涵蓋近期投放｜以下為對照用途，非競品</div></div>
+      <div class="pill">主重心：momo 導購促銷全面主導</div>
+    </div>
+    <div class="two-col">
+      <div class="card">
+        <h3>樣本內容主軸（粗判）</h3>
+        <div class="chips">
+          <span class="chip">momo 站外導購促購（折價券/補貨優惠/滿額贈）明顯最多，佔本輪最新樣本前列</span>
+          <span class="chip">商品訴求（寵物魚油系列：SPD去腥、95%高濃度）仍在投但為較早素材</span>
+          <span class="chip">社會證明／問題教育（10萬名飼主的安心選擇、魚油挑選迷思）</span>
+        </div>
+        <h3 style="margin-top:16px">觀察重點</h3>
+        <div class="chips">
+          <span class="chip">Ads Library 總量微升至 713 則，仍遠高於汪喵星球、木入森</span>
+          <span class="chip">本輪最新素材以 momo 導購促銷為壓倒性主軸，魚油系列相對退居次要</span>
+        </div>
+      </div>
+      <div class="card note-card">
+        <h3>與上次比較</h3>
+        <p>與 09-06 版觀察一致，<strong>momo 站外導購促銷</strong>持續是本輪最新素材的絕對主力：「註冊立即領【$200折價券】🎁」「補貨貓砂優惠，這次還送藤編窩！」「飼料不用等吃完，買1送1先補起來！」「湊3盒差多少？momo補貨熱潮🧴」「萬名貓奴怎麼選？momo人氣搶購🐱」「3重送+85折up」等系列文案持續密集上稿，且部分素材（如補貨貓砂送藤編窩）的投放起始時間比 09-06 版更新，代表 momo 檔期仍在延續、甚至加碼。<strong>寵物魚油系列</strong>（SPD 去腥、95%高濃度、全方位保養）仍持續在投，但屬較早素材，尚未重新回到主打位置。Ads Library 總量從 705 微升至 713，屬合理範圍內波動。</p>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px">
+      <h3>代表素材樣本</h3>
+      <div class="tablewrap"><table>
+        <thead><tr><th>推測類型</th><th>廣告文案（連結標題）</th><th>廣告連結</th></tr></thead>
+        <tbody>
+          <tr><td>促購優惠</td><td>註冊立即領【$200 折價券】🎁</td><td><a href="https://www.facebook.com/ads/library/?id=1087522377064189" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>促購優惠</td><td>補貨貓砂優惠，這次還送藤編窩！</td><td><a href="https://www.facebook.com/ads/library/?id=1595810925426847" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>促購優惠</td><td>飼料不用等吃完，買1送1先補起來！</td><td><a href="https://www.facebook.com/ads/library/?id=1590458525961411" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>促購優惠</td><td>湊3盒差多少？momo補貨熱潮🧴</td><td><a href="https://www.facebook.com/ads/library/?id=2266814767408697" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>促購優惠</td><td>萬名貓奴怎麼選？momo人氣搶購🐱</td><td><a href="https://www.facebook.com/ads/library/?id=1362391245963651" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>促購優惠</td><td>3重送+85折up</td><td><a href="https://www.facebook.com/ads/library/?id=1045245171643058" target="_blank" rel="noopener">查看廣告</a></td></tr>
+          <tr><td>商品訴求</td><td>不怕魚腥味｜SPD去腥犬貓魚油</td><td><a href="https://www.facebook.com/ads/library/?id=1827866168241247" target="_blank" rel="noopener">查看廣告</a></td></tr>
+        </tbody>
+      </table></div>
+    </div>
+  </section>
+
+  <div class="footer">資料來源：Meta Ads Library API（即時查詢，TW，2026-09-07），四個品牌（汪喵星球、木入森、毛孩時代、嬌寵醫生）皆用 page_id 精準查詢。分類為連結標題文字關鍵字粗判，非逐則人工核對，僅供方向參考；正式簡報建議挑重點品牌另外人工複查代表素材後再引用。原始 358 則版本見「毛孩時代_alpha_競品廣告分析_抓取日期20260709.html」。</div>
+</div>
+</body>
+</html>

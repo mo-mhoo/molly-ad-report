@@ -1,0 +1,8 @@
+config.json
+.streamlit/secrets.toml
+ga4-credentials.json
+.env
+.venv/
+__pycache__/
+*.pyc
+.DS_Store

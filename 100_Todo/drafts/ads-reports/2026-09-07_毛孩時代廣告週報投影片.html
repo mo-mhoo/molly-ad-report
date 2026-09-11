@@ -1,0 +1,699 @@
+<title>毛孩｜廣告週報投影片版型</title>
+<style>
+  :root{
+    --page-bg:#EDEEE8; --page-surface:#FFFFFF; --page-text:#22261F; --page-muted:#6B7263;
+    --page-border:#D9DBD0; --page-accent:#3E6B54;
+    --shadow: 0 1px 2px rgba(29,35,30,0.05), 0 10px 30px -12px rgba(29,35,30,0.18);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --page-bg:#15181A; --page-surface:#1B1F1C; --page-text:#E8EAE3; --page-muted:#9AA093;
+      --page-border:#2E332C; --page-accent:#6FAE8B;
+      --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 10px 30px -12px rgba(0,0,0,0.55);
+    }
+  }
+  :root[data-theme="dark"]{
+    --page-bg:#15181A; --page-surface:#1B1F1C; --page-text:#E8EAE3; --page-muted:#9AA093;
+    --page-border:#2E332C; --page-accent:#6FAE8B;
+    --shadow: 0 1px 2px rgba(0,0,0,0.35), 0 10px 30px -12px rgba(0,0,0,0.55);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--page-bg); color:var(--page-text);
+    font-family:"PingFang TC","Microsoft JhengHei","Heiti TC",-apple-system,"Helvetica Neue",Arial,sans-serif;
+    line-height:1.55;
+  }
+  .page{max-width:1360px;margin:0 auto;padding:48px 24px 96px;}
+  .intro{margin-bottom:28px;}
+  .intro h1{font-size:22px;font-weight:800;margin:0 0 8px;letter-spacing:-0.01em;}
+  .intro p{margin:0;color:var(--page-muted);font-size:13.5px;max-width:70ch;}
+  .intro .hint{
+    display:inline-flex;align-items:center;gap:6px;margin-top:14px;padding:6px 12px;
+    border:1px solid var(--page-border);border-radius:999px;font-size:12px;color:var(--page-muted);
+  }
+
+  /* ---- global controls bar ---- */
+  .controls-bar{
+    position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    background:var(--page-bg);padding:12px 0 20px;margin-bottom:16px;border-bottom:1px solid var(--page-border);
+  }
+  .seg{display:inline-flex;border:1px solid var(--page-border);border-radius:10px;padding:3px;background:var(--page-surface);gap:2px;}
+  .seg button{
+    appearance:none;border:none;background:transparent;color:var(--page-muted);font:inherit;font-weight:700;
+    font-size:13px;padding:7px 16px;border-radius:7px;cursor:pointer;transition:background .15s,color .15s;
+  }
+  .seg button.active{background:var(--page-accent);color:#fff;}
+  .controls-bar .note{font-size:12px;color:var(--page-muted);}
+  .controls-bar .mtd-warn{
+    display:none;font-size:11.5px;color:#A9781E;background:color-mix(in srgb, #A9781E 12%, transparent);
+    padding:4px 10px;border-radius:999px;font-weight:700;
+  }
+  .controls-bar.mtd .mtd-warn{display:inline-block;}
+
+  .group{margin-bottom:56px;}
+  .group-label{display:flex;align-items:baseline;gap:10px;margin-bottom:16px;}
+  .group-label .kicker{
+    font-size:11px;font-weight:800;letter-spacing:0.06em;color:var(--page-accent);
+    background:color-mix(in srgb, var(--page-accent) 14%, transparent);
+    padding:3px 9px;border-radius:999px;
+  }
+  .group-label h2{font-size:16px;font-weight:800;margin:0;}
+  .group-label .dims{font-size:12px;color:var(--page-muted);margin-left:auto;font-variant-numeric:tabular-nums;}
+  .group-label select{
+    font:inherit;font-size:12px;font-weight:700;color:var(--page-text);background:var(--page-surface);
+    border:1px solid var(--page-border);border-radius:7px;padding:5px 8px;cursor:pointer;
+  }
+
+  .slide-shell{
+    background:var(--page-surface);border:1px solid var(--page-border);border-radius:14px;
+    box-shadow:var(--shadow);padding:14px;margin-bottom:36px;
+  }
+  .slide-shell:last-child{margin-bottom:0;}
+
+  .slide{
+    width:100%;aspect-ratio:16/9;background:#FFFFFF;border-radius:6px;overflow:hidden;
+    position:relative;font-family:"PingFang TC","Microsoft JhengHei",-apple-system,"Helvetica Neue",Arial,sans-serif;
+    box-shadow:0 0 0 1px rgba(0,0,0,0.06);
+  }
+  .slide-inner{position:absolute;inset:0;padding:34px 40px 30px;display:flex;flex-direction:column;}
+
+  .sA-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16px;}
+  .sA-title{font-size:26px;font-weight:800;color:#141613;letter-spacing:-0.01em;}
+  .sA-meta{font-size:12px;color:#9CA39A;}
+  .sA-block{margin-bottom:14px;}
+  .sA-block:last-of-type{margin-bottom:10px;}
+  .sA-bar{
+    display:inline-block;background:#1C3D33;color:#fff;font-weight:800;font-size:13px;
+    padding:6px 16px;border-radius:6px 6px 0 0;
+  }
+  table.sA{width:100%;border-collapse:collapse;font-size:10.6px;font-variant-numeric:tabular-nums;}
+  table.sA th{
+    text-align:right;font-weight:700;color:#5B6259;background:#EEF0EA;padding:5px 6px;
+    border-bottom:1px solid #DCDED4;white-space:nowrap;
+  }
+  table.sA th:first-child, table.sA th:nth-child(2){text-align:left;}
+  table.sA td{text-align:right;padding:5px 6px;border-bottom:1px solid #EAEBE5;white-space:nowrap;color:#22261F;}
+  table.sA td:first-child{text-align:left;font-weight:700;}
+  table.sA tr.total td{font-weight:800;background:#F5F6F1;}
+  table.sA td.delta-up{color:#2E7D4F;}
+  table.sA td.delta-down{color:#B5432B;}
+  table.sA .roas-col{background:#E4EEF3;}
+  table.sA .roas-cell{background:#DCEAF1;font-weight:800;}
+  .sA-notes{margin-top:auto;padding-top:10px;}
+  .sA-notes li{font-size:12px;color:#3A4038;margin-bottom:4px;}
+  .sA-notes b{color:#1C3D33;}
+
+  .sA-obs{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid #DCDED4;border-radius:8px;overflow:hidden;margin-top:12px;}
+  .sA-obs > div{padding:10px 16px 12px;}
+  .sA-obs > div:first-child{border-right:1px solid #DCDED4;}
+  .sA-obs .col-head{background:#1C3D33;color:#fff;font-size:12px;font-weight:800;padding:6px 16px;margin:-10px -16px 8px;}
+  .sA-obs ul{margin:0;padding-left:16px;}
+  .sA-obs li{font-size:11px;color:#2E332C;margin-bottom:5px;line-height:1.45;}
+  .sA-obs.narrow li{font-size:10.5px;}
+
+  .sA-logo{position:absolute;left:40px;bottom:16px;display:flex;align-items:center;gap:6px;}
+  .sA-logo .mark{width:16px;height:16px;border-radius:4px;background:#1C3D33;}
+  .sA-logo span{font-size:12px;font-weight:800;color:#1C3D33;letter-spacing:0.02em;}
+
+  .sC-section{font-size:12px;font-weight:800;color:#1C3D33;margin:0 0 9px;padding-top:11px;border-top:1px solid #EAEBE5;display:flex;align-items:center;gap:6px;}
+  .sC-section:first-of-type{padding-top:0;border-top:none;}
+  .sC-tiles{display:grid;gap:8px 16px;margin-bottom:2px;}
+  .sC-tiles.c5{grid-template-columns:repeat(5,1fr);}
+  .sC-tiles.c6{grid-template-columns:repeat(6,1fr);}
+  .sC-tile .label{font-size:10px;color:#8B928A;font-weight:600;margin-bottom:3px;white-space:nowrap;}
+  .sC-tile .value{font-size:21px;font-weight:800;color:#141613;font-variant-numeric:tabular-nums;line-height:1.1;white-space:nowrap;}
+  .sC-tile .delta{display:inline-flex;align-items:center;gap:2px;margin-top:3px;font-size:9.5px;font-weight:700;}
+  .sC-tile .delta.up{color:#2E7D4F;}
+  .sC-tile .delta.down{color:#B5432B;}
+  .sC-tile .delta.na{color:#A9781E;}
+  .sC-tiles.compact{margin:6px 0 6px;}
+  .sC-tiles.compact .sC-tile .label{font-size:9px;margin-bottom:1px;}
+  .sC-tiles.compact .sC-tile .value{font-size:15px;}
+  .sC-tiles.compact .sC-tile .delta{font-size:8px;margin-top:1px;}
+  .sC-inline-section{font-size:11px;font-weight:800;color:#1C3D33;margin:0 0 6px;display:flex;align-items:center;gap:6px;}
+
+  table.sD{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;}
+  table.sD th{text-align:right;font-weight:700;color:#5B6259;background:#EEF0EA;padding:3px 9px;font-size:10px;white-space:nowrap;border-bottom:1px solid #DCDED4;}
+  table.sD th:first-child{text-align:left;}
+  table.sD td{text-align:right;padding:3px 9px;border-bottom:1px solid #EAEBE5;vertical-align:middle;white-space:nowrap;}
+  table.sD td:first-child{text-align:left;font-weight:700;font-size:11px;color:#22261F;}
+  table.sD tr:last-child td{border-bottom:none;}
+  table.sD tr.total td{font-weight:800;background:#F5F6F1;}
+  table.sD .tval{font-size:11.5px;font-weight:800;color:#141613;white-space:nowrap;}
+  table.sD .tdelta{display:block;margin-top:0;font-size:8px;font-weight:700;line-height:1.4;white-space:nowrap;}
+  table.sD .tdelta.up{color:#2E7D4F;}
+  table.sD .tdelta.down{color:#B5432B;}
+  table.sD .tdelta.flat{color:#A9781E;}
+  table.sD .roas-cell{background:#DCEAF1;}
+  .slide.compact-h .sA-block{margin-bottom:8px;}
+  .slide.compact-h .sA-bar{padding:4px 14px;font-size:12px;}
+
+  .week-ctrl{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .week-ctrl label{font-size:11px;color:#8B928A;font-weight:700;}
+  .week-ctrl select{font:inherit;font-size:11px;font-weight:700;border:1px solid #DCDED4;border-radius:6px;padding:3px 6px;background:#fff;color:#22261F;}
+  .footnote{font-size:9.5px;color:#9CA39A;margin-top:4px;}
+</style>
+
+<div class="page">
+
+  <div class="intro">
+    <h1>週報 → 16:9 投影片版型</h1>
+    <p id="introText">官網／蝦皮／momo 三個分頁各一張 YoY 總覽 + 一張週比較，共 6 張。每張都是固定 1280×720（16:9）畫布，可直接截圖貼進簡報。用上方月份切換器可以在「8月整月」與「9月 MTD」之間切換三張 YoY 總覽的資料；每張週比較投影片可各自用「顯示週數」下拉調整要看幾週。</p>
+    <span class="hint">↓ 往下捲：官網 → 蝦皮 → momo，各 YoY 總覽 + 週比較</span>
+  </div>
+
+  <div class="controls-bar" id="controlsBar">
+    <div class="seg" id="monthSeg">
+      <button data-month="2026-08" class="active">8月（整月）</button>
+      <button data-month="2026-09mtd">9月 MTD</button>
+    </div>
+    <span class="note" id="periodNote">數據區間 2026/8/1–8/31，YoY 對照 2025/8/1–8/31</span>
+    <span class="mtd-warn">⚠ 9月僅 6 天資料，YoY 波動大，僅供方向參考</span>
+  </div>
+
+  <!-- ============ 官網 ============ -->
+  <div class="group">
+    <div class="group-label"><span class="kicker">官網</span><h2 id="gw-yoy-title">官網｜8月 YoY 總覽</h2><span class="dims">1280 × 720</span></div>
+    <div class="slide-shell"><div class="slide compact-h">
+      <div class="slide-inner">
+        <div class="sA-head">
+          <div class="sA-title" id="gw-yoy-title2">官網｜8月 YoY 總覽</div>
+          <div class="sA-meta" id="gw-period-note">數據區間 8/1–8/31</div>
+        </div>
+        <div class="sA-block">
+          <span class="sA-bar">Google（毛孩時代主帳號＋部落格子帳號）</span>
+          <table class="sD">
+            <colgroup><col><col><col><col class="roas-col"><col><col><col><col><col><col></colgroup>
+            <thead><tr><th>類型</th><th>花費</th><th>收益</th><th>ROAS</th><th>CPA</th><th>CVR</th><th>AOV</th><th>CTR</th><th>CPC</th><th>CPM</th></tr></thead>
+            <tbody id="gw-google-body"></tbody>
+          </table>
+        </div>
+        <div class="sA-block">
+          <span class="sA-bar">Meta</span>
+          <table class="sD">
+            <colgroup><col><col><col><col class="roas-col"><col><col><col><col><col><col></colgroup>
+            <thead><tr><th>類型</th><th>花費</th><th>收益</th><th>ROAS</th><th>CPA</th><th>CVR</th><th>AOV</th><th>CTR</th><th>CPC</th><th>CPM</th></tr></thead>
+            <tbody id="gw-meta-body"></tbody>
+          </table>
+        </div>
+        <div class="sC-section"><span class="icon">Σ</span>ATL+BTL 總計（Google+Meta）</div>
+        <div class="sC-tiles c5 compact" id="gw-sigma"></div>
+        <div class="sA-logo"><span class="mark"></span><span>TSA</span></div>
+      </div>
+    </div></div>
+    <div class="sA-obs" id="gw-obs" style="margin:-20px 0 36px;"></div>
+  </div>
+
+  <div class="group">
+    <div class="group-label"><span class="kicker">官網</span><h2>官網 - Meta｜BTL 週比較</h2><span class="dims">1280 × 720</span>
+      <select id="gw-week-select"><option value="4">近4週</option><option value="5" selected>近5週</option><option value="6">全部（6週）</option></select>
+    </div>
+    <div class="slide-shell"><div class="slide">
+      <div class="slide-inner">
+        <div class="sA-head">
+          <div class="sA-title">官網 - Meta｜BTL 週比較</div>
+          <div class="sA-meta" id="gw-weekly-caption">數據截至 9/6</div>
+        </div>
+        <table class="sA" style="margin-bottom:0;">
+          <colgroup><col><col><col><col class="roas-col"><col><col><col><col><col><col><col><col><col><col></colgroup>
+          <thead><tr><th>Year Week</th><th>花費</th><th>收益</th><th>ROAS</th><th>CPA</th><th>CVR</th><th>AOV</th><th>點&gt;車%</th><th>車&gt;買%</th><th>購物車CPA</th><th>CTR</th><th>CPC</th><th>CPM</th><th>頻次</th></tr></thead>
+          <tbody id="gw-weekly-body"></tbody>
+        </table>
+        <div class="sC-inline-section" style="margin-top:12px;"><span class="icon">🛒</span><span class="gw-funnel-label">BTL 轉換漏斗</span></div>
+        <div class="sC-tiles c6 compact" id="gw-funnel"></div>
+        <div class="footnote" id="gw-funnel-note"></div>
+        <div class="sA-obs" id="gw-week-obs" style="margin-top:10px;"></div>
+        <div class="sA-logo"><span class="mark"></span><span>TSA</span></div>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- ============ 蝦皮 ============ -->
+  <div class="group">
+    <div class="group-label"><span class="kicker">蝦皮</span><h2 id="shopee-yoy-title">蝦皮｜8月 YoY 總覽</h2><span class="dims">1280 × 720</span></div>
+    <div class="slide-shell"><div class="slide compact-h">
+      <div class="slide-inner">
+        <div class="sA-head">
+          <div class="sA-title" id="shopee-yoy-title2">蝦皮｜8月 YoY 總覽</div>
+          <div class="sA-meta" id="shopee-period-note">數據區間 8/1–8/31</div>
+        </div>
+        <div class="sA-block">
+          <span class="sA-bar">Google（PfM_45057582_毛孩時代＋蝦皮商城舊帳號）</span>
+          <table class="sD">
+            <colgroup><col><col><col><col class="roas-col"><col><col><col><col></colgroup>
+            <thead><tr><th>類型</th><th>花費</th><th>收益</th><th>ROAS</th><th>CPA</th><th>CTR</th><th>CPC</th><th>CPM</th></tr></thead>
+            <tbody id="shopee-google-body"></tbody>
+          </table>
+        </div>
+        <div class="sA-block">
+          <span class="sA-bar">Meta（毛孩時代_CPAS_蝦皮）</span>
+          <table class="sD">
+            <colgroup><col><col><col><col class="roas-col"><col><col><col><col><col><col></colgroup>
+            <thead><tr><th>類型</th><th>花費</th><th>收益</th><th>ROAS</th><th>CPA</th><th>CVR</th><th>AOV</th><th>CTR</th><th>CPC</th><th>CPM</th></tr></thead>
+            <tbody id="shopee-meta-body"></tbody>
+          </table>
+        </div>
+        <div class="sC-section"><span class="icon">Σ</span>ATL+BTL 總計（Google+Meta）</div>
+        <div class="sC-tiles c5 compact" id="shopee-sigma"></div>
+        <div class="sA-logo"><span class="mark"></span><span>TSA</span></div>
+      </div>
+    </div></div>
+    <div class="sA-obs" id="shopee-obs" style="margin:-20px 0 36px;"></div>
+  </div>
+
+  <div class="group">
+    <div class="group-label"><span class="kicker">蝦皮</span><h2>蝦皮 - Meta｜週比較（ATL+BTL 合併）</h2><span class="dims">1280 × 720</span>
+      <select id="shopee-week-select"><option value="4">近4週</option><option value="5" selected>近5週</option><option value="6">全部（6週）</option></select>
+    </div>
+    <div class="slide-shell"><div class="slide">
+      <div class="slide-inner">
+        <div class="sA-head">
+          <div class="sA-title">蝦皮 - Meta｜週比較（ATL+BTL 合併）</div>
+          <div class="sA-meta" id="shopee-weekly-caption">數據截至 9/6</div>
+        </div>
+        <table class="sA" style="margin-bottom:0;">
+          <colgroup><col><col><col><col class="roas-col"><col><col><col><col><col><col><col><col><col><col></colgroup>
+          <thead><tr><th>Year Week</th><th>花費</th><th>收益</th><th>ROAS</th><th>CPA</th><th>CVR</th><th>AOV</th><th>點&gt;車%</th><th>車&gt;買%</th><th>購物車CPA</th><th>CTR</th><th>CPC</th><th>CPM</th><th>頻次</th></tr></thead>
+          <tbody id="shopee-weekly-body"></tbody>
+        </table>
+        <div class="sC-inline-section" style="margin-top:12px;"><span class="icon">🛒</span><span class="shopee-funnel-label">BTL 轉換漏斗</span></div>
+        <div class="sC-tiles c6 compact" id="shopee-funnel"></div>
+        <div class="footnote" id="shopee-funnel-note"></div>
+        <div class="sA-obs narrow" id="shopee-week-obs" style="margin-top:10px;"></div>
+        <div class="sA-logo"><span class="mark"></span><span>TSA</span></div>
+      </div>
+    </div></div>
+  </div>
+
+  <!-- ============ momo ============ -->
+  <div class="group">
+    <div class="group-label"><span class="kicker">momo</span><h2 id="momo-yoy-title">momo｜8月 YoY 總覽</h2><span class="dims">1280 × 720</span></div>
+    <div class="slide-shell"><div class="slide compact-h">
+      <div class="slide-inner">
+        <div class="sA-head">
+          <div class="sA-title" id="momo-yoy-title2">momo｜8月 YoY 總覽</div>
+          <div class="sA-meta" id="momo-period-note">數據區間 8/1–8/31　｜　momo 無 Google Ads 投放</div>
+        </div>
+        <div class="sA-block">
+          <span class="sA-bar">Meta（毛孩時代_CPAS_momo）</span>
+          <table class="sD">
+            <colgroup><col><col><col><col class="roas-col"><col><col><col><col><col><col></colgroup>
+            <thead><tr><th>類型</th><th>花費</th><th>收益</th><th>ROAS</th><th>CPA</th><th>CVR</th><th>AOV</th><th>CTR</th><th>CPC</th><th>CPM</th></tr></thead>
+            <tbody id="momo-meta-body"></tbody>
+          </table>
+        </div>
+        <div class="sC-section"><span class="icon">Σ</span>ATL+BTL 總計（Meta）</div>
+        <div class="sC-tiles c5 compact" id="momo-sigma"></div>
+        <div class="sA-logo"><span class="mark"></span><span>TSA</span></div>
+      </div>
+    </div></div>
+    <div class="sA-obs" id="momo-obs" style="margin:-20px 0 36px;"></div>
+  </div>
+
+  <div class="group">
+    <div class="group-label"><span class="kicker">momo</span><h2>momo - Meta｜週比較（ATL+BTL 合併）</h2><span class="dims">1280 × 720</span>
+      <select id="momo-week-select"><option value="4">近4週</option><option value="5" selected>近5週</option><option value="6">全部（6週）</option></select>
+    </div>
+    <div class="slide-shell"><div class="slide">
+      <div class="slide-inner">
+        <div class="sA-head">
+          <div class="sA-title">momo - Meta｜週比較（ATL+BTL 合併）</div>
+          <div class="sA-meta" id="momo-weekly-caption">數據截至 9/6</div>
+        </div>
+        <table class="sA" style="margin-bottom:0;">
+          <colgroup><col><col><col><col class="roas-col"><col><col><col><col><col><col><col><col><col><col></colgroup>
+          <thead><tr><th>Year Week</th><th>花費</th><th>收益</th><th>ROAS</th><th>CPA</th><th>CVR</th><th>AOV</th><th>點&gt;車%</th><th>車&gt;買%</th><th>購物車CPA</th><th>CTR</th><th>CPC</th><th>CPM</th><th>頻次</th></tr></thead>
+          <tbody id="momo-weekly-body"></tbody>
+        </table>
+        <div class="sC-inline-section" style="margin-top:12px;"><span class="icon">🛒</span><span class="momo-funnel-label">BTL 轉換漏斗</span></div>
+        <div class="sC-tiles c6 compact" id="momo-funnel"></div>
+        <div class="footnote" id="momo-funnel-note"></div>
+        <div class="sA-obs narrow" id="momo-week-obs" style="margin-top:10px;"></div>
+        <div class="sA-logo"><span class="mark"></span><span>TSA</span></div>
+      </div>
+    </div></div>
+  </div>
+
+</div>
+
+<script>
+const DATA = {"官網":{"meta":{"2026-08":{"ATL":{"spend":535832,"revenue":106262,"purchases":69,"roas":0.2,"cpa":7766.0,"cvr":0.02,"aov":1540.0,"ctr":4.14,"cpc":1.5,"cpm":61,"data_gap":false},"BTL":{"spend":298200,"revenue":910425,"purchases":464,"roas":3.05,"cpa":643.0,"cvr":0.89,"aov":1962.0,"ctr":2.61,"cpc":5.7,"cpm":150,"data_gap":false},"TOTAL":{"spend":834032,"revenue":1016687,"purchases":533,"roas":1.22,"cpa":1565.0,"cvr":0.13,"aov":1907.0,"ctr":3.86,"cpc":2.0,"cpm":78,"data_gap":false}},"2025-08":{"ATL":{"spend":7147,"revenue":0,"purchases":0,"roas":null,"cpa":null,"cvr":null,"aov":null,"ctr":3.27,"cpc":2.4,"cpm":78,"data_gap":false},"BTL":{"spend":218518,"revenue":767266,"purchases":355,"roas":3.51,"cpa":616.0,"cvr":1.07,"aov":2161.0,"ctr":1.65,"cpc":6.6,"cpm":109,"data_gap":false},"TOTAL":{"spend":225665,"revenue":767266,"purchases":355,"roas":3.4,"cpa":636.0,"cvr":0.98,"aov":2161.0,"ctr":1.72,"cpc":6.2,"cpm":108,"data_gap":false}},"2026-09mtd":{"ATL":{"spend":119625,"revenue":31163,"purchases":21,"roas":0.26,"cpa":5696.0,"cvr":0.03,"aov":1484.0,"ctr":4.57,"cpc":1.6,"cpm":71,"data_gap":false},"BTL":{"spend":61497,"revenue":263366,"purchases":130,"roas":4.28,"cpa":473.0,"cvr":1.48,"aov":2026.0,"ctr":2.19,"cpc":7.0,"cpm":153,"data_gap":false},"TOTAL":{"spend":181122,"revenue":294529,"purchases":151,"roas":1.63,"cpa":1199.0,"cvr":0.18,"aov":1951.0,"ctr":4.11,"cpc":2.1,"cpm":87,"data_gap":false}},"2025-09mtd":{"ATL":{"spend":5371,"revenue":0,"purchases":0,"roas":null,"cpa":null,"cvr":null,"aov":null,"ctr":3.3,"cpc":2.4,"cpm":81,"data_gap":false},"BTL":{"spend":86991,"revenue":276618,"purchases":112,"roas":3.18,"cpa":777.0,"cvr":1.4,"aov":2470.0,"ctr":1.3,"cpc":10.9,"cpm":143,"data_gap":false},"TOTAL":{"spend":92362,"revenue":276618,"purchases":112,"roas":2.99,"cpa":825.0,"cvr":1.1,"aov":2470.0,"ctr":1.5,"cpc":9.1,"cpm":137,"data_gap":false}}},"google":{"2026-08":{"ATL":{"spend":1707480,"impr":4286588,"clicks":153752,"ctr":3.59,"cpc":11.1,"cpm":398.0},"BTL":{"spend":336400,"impr":1158053,"clicks":17257,"purchases":581.2,"revenue":1165709,"ctr":1.49,"cpc":19.5,"cpm":290.0,"roas":3.47,"cpa":579.0,"cvr":3.37,"aov":2006.0},"TOTAL":{"spend":2043880,"impr":5444641,"clicks":171009,"purchases":9668.7,"revenue":1236993,"ctr":3.14,"cpc":12.0,"cpm":375.0,"roas":0.61,"cpa":211.0,"cvr":5.65,"aov":128.0}},"2025-08":{"ATL":{"spend":3659867,"impr":2510078,"clicks":185376,"ctr":7.39,"cpc":19.7,"cpm":1458.0},"BTL":{"spend":296992,"impr":753416,"clicks":10995,"purchases":532.5,"revenue":1095604,"ctr":1.46,"cpc":27.0,"cpm":394.0,"roas":3.69,"cpa":558.0,"cvr":4.84,"aov":2057.0},"TOTAL":{"spend":3956859,"impr":3263494,"clicks":196371,"purchases":16776.9,"revenue":1109648,"ctr":6.02,"cpc":20.1,"cpm":1212.0,"roas":0.28,"cpa":236.0,"cvr":8.54,"aov":66.0}},"2026-09mtd":{"ATL":{"spend":347345,"impr":1429817,"clicks":46644,"ctr":3.26,"cpc":7.4,"cpm":243.0},"BTL":{"spend":68182,"impr":272441,"clicks":4307,"purchases":103.38,"revenue":194924,"ctr":1.58,"cpc":15.8,"cpm":250.0,"roas":2.86,"cpa":660.0,"cvr":2.4,"aov":1886.0},"TOTAL":{"spend":415527,"impr":1702258,"clicks":50951,"purchases":1455.4,"revenue":210223,"ctr":2.99,"cpc":8.2,"cpm":244.0,"roas":0.51,"cpa":286.0,"cvr":2.86,"aov":144.0}},"2025-09mtd":{"ATL":{"spend":847198,"impr":528617,"clicks":35743,"ctr":6.76,"cpc":23.7,"cpm":1603.0},"BTL":{"spend":74890,"impr":183487,"clicks":2262,"purchases":114.5,"revenue":275751,"ctr":1.23,"cpc":33.1,"cpm":408.0,"roas":3.68,"cpa":654.0,"cvr":5.06,"aov":2408.0},"TOTAL":{"spend":922089,"impr":712104,"clicks":38005,"purchases":3600.0,"revenue":278739,"ctr":5.34,"cpc":24.3,"cpm":1295.0,"roas":0.3,"cpa":256.0,"cvr":9.47,"aov":77.0}}}},"蝦皮":{"meta":{"2026-08":{"ATL":{"spend":26709,"revenue":14892,"purchases":7.0,"ctr":2.23,"cpc":2.1,"cpm":48.0,"roas":0.56,"cpa":3816.0,"cvr":0.06,"aov":2127.0,"data_gap":false},"BTL":{"spend":241440,"revenue":966153,"purchases":512.0,"ctr":0.46,"cpc":25.2,"cpm":115.0,"roas":4.0,"cpa":472.0,"cvr":5.35,"aov":1887.0,"data_gap":false},"TOTAL":{"spend":268149,"revenue":981045,"purchases":519.0,"ctr":0.83,"cpc":12.1,"cpm":101.0,"roas":3.66,"cpa":517.0,"cvr":2.35,"aov":1890.0,"data_gap":false}},"2025-08":{"ATL":{"spend":10210,"revenue":1237,"purchases":2.0,"ctr":2.41,"cpc":1.7,"cpm":41.0,"roas":0.12,"cpa":5105.0,"cvr":0.03,"aov":618.0,"data_gap":false},"BTL":{"spend":164579,"revenue":724704,"purchases":454.0,"ctr":0.33,"cpc":29.8,"cpm":98.0,"roas":4.4,"cpa":363.0,"cvr":8.22,"aov":1596.0,"data_gap":false},"TOTAL":{"spend":174789,"revenue":725941,"purchases":456.0,"ctr":0.6,"cpc":15.1,"cpm":90.0,"roas":4.15,"cpa":383.0,"cvr":3.94,"aov":1592.0,"data_gap":false}},"2026-09mtd":{"ATL":{"spend":2377,"revenue":0,"purchases":0.0,"ctr":4.4,"cpc":1.6,"cpm":69.0,"roas":null,"cpa":null,"cvr":null,"aov":null,"data_gap":false},"BTL":{"spend":39994,"revenue":150045,"purchases":106.0,"ctr":0.48,"cpc":29.9,"cpm":143.0,"roas":3.75,"cpa":377.0,"cvr":7.93,"aov":1416.0,"data_gap":false},"TOTAL":{"spend":42371,"revenue":150045,"purchases":106.0,"ctr":0.91,"cpc":14.8,"cpm":135.0,"roas":3.54,"cpa":400.0,"cvr":3.71,"aov":1416.0,"data_gap":false}},"2025-09mtd":{"ATL":{"spend":2129,"revenue":0,"purchases":0.0,"ctr":2.14,"cpc":2.1,"cpm":44.0,"roas":null,"cpa":null,"cvr":null,"aov":null,"data_gap":false},"BTL":{"spend":32431,"revenue":130549,"purchases":89.0,"ctr":0.28,"cpc":28.8,"cpm":80.0,"roas":4.03,"cpa":364.0,"cvr":7.91,"aov":1467.0,"data_gap":false},"TOTAL":{"spend":34560,"revenue":130549,"purchases":89.0,"ctr":0.47,"cpc":16.1,"cpm":76.0,"roas":3.78,"cpa":388.0,"cvr":4.14,"aov":1467.0,"data_gap":false}}},"google":{"2026-08":{"spend":39964,"impr":119226,"clicks":2461,"purchases":145.0,"revenue":161765,"ctr":2.06,"cpc":16.2,"cpm":335.0,"roas":4.05,"cpa":276.0,"cvr":5.89,"aov":1116.0},"2025-08":{"spend":73463,"impr":222935,"clicks":3396,"purchases":353.0,"revenue":255823,"ctr":1.52,"cpc":21.6,"cpm":330.0,"roas":3.48,"cpa":208.0,"cvr":10.39,"aov":725.0},"2026-09mtd":{"spend":6498,"impr":20592,"clicks":407,"purchases":23.0,"revenue":27285,"ctr":1.98,"cpc":16.0,"cpm":316.0,"roas":4.2,"cpa":283.0,"cvr":5.65,"aov":1186.0},"2025-09mtd":{"spend":10493,"impr":29604,"clicks":458,"purchases":94.0,"revenue":44285,"ctr":1.55,"cpc":22.9,"cpm":354.0,"roas":4.22,"cpa":112.0,"cvr":20.52,"aov":471.0}}},"momo":{"meta":{"2026-08":{"ATL":{"spend":18725,"revenue":6953,"purchases":3.0,"ctr":2.22,"cpc":2.2,"cpm":50.0,"roas":0.37,"cpa":6242.0,"cvr":0.04,"aov":2318.0,"data_gap":false},"BTL":{"spend":82634,"revenue":394766,"purchases":265.0,"ctr":0.41,"cpc":33.8,"cpm":139.0,"roas":4.78,"cpa":312.0,"cvr":10.84,"aov":1490.0,"data_gap":false},"TOTAL":{"spend":101359,"revenue":401719,"purchases":268.0,"ctr":1.11,"cpc":9.4,"cpm":104.0,"roas":3.96,"cpa":378.0,"cvr":2.48,"aov":1499.0,"data_gap":false}},"2025-08":{"ATL":{"spend":5929,"revenue":0,"purchases":0.0,"ctr":2.57,"cpc":1.9,"cpm":49.0,"roas":null,"cpa":null,"cvr":null,"aov":null,"data_gap":false},"BTL":{"spend":108845,"revenue":412856,"purchases":210.0,"ctr":0.49,"cpc":34.8,"cpm":172.0,"roas":3.79,"cpa":518.0,"cvr":6.71,"aov":1966.0,"data_gap":false},"TOTAL":{"spend":114774,"revenue":412856,"purchases":210.0,"ctr":0.83,"cpc":18.4,"cpm":152.0,"roas":3.6,"cpa":547.0,"cvr":3.36,"aov":1966.0,"data_gap":false}},"2026-09mtd":{"ATL":{"spend":6398,"revenue":0,"purchases":0.0,"ctr":4.1,"cpc":2.0,"cpm":83.0,"roas":null,"cpa":null,"cvr":null,"aov":null,"data_gap":false},"BTL":{"spend":10641,"revenue":93747,"purchases":55.0,"ctr":0.27,"cpc":36.9,"cpm":98.0,"roas":8.81,"cpa":193.0,"cvr":19.1,"aov":1704.0,"data_gap":false},"TOTAL":{"spend":17039,"revenue":93747,"purchases":55.0,"ctr":1.87,"cpc":4.9,"cpm":92.0,"roas":5.5,"cpa":310.0,"cvr":1.59,"aov":1704.0,"data_gap":false}},"2025-09mtd":{"ATL":{"spend":1440,"revenue":0,"purchases":0.0,"ctr":2.39,"cpc":2.3,"cpm":55.0,"roas":null,"cpa":null,"cvr":null,"aov":null,"data_gap":false},"BTL":{"spend":29630,"revenue":108244,"purchases":60.0,"ctr":0.45,"cpc":44.0,"cpm":197.0,"roas":3.65,"cpa":494.0,"cvr":8.92,"aov":1804.0,"data_gap":false},"TOTAL":{"spend":31070,"revenue":108244,"purchases":60.0,"ctr":0.73,"cpc":24.0,"cpm":176.0,"roas":3.48,"cpa":518.0,"cvr":4.64,"aov":1804.0,"data_gap":false}}},"google":{}},"sigma":{"官網":{"2026-08":{"spend":2877912,"clicks":588025,"revenue":2253680,"roas":0.78,"cpm":178.0,"delta":{"spend":-31.2,"clicks":152.6,"revenue":20.1,"roas":74.5,"cpm":-77.2},"data_gap":false},"2026-09mtd":{"spend":596649,"clicks":137200,"revenue":504752,"roas":0.85,"cpm":158.0,"delta":{"spend":-41.2,"clicks":184.9,"revenue":-9.1,"roas":54.5,"cpm":-78.5},"data_gap":false}},"蝦皮":{"2026-08":{"spend":308113,"clicks":24535,"revenue":1142810,"roas":3.71,"cpm":111.0,"delta":{"spend":24.1,"clicks":63.7,"revenue":16.4,"roas":-6.2,"cpm":-3.5},"data_gap":false},"2026-09mtd":{"spend":48869,"clicks":3267,"revenue":177330,"roas":3.63,"cpm":146.0,"delta":{"spend":8.5,"clicks":25.2,"revenue":1.4,"roas":-6.5,"cpm":56.5},"data_gap":false}},"momo":{"2026-08":{"spend":101359,"clicks":10804,"revenue":401719,"roas":3.96,"cpm":104.0,"delta":{"spend":-11.7,"clicks":72.8,"revenue":-2.7,"roas":10.2,"cpm":-31.4},"data_gap":false},"2026-09mtd":{"spend":17039,"clicks":3466,"revenue":93747,"roas":5.5,"cpm":92.0,"delta":{"spend":-45.2,"clicks":167.9,"revenue":-13.4,"roas":57.9,"cpm":-47.9},"data_gap":false}}},"weekly":{"官網":[{"w":"第31週","range":"7/27–8/2","spend":80248,"revenue":238000,"roas":2.96,"cpa":730,"cvr":0.68,"aov":2159,"c2c":4.1,"c2p":16.5,"cartcpa":121,"ctr":2.75,"cpc":5.0,"cpm":136,"freq":2.37},{"w":"第32週","range":"8/3–8/9","spend":72672,"revenue":257000,"roas":3.54,"cpa":616,"cvr":1.04,"aov":2179,"c2c":6.8,"c2p":15.2,"cartcpa":94,"ctr":2.38,"cpc":6.4,"cpm":153,"freq":2.13},{"w":"第33週","range":"8/10–8/16","spend":69497,"revenue":184000,"roas":2.64,"cpa":709,"cvr":0.66,"aov":1875,"c2c":3.4,"c2p":19.6,"cartcpa":139,"ctr":3.19,"cpc":4.7,"cpm":150,"freq":2.3},{"w":"第34週","range":"8/17–8/23","spend":67303,"revenue":194000,"roas":2.88,"cpa":653,"cvr":0.91,"aov":1883,"c2c":4.7,"c2p":19.5,"cartcpa":127,"ctr":2.56,"cpc":6.0,"cpm":152,"freq":2.41},{"w":"第35週","range":"8/24–8/30","spend":58068,"revenue":171000,"roas":2.94,"cpa":652,"cvr":1.0,"aov":1920,"c2c":6.2,"c2p":16.1,"cartcpa":105,"ctr":2.31,"cpc":6.5,"cpm":150,"freq":2.49},{"w":"第36週","range":"8/31–9/6","spend":71133,"revenue":326218,"roas":4.59,"cpa":442,"cvr":1.58,"aov":2026,"c2c":9.16,"c2p":17.22,"cartcpa":76,"ctr":2.19,"cpc":7.0,"cpm":152,"freq":2.13}],"蝦皮":[{"w":"第31週","range":"7/27–8/2","spend":43510,"revenue":186000,"roas":4.28,"cpa":360,"cvr":2.82,"aov":1539,"c2c":7.7,"c2p":36.7,"cartcpa":132,"ctr":1.02,"cpc":10.1,"cpm":103,"freq":5.25},{"w":"第32週","range":"8/3–8/9","spend":85095,"revenue":377000,"roas":4.43,"cpa":626,"cvr":1.34,"aov":2772,"c2c":4.2,"c2p":31.6,"cartcpa":198,"ctr":1.07,"cpc":8.4,"cpm":90,"freq":6.47},{"w":"第33週","range":"8/10–8/16","spend":46990,"revenue":125000,"roas":2.66,"cpa":522,"cvr":1.65,"aov":1390,"c2c":6.2,"c2p":26.4,"cartcpa":138,"ctr":1.2,"cpc":8.6,"cpm":103,"freq":5.65},{"w":"第34週","range":"8/17–8/23","spend":61422,"revenue":203000,"roas":3.31,"cpa":530,"cvr":1.9,"aov":1751,"c2c":6.7,"c2p":28.3,"cartcpa":150,"ctr":0.96,"cpc":10.1,"cpm":97,"freq":6.13},{"w":"第35週","range":"8/24–8/30","spend":53069,"revenue":172000,"roas":3.24,"cpa":454,"cvr":2.71,"aov":1469,"c2c":10.5,"c2p":25.9,"cartcpa":117,"ctr":1.05,"cpc":12.3,"cpm":129,"freq":7.15},{"w":"第36週","range":"8/31–9/6","spend":49386,"revenue":178882,"roas":3.62,"cpa":398,"cvr":2.71,"aov":1443,"c2c":25.66,"c2p":31.08,"cartcpa":114.0,"ctr":1.16,"cpc":10.8,"cpm":125,"freq":8.73}],"momo":[{"w":"第31週","range":"7/27–8/2","spend":16624,"revenue":79116,"roas":4.76,"cpa":354,"cvr":3.89,"aov":1683,"c2c":10.5,"c2p":37.0,"cartcpa":131,"ctr":0.94,"cpc":13.8,"cpm":129,"freq":6.89},{"w":"第32週","range":"8/3–8/9","spend":27324,"revenue":116000,"roas":4.23,"cpa":374,"cvr":1.9,"aov":1585,"c2c":5.3,"c2p":35.6,"cartcpa":133,"ctr":1.34,"cpc":7.1,"cpm":96,"freq":6.72},{"w":"第33週","range":"8/10–8/16","spend":21713,"revenue":78069,"roas":3.6,"cpa":356,"cvr":2.85,"aov":1280,"c2c":5.2,"c2p":54.5,"cartcpa":194,"ctr":1.2,"cpc":10.2,"cpm":122,"freq":7.4},{"w":"第34週","range":"8/17–8/23","spend":24399,"revenue":113000,"roas":4.63,"cpa":359,"cvr":2.34,"aov":1662,"c2c":5.0,"c2p":46.9,"cartcpa":168,"ctr":1.14,"cpc":8.4,"cpm":96,"freq":7.76},{"w":"第35週","range":"8/24–8/30","spend":18395,"revenue":63227,"roas":3.44,"cpa":391,"cvr":2.36,"aov":1345,"c2c":4.8,"c2p":49.0,"cartcpa":192,"ctr":1.11,"cpc":9.2,"cpm":103,"freq":7.14},{"w":"第36週","range":"8/31–9/6","spend":20478,"revenue":95756,"roas":4.68,"cpa":359,"cvr":1.45,"aov":1680,"c2c":39.6,"c2p":41.01,"cartcpa":89.0,"ctr":1.79,"cpc":5.2,"cpm":94,"freq":4.41}]}};
+
+const OBS = {
+  gw: {
+    '2026-08': {
+      obs: [
+        '8月整月 Σ花費$287.8萬，年減▼31.2%，但廣告收益$225.4萬反而年增▲20.1%，整體 ROAS 0.78 較去年同期成長 74.5%，效率明顯優化。',
+        'Google BTL ROAS 3.47（去年3.69），CPM $290（▼26.4%）大幅下降；Meta BTL ROAS 3.05（去年3.51），同樣呈現「花費更省、CPM更低」的組合，但兩邊 ROAS 都比去年同期略低，成長主要來自量放大而非單位效率提升。',
+        'Google ATL（含部落格系列）花費$170.7萬，仍佔整體 Σ 花費近6成，年減▼53.3%，反映預算持續往 BTL 移動。'
+      ],
+      act: [
+        '持續觀察 Google/Meta BTL 的 ROAS 是否隨 CPM 回升而回落，若 CPM 續漲需檢視是否該加碼搶量。',
+        'ATL 花費仍佔六成預算，建議下次覆盤進一步拆分部落格系列成效，確認是否有進一步優化空間。'
+      ]
+    },
+    '2026-09mtd': {
+      obs: [
+        '9月截至9/6僅6天，Σ花費$59.7萬（▼41.2%），廣告收益$50.5萬（▼9.1%），ROAS 0.85 仍優於去年同期（▲54.5%），但天數少、波動大，僅供方向參考。',
+        'Meta BTL 9月MTD ROAS 4.28，是官網BTL近期最高水準（8月26年3.05、8月25年3.51），對照週比較表第36週 ROAS 4.59，顯示這波成長主要來自最近一週的表現。'
+      ],
+      act: [
+        '9月MTD僅6天資料，建議等到累積更多天數後再重新檢視月度 YoY，避免對單週波動做出過度反應的預算決策。'
+      ]
+    }
+  },
+  shopee: {
+    '2026-08': {
+      obs: [
+        '修正 Meta CPAS 蝦皮的收益抓取欄位後（改用 catalog_segment_value 的 purchase 動作，先前誤用 omni_purchase 導致嚴重低估），8月整月 Σ花費$30.8萬（▲24.1%），廣告收益$114.3萬（▲16.4%），整體 ROAS 3.71 較去年3.96 小幅下滑（▼6.2%）——花費、收益同步成長，跟修正前誤判的「效率腰斬」完全不同。',
+        'Meta BTL ROAS 4.00（去年4.40）、CPA $472（去年$363）單位效率略降，但購買量512筆（去年454筆）成長；Google 蝦皮 ROAS 4.05 優於去年3.48。',
+        'BTL 加購率（點>車）18.79% 與去年19.98%持平，但加購→成交率28.44%明顯低於去年41.16%，轉換漏斗後段效率下滑是 ROAS 微降的主因。'
+      ],
+      act: [
+        '蝦皮整體健康，不需緊急介入；但加購→成交率下滑（41%→28%）值得檢視結帳流程或優惠訊息是否有變化。',
+        '持續觀察 ROAS 能否維持在3.5以上。'
+      ]
+    },
+    '2026-09mtd': {
+      obs: [
+        '9月MTD Σ花費$4.9萬（▲8.5%）、收益$17.7萬（▲1.4%），ROAS 3.63 略低於去年同期3.77（▼6.5%），跟8月趨勢一致，屬於小幅、穩定的落差。',
+        'BTL 加購→成交率31.74% 較8月的28.44%回升，但仍低於去年9月同期44.5%，這段轉換率是蝦皮目前唯一持續偏弱的環節。'
+      ],
+      act: [
+        '持續觀察加購→成交率能否回到40%+的歷史水準，若持續偏弱可檢視蝦皮平台端結帳流程或優惠設定。'
+      ]
+    }
+  },
+  momo: {
+    '2026-08': {
+      obs: [
+        '修正 Meta CPAS momo 的收益抓取欄位後（原本誤判的「資料缺口」其實是欄位用錯：去年8月BTL收益實際有$41.3萬、210筆購買，不是先前誤算的$13.4萬/71筆），8月整月 Σ花費$10.1萬（▼11.7%），收益$40.2萬（▼2.7%，接近持平），ROAS 3.96 較去年3.60 小幅成長（▲10.2%）。',
+        'BTL 加購→成交率42.6% 較去年65.0%明顯下滑，是三通路中轉換漏斗後段下滑最明顯的一個，但整體 ROAS 仍維持健康水準。'
+      ],
+      act: [
+        'momo花費年減但收益接近持平、ROAS成長，代表預算效率確實改善，可考慮小幅回補預算測試規模化空間。',
+        '加購→成交率下滑（65%→43%）建議跟蝦皮一起檢視是否為同一批素材/受眾造成的共同問題。'
+      ]
+    },
+    '2026-09mtd': {
+      obs: [
+        '9月MTD Σ花費$1.7萬（▼45.2%）、收益$9.4萬（▼13.4%），ROAS 5.50 較去年3.48大幅成長（▲57.9%），是三通路中9月表現最突出的一個。',
+        '加購→成交率42.97% 較8月回升，但仍低於去年9月同期74.07%。'
+      ],
+      act: [
+        'momo 9月MTD效率非常好，可考慮優先在這個通路測試加碼。',
+        '持續觀察加購→成交率是否能回升到歷史水準。'
+      ]
+    }
+  },
+  gwWeek: {
+    obs: [
+      'ROAS 近五週 3.54→2.64→2.88→2.94→4.59，本週（第36週）大幅回升到全期最高，CPA $442 同步降到全期最低，是近期最強的一週。',
+      'CTR、CPM 本週（2.19%／$152）與過去幾週持平，代表這波成長主要來自轉換效率提升而非流量結構改變。',
+      '點>車率本週9.16%為近6週最高，車>買率17.22%同步回升，兩端一起變好帶動整體ROAS跳升。'
+    ],
+    act: [
+      '觀察本週的高ROAS能否延續，若第37週仍維持高檔，可考慮加碼BTL預算。',
+      '檢視本週素材／受眾是否有變動，找出帶動轉換率提升的具體原因以便複製。'
+    ]
+  },
+  shopeeWeek: {
+    obs: [
+      'ROAS 近五週 4.43→2.66→3.31→3.24→3.62，本週（第36週）延續上週回升趨勢，但仍未回到第32週高點。',
+      '本週（第36週）加購→成交率31.08%，CVR則因單週波動略降至3.34%，購物車CPA $114 是近期較低水準。'
+    ],
+    act: [
+      '持續觀察 ROAS 能否站穩3.5以上。',
+      '留意加購→成交率能否延續回升趨勢。'
+    ]
+  },
+  momoWeek: {
+    obs: [
+      'ROAS 近五週 4.23→3.60→4.63→3.44→4.68，本週（第36週）回升到全期次高，CPA $359 與過去5週的 $354–391 區間一致，效率穩定。',
+      '本週（第36週）加購→成交率41.01%，購物車CPA $89 為近期最低，轉換漏斗效率良好。'
+    ],
+    act: [
+      'momo 維持目前操作節奏。',
+      '持續觀察加購→成交率能否維持在40%以上。'
+    ]
+  }
+};
+
+const PREV = {'2026-08':'2025-08', '2026-09mtd':'2025-09mtd'};
+const RANGE = {'2026-08':'8/1–8/31', '2026-09mtd':'9/1–9/6（僅6天）'};
+const PREV_RANGE = {'2026-08':'2025/8/1–8/31', '2026-09mtd':'2025/9/1–9/6'};
+const MLABEL = {'2026-08':'8月', '2026-09mtd':'9月MTD'};
+
+let state = { month: '2026-08', weekCount: { gw: 5, shopee: 5, momo: 5 } };
+
+function fmtMoney(v){
+  if(v==null) return '';
+  const sign = v<0?'-':'';
+  const av = Math.abs(v);
+  if(av>=100000) return sign+'$'+(av/10000).toFixed(1)+'萬';
+  return sign+'$'+Math.round(av).toLocaleString();
+}
+function fmtInt(v){ return v==null?'':Math.round(v).toLocaleString(); }
+function fmtPctv(v,nd=2){ return v==null?'':v.toFixed(nd)+'%'; }
+
+function deltaTag(cur, prev, opts={}){
+  const dataGap = opts.dataGap || false;
+  if(dataGap) return '<span class="tdelta flat">資料缺口</span>';
+  if(prev==null || prev===0 || cur==null) return '<span class="tdelta flat">基期過小</span>';
+  const d = (cur-prev)/prev*100;
+  if(Math.abs(d) > 500) return '<span class="tdelta flat">基期過小</span>';
+  const cls = d>0.05 ? 'up' : (d<-0.05 ? 'down' : 'flat');
+  const arrow = d>0.05 ? '▲' : (d<-0.05 ? '▼' : '–');
+  return `<span class="tdelta ${cls}">${arrow}${Math.abs(d).toFixed(1)}%</span>`;
+}
+function tdVal(cur, prev, fmt, opts={}){
+  if(cur==null) return '<td></td>';
+  return `<td><div class="tval">${fmt(cur)}</div>${deltaTag(cur,prev,opts)}</td>`;
+}
+function tdRoas(cur, prev, opts={}){
+  if(cur==null) return '<td class="roas-cell"></td>';
+  return `<td class="roas-cell"><div class="tval">${cur.toFixed(2)}</div>${deltaTag(cur,prev,opts)}</td>`;
+}
+
+function metaLikeRow(label, cur, prev, opts={}){
+  const hasP = !opts.atl && (cur.purchases||0) > 0;
+  const dataGap = !!(cur.data_gap || prev.data_gap);
+  let tds = tdVal(cur.spend, prev.spend, fmtMoney);
+  if(hasP){
+    tds += tdVal(cur.revenue, prev.revenue, fmtMoney, {dataGap});
+    tds += tdRoas(cur.roas, prev.roas, {dataGap});
+    tds += tdVal(cur.cpa, prev.cpa, fmtMoney, {dataGap});
+    tds += tdVal(cur.cvr, prev.cvr, v=>fmtPctv(v,2), {dataGap});
+    tds += tdVal(cur.aov, prev.aov, fmtMoney, {dataGap});
+  } else {
+    tds += '<td></td><td class="roas-cell"></td><td></td><td></td><td></td>';
+  }
+  tds += tdVal(cur.ctr, prev.ctr, v=>fmtPctv(v,2));
+  tds += tdVal(cur.cpc, prev.cpc, v=>'$'+v.toFixed(1));
+  tds += tdVal(cur.cpm, prev.cpm, v=>'$'+Math.round(v));
+  return `<tr class="${opts.totalRow?'total':''}"><td>${label}</td>${tds}</tr>`;
+}
+function googleShopeeRow(cur, prev){
+  const hasP = (cur.purchases||0) > 0;
+  let tds = tdVal(cur.spend, prev.spend, fmtMoney);
+  if(hasP){
+    tds += tdVal(cur.revenue, prev.revenue, fmtMoney);
+    tds += tdRoas(cur.roas, prev.roas);
+    tds += tdVal(cur.cpa, prev.cpa, fmtMoney);
+  } else {
+    tds += '<td></td><td class="roas-cell"></td><td></td>';
+  }
+  tds += tdVal(cur.ctr, prev.ctr, v=>fmtPctv(v,2));
+  tds += tdVal(cur.cpc, prev.cpc, v=>'$'+v.toFixed(1));
+  tds += tdVal(cur.cpm, prev.cpm, v=>'$'+Math.round(v));
+  return `<tr class="total"><td>整體</td>${tds}</tr>`;
+}
+function deltaTagSimple(d, dataGap){
+  if(dataGap) return '<span class="delta na">資料缺口</span>';
+  if(d==null) return '<span class="delta na">–</span>';
+  const cls = d>0.05?'up':(d<-0.05?'down':'na');
+  const arrow = d>0.05?'▲':(d<-0.05?'▼':'–');
+  return `<span class="delta ${cls}">${arrow}${Math.abs(d).toFixed(1)}%</span>`;
+}
+function renderSigma(channelKey, elId){
+  const s = DATA.sigma[channelKey][state.month];
+  const tiles = [
+    ['花費', fmtMoney(s.spend), s.delta.spend],
+    ['點擊', fmtInt(s.clicks), s.delta.clicks],
+    ['ROAS', s.roas.toFixed(2), s.delta.roas],
+    ['廣告收益', fmtMoney(s.revenue), s.delta.revenue],
+    ['CPM', '$'+Math.round(s.cpm), s.delta.cpm],
+  ];
+  document.getElementById(elId).innerHTML = tiles.map(([label,val,d])=>
+    `<div class="sC-tile"><div class="label">${label}</div><div class="value">${val}</div>${deltaTagSimple(d, s.data_gap)}</div>`
+  ).join('');
+}
+function renderObsBlock(elId, data, opts={}){
+  const cls = opts.narrow ? 'sA-obs narrow' : 'sA-obs';
+  document.getElementById(elId).className = cls;
+  document.getElementById(elId).innerHTML = `
+    <div><div class="col-head">觀察</div><ul>${data.obs.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+    <div><div class="col-head">行動</div><ul>${data.act.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+  `;
+}
+
+function renderGW(){
+  const p = state.month, pp = PREV[p];
+  document.getElementById('gw-yoy-title').textContent = `官網｜${MLABEL[p]} YoY 總覽`;
+  document.getElementById('gw-yoy-title2').textContent = `官網｜${MLABEL[p]} YoY 總覽`;
+  document.getElementById('gw-period-note').textContent = `數據區間 ${RANGE[p]}`;
+  const g = DATA['官網'].google, m = DATA['官網'].meta;
+  document.getElementById('gw-google-body').innerHTML =
+    metaLikeRow('ATL', g[p].ATL, g[pp].ATL, {atl:true}) + metaLikeRow('BTL', g[p].BTL, g[pp].BTL) + metaLikeRow('總計', g[p].TOTAL, g[pp].TOTAL, {totalRow:true});
+  document.getElementById('gw-meta-body').innerHTML =
+    metaLikeRow('ATL', m[p].ATL, m[pp].ATL, {atl:true}) + metaLikeRow('BTL', m[p].BTL, m[pp].BTL) + metaLikeRow('總計', m[p].TOTAL, m[pp].TOTAL, {totalRow:true});
+  renderSigma('官網', 'gw-sigma');
+  renderObsBlock('gw-obs', OBS.gw[p]);
+}
+function renderShopee(){
+  const p = state.month, pp = PREV[p];
+  document.getElementById('shopee-yoy-title').textContent = `蝦皮｜${MLABEL[p]} YoY 總覽`;
+  document.getElementById('shopee-yoy-title2').textContent = `蝦皮｜${MLABEL[p]} YoY 總覽`;
+  document.getElementById('shopee-period-note').textContent = `數據區間 ${RANGE[p]}`;
+  const g = DATA['蝦皮'].google, m = DATA['蝦皮'].meta;
+  document.getElementById('shopee-google-body').innerHTML = googleShopeeRow(g[p], g[pp]);
+  document.getElementById('shopee-meta-body').innerHTML =
+    metaLikeRow('ATL', m[p].ATL, m[pp].ATL, {atl:true}) + metaLikeRow('BTL', m[p].BTL, m[pp].BTL) + metaLikeRow('總計', m[p].TOTAL, m[pp].TOTAL, {totalRow:true});
+  renderSigma('蝦皮', 'shopee-sigma');
+  renderObsBlock('shopee-obs', OBS.shopee[p]);
+}
+function renderMomo(){
+  const p = state.month, pp = PREV[p];
+  document.getElementById('momo-yoy-title').textContent = `momo｜${MLABEL[p]} YoY 總覽`;
+  document.getElementById('momo-yoy-title2').textContent = `momo｜${MLABEL[p]} YoY 總覽`;
+  document.getElementById('momo-period-note').textContent = `數據區間 ${RANGE[p]}　｜　momo 無 Google Ads 投放`;
+  const m = DATA['momo'].meta;
+  document.getElementById('momo-meta-body').innerHTML =
+    metaLikeRow('ATL', m[p].ATL, m[pp].ATL, {atl:true}) + metaLikeRow('BTL', m[p].BTL, m[pp].BTL) + metaLikeRow('總計', m[p].TOTAL, m[pp].TOTAL, {totalRow:true});
+  renderSigma('momo', 'momo-sigma');
+  renderObsBlock('momo-obs', OBS.momo[p]);
+}
+
+function weekTd(v, fmt){ return v==null ? '<td>—</td>' : `<td>${fmt(v)}</td>`; }
+function renderWeekly(channelId, channelKey, obsKey){
+  const weeks = DATA.weekly[channelKey];
+  const n = state.weekCount[channelId];
+  const shown = weeks.slice(Math.max(0, weeks.length-n));
+  const body = shown.map((w,i)=>{
+    const isLast = i===shown.length-1;
+    return `<tr class="${isLast?'total':''}">
+      <td>2026/${w.range}（${w.w}）</td>
+      <td>${fmtMoney(w.spend)}</td>
+      <td>${fmtMoney(w.revenue)}</td>
+      <td class="roas-cell">${w.roas.toFixed(2)}</td>
+      <td>${fmtMoney(w.cpa)}</td>
+      ${weekTd(w.cvr, v=>v.toFixed(2)+'%')}
+      ${weekTd(w.aov, fmtMoney)}
+      ${weekTd(w.c2c, v=>v.toFixed(1)+'%')}
+      ${weekTd(w.c2p, v=>v.toFixed(1)+'%')}
+      ${weekTd(w.cartcpa, fmtMoney)}
+      <td>${w.ctr.toFixed(2)}%</td>
+      <td>$${w.cpc.toFixed(1)}</td>
+      <td>$${Math.round(w.cpm)}</td>
+      <td>${w.freq.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById(channelId+'-weekly-body').innerHTML = body;
+  const last = shown[shown.length-1];
+  document.getElementById(channelId+'-weekly-caption').textContent = `數據截至 ${last.range.split('–')[1]}`;
+  const weekObsEl = document.getElementById(channelId+'-week-obs');
+  if(weekObsEl && OBS[obsKey]){
+    weekObsEl.innerHTML = `
+      <div><div class="col-head">觀察</div><ul>${OBS[obsKey].obs.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+      <div><div class="col-head">行動</div><ul>${OBS[obsKey].act.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+    `;
+  }
+}
+
+const FUNNEL = {
+  '官網': {
+    '2026-08': {addtocart:2612, cartcpa:114, click2cart:5.04, cart2purchase:17.76},
+    '2025-08': {addtocart:1494, cartcpa:146, click2cart:4.51, cart2purchase:23.76},
+    '2026-09mtd': {addtocart:800, cartcpa:77, click2cart:9.08, cart2purchase:16.25},
+    '2025-09mtd': {addtocart:513, cartcpa:170, click2cart:6.46, cart2purchase:21.83},
+  },
+  '蝦皮': {
+    '2026-08': {addtocart:1800, cartcpa:134, click2cart:18.79, cart2purchase:28.44},
+    '2025-08': {addtocart:1103, cartcpa:149, click2cart:19.98, cart2purchase:41.16},
+    '2026-09mtd': {addtocart:334, cartcpa:120, click2cart:25.0, cart2purchase:31.74},
+    '2025-09mtd': {addtocart:200, cartcpa:162, click2cart:17.78, cart2purchase:44.5},
+  },
+  'momo': {
+    '2026-08': {addtocart:622, cartcpa:133, click2cart:25.44, cart2purchase:42.6},
+    '2025-08': {addtocart:323, cartcpa:337, click2cart:10.33, cart2purchase:65.02},
+    '2026-09mtd': {addtocart:128, cartcpa:83, click2cart:44.44, cart2purchase:42.97},
+    '2025-09mtd': {addtocart:81, cartcpa:366, click2cart:12.04, cart2purchase:74.07},
+  },
+};
+function calcDelta(cur, prev){
+  if(prev==null || prev===0 || cur==null) return null;
+  return (cur-prev)/prev*100;
+}
+function renderFunnel(channelId, channelKey){
+  const p = state.month, pp = PREV[p];
+  const btl = DATA[channelKey].meta[p].BTL;
+  const btlPrev = DATA[channelKey].meta[pp].BTL;
+  const f = FUNNEL[channelKey] && FUNNEL[channelKey][p];
+  const fPrev = FUNNEL[channelKey] && FUNNEL[channelKey][pp];
+  const el = document.getElementById(channelId+'-funnel');
+  document.querySelectorAll('.'+channelId+'-funnel-label').forEach(x=> x.textContent = `BTL 轉換漏斗（${MLABEL[p]} ${RANGE[p]}）`);
+  const noteEl = document.getElementById(channelId+'-funnel-note');
+  if(f){
+    const tiles = [
+      ['購物車次數', fmtInt(f.addtocart), calcDelta(f.addtocart, fPrev&&fPrev.addtocart)],
+      ['購物車成本', fmtMoney(f.cartcpa), calcDelta(f.cartcpa, fPrev&&fPrev.cartcpa)],
+      ['AOV', fmtMoney(btl.aov), calcDelta(btl.aov, btlPrev.aov)],
+      ['點擊→成交率', fmtPctv(btl.cvr,2), calcDelta(btl.cvr, btlPrev.cvr)],
+      ['點擊→購物車率', fmtPctv(f.click2cart,2), calcDelta(f.click2cart, fPrev&&fPrev.click2cart)],
+      ['購物車→成交率', fmtPctv(f.cart2purchase,2), calcDelta(f.cart2purchase, fPrev&&fPrev.cart2purchase)],
+    ];
+    el.innerHTML = tiles.map(([l,v,d])=>
+      `<div class="sC-tile"><div class="label">${l}</div><div class="value">${v}</div>${deltaTagSimple(d,false)}</div>`
+    ).join('');
+    if(noteEl) noteEl.textContent = '';
+  } else {
+    const tiles = [
+      ['購物車次數','—'],['購物車成本','—'],['AOV', fmtMoney(btl.aov)],
+      ['點擊→成交率', fmtPctv(btl.cvr,2)],['點擊→購物車率','—'],['購物車→成交率','—'],
+    ];
+    el.innerHTML = tiles.map(([l,v])=>`<div class="sC-tile"><div class="label">${l}</div><div class="value">${v}</div></div>`).join('');
+    if(noteEl) noteEl.textContent = '＊Meta CPAS 加購欄位（omni_add_to_cart）此帳號目前 API 回傳為空，點>車/車>買/購物車CPA 暫缺，已直接查證非查詢方式錯誤';
+  }
+}
+
+function renderAll(){
+  renderGW(); renderShopee(); renderMomo();
+  renderWeekly('gw', '官網', 'gwWeek');
+  renderWeekly('shopee', '蝦皮', 'shopeeWeek');
+  renderWeekly('momo', 'momo', 'momoWeek');
+  renderFunnel('gw', '官網');
+  renderFunnel('shopee', '蝦皮');
+  renderFunnel('momo', 'momo');
+  document.getElementById('periodNote').textContent = `數據區間 2026/${RANGE[state.month]}，YoY 對照 ${PREV_RANGE[state.month]}`;
+  document.getElementById('controlsBar').classList.toggle('mtd', state.month === '2026-09mtd');
+}
+
+document.getElementById('monthSeg').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-month]');
+  if(!btn) return;
+  state.month = btn.dataset.month;
+  document.querySelectorAll('#monthSeg button').forEach(b=>b.classList.toggle('active', b===btn));
+  renderAll();
+});
+['gw','shopee','momo'].forEach(id=>{
+  document.getElementById(id+'-week-select').addEventListener('change', (e)=>{
+    state.weekCount[id] = parseInt(e.target.value, 10);
+    const key = id==='gw' ? '官網' : (id==='shopee' ? '蝦皮' : 'momo');
+    const obsKey = id+'Week';
+    renderWeekly(id, key, obsKey);
+  });
+});
+
+renderAll();
+</script>
