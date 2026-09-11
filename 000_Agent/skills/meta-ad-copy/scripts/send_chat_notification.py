@@ -11,7 +11,7 @@ import os
 import sys
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[3]
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
 ENV_PATH = PROJECT_ROOT / ".env"
 
 DEFAULT_WEBHOOK_VAR = "GOOGLE_CHAT_WEBHOOK_AD_UPLOAD"

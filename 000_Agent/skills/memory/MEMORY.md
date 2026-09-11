@@ -57,4 +57,5 @@
 - [feedback_git_sync_setup_2026_09_11.md](feedback_git_sync_setup_2026_09_11.md) — 000_Agent從沒commit過是跨裝置記憶不同步的真正原因,已修好git push(gh auth login)並push過一次，之後改完記憶要主動commit+push
 - [feedback_mcp_no_ad_delete_use_graph_api.md](feedback_mcp_no_ad_delete_use_graph_api.md) — Meta Ads MCP沒有刪除ad工具,adset滿50支上限要清舊廣告時改用Graph API DELETE直接呼叫
 - [project_yuxitang_momo_adset_pattern.md](project_yuxitang_momo_adset_pattern.md) — 御熹堂CPAS momo帳號adset按再行銷漏斗階段分(非人設角度),CPAS一律整支複製,鋪素材要看訴求對應購買意圖階段
+- [feedback_meta_ad_copy_autopush_chat.md](feedback_meta_ad_copy_autopush_chat.md) — meta-ad-copy的Chat推播已改預設自動送出不用先問,附send_chat_notification.py路徑bug修復記錄
 - [project_meta_ad_video_img_upload_skill.md](project_meta_ad_video_img_upload_skill.md) — meta-ad-video-img-upload skill：Drive原始素材(影片/動圖/單圖)從零建到Meta廣告(含精選集Canvas)，跟meta-ad-copy互補分工
