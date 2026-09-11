@@ -53,3 +53,5 @@
 - [feedback_meta_ad_copy_staging_adset_not_final.md](feedback_meta_ad_copy_staging_adset_not_final.md) — 素材已存在「Ad素材庫」staging adset不代表已決定投放位置，仍要提案正式adset才能activate
 - [project_yuxitang_activity_adset_pattern.md](project_yuxitang_activity_adset_pattern.md) — 御熹堂官網活動素材鋪法歷史快照(僅供參考,每次要重新查證,見feedback_adset_choice_not_a_default)
 - [feedback_adset_choice_not_a_default.md](feedback_adset_choice_not_a_default.md) — 某次選定的adset不能升級成預設值,每次都要重新查帳號現況+重新問，不能只讀記憶就沿用
+- [feedback_reuse_creative_id_is_not_default.md](feedback_reuse_creative_id_is_not_default.md) — meta-ad-copy新建廣告預設要用post id(object_story_id)建立,重用creative_id只是App開發模式錯誤的備案不是預設
+- [feedback_git_sync_setup_2026_09_11.md](feedback_git_sync_setup_2026_09_11.md) — 000_Agent從沒commit過是跨裝置記憶不同步的真正原因,已修好git push(gh auth login)並push過一次，之後改完記憶要主動commit+push
