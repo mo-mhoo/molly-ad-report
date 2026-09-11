@@ -51,6 +51,8 @@ cd "C:\AI小摸" && python check_new_ad_launch.py <ad_id>
 
 如果只是建一般廣告（非精選集），完全不需要 `META_PAGE_ACCESS_TOKEN`。
 
+**在 Mac（這個 repo 所在機器）跑的話**：`check_new_ad_launch.py`／`meta_ad_copy_cli.py` 這兩支巡檢/查帳號腳本目前只在 Molly 的 Windows 機器（`C:\AI小摸`）上，這台 Mac 沒有——2026-09-11 實測確認。但這台 Mac 的 `.env`（就是這個 repo 根目錄的 `.env`）已經有現成的 `META_ACCESS_TOKEN`／`META_PAGE_ACCESS_TOKEN`，可以直接拿來對 Graph API 發請求（上傳素材、建 Canvas、建 creative／ad 都夠用），只是「巡檢」這一步（判斷要不要自動啟動/排走期）在 Mac 上做不到，建完 PAUSED 廣告後要請 Molly 自己在 Windows 那邊對 ad_id 跑 `check_new_ad_launch.py`，或她口頭確認直接手動啟動。
+
 ---
 
 ## 已知資源速查表（2026-08-31 實測，換 session 直接用，不用重查）
@@ -221,7 +223,7 @@ ads_create_creative(
  from facebook_business.adobjects.adset import AdSet
  AdSet(adset_id).api_get(fields=['promoted_object'])
  ```
-2. 用 page token 依序建 4 個 canvas 元素：**`canvas_video`（影片封面）**、`canvas_button`（CTA 按鈕，`{"open_url_action":{"url":...}, "rich_text": json.dumps({"text":[{"type":"text","text":"SHOP_NOW"}]})}`——**按鈕文字欄位是 `rich_text`，不是 `text`/`style`**，2026-08-31 實測確認）、`canvas_footer`（掛按鈕）、`canvas_product_set`（掛第1步查到的 product_set_id）
+2. 用 page token 依序建 4 個 canvas 元素：**`canvas_video`（影片封面）**、`canvas_button`（CTA 按鈕，`{"open_url_action":{"url":...}, "rich_text": json.dumps({"text":[{"type":"text","text":"SHOP_NOW"}]})}`——**按鈕文字欄位是 `rich_text`，不是 `text`/`style`**，2026-08-31 實測確認）、`canvas_footer`（掛按鈕，欄位是 `{"child_elements": [button_element_id]}`——**不是 `button_id`／`button_ids`**，2026-09-11 實測，這兩個都會報 `(#100) Invalid keys` 直接被拒）、`canvas_product_set`（掛第1步查到的 product_set_id）
 3. 組合成 canvas：`POST /{page_id}/canvases`，`body_element_ids` 帶入上面4個 id 的其中3個（影片＋商品格＋footer），`is_published: true`
 4. 建 Ad Creative：`object_story_spec.link_data.link` = `"https://fb.com/canvas_doc/" + canvas_id`，`link_data.picture` 放縮圖網址。**creative 頂層不要帶 `product_set_id`**（跟舊版本說的相反，2026-08-31 毛孩時代帳號實測發現多帶會在建廣告那步報 `Cannot use product set id without template spec`，subcode 1990065——商品格已經靠 Canvas 裡的 `canvas_product_set` 元素內嵌了，頂層不用也不能重複帶）
 
@@ -259,7 +261,7 @@ ads_create_creative(
  from facebook_business.adobjects.adset import AdSet
  AdSet(adset_id).api_get(fields=['promoted_object'])
  ```
-2. **圖片封面要先上傳成粉專相片，不是廣告素材庫的 AdImage**：`POST /{page_id}/photos`（`published: false`、`source` 帶本地檔案、用 page_token），拿到的相片 `id` 才是 `canvas_photo` 要的 `photo_id`（`canvas_photo: {"photo_id": ..., "style": "FIT_TO_WIDTH"}`——直接塞 AdImage 的 `image_hash` 會報 `Invalid keys "image_hash"`，2026-08-31 實測）。接著依序建 4 個 canvas 元素：**`canvas_photo`（圖片封面）**、`canvas_button`（CTA 按鈕，欄位格式同 Video 版的 `rich_text` 寫法）、`canvas_footer`（掛按鈕）、`canvas_product_set`（掛第1步查到的 product_set_id）
+2. **圖片封面要先上傳成粉專相片，不是廣告素材庫的 AdImage**：`POST /{page_id}/photos`（`published: false`、`source` 帶本地檔案、用 page_token），拿到的相片 `id` 才是 `canvas_photo` 要的 `photo_id`（`canvas_photo: {"photo_id": ..., "style": "FIT_TO_WIDTH"}`——直接塞 AdImage 的 `image_hash` 會報 `Invalid keys "image_hash"`，2026-08-31 實測）。接著依序建 4 個 canvas 元素：**`canvas_photo`（圖片封面）**、`canvas_button`（CTA 按鈕，欄位格式同 Video 版的 `rich_text` 寫法）、`canvas_footer`（掛按鈕，欄位是 `{"child_elements": [button_element_id]}`，同 Video 版，2026-09-11 實測確認）、`canvas_product_set`（掛第1步查到的 product_set_id）
 3. 組合成 canvas：`POST /{page_id}/canvases`，`body_element_ids` 帶入上面4個 id 的其中3個（圖片＋商品格＋footer），`is_published: true`，creative 頂層一樣不要帶 `product_set_id`（理由同 Video 版）
 4. 建 Ad Creative：`object_story_spec.link_data.link` = `"https://fb.com/canvas_doc/" + canvas_id`，`link_data.picture` 放圖片網址，creative payload 頂層不要帶 `product_set_id`（理由同 Video 版）
 

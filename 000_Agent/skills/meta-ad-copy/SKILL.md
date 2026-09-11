@@ -120,32 +120,15 @@ prompt 裡要寫清楚（因為排程執行時是全新 session，看不到這�
 
 **範圍限制**：只處理這個 skill 這次 execute 剛建立的廣告。不要去掃帳號裡其他既有的活動廣告（那些不在這個 skill 的管轄範圍內，也還沒跟 Molly 確認過要不要涵蓋——見 [[project_activity_creative_flight_routine_pending]]）。
 
-### 7. 推播上稿結果到 Google Chat（Molly 2026-09-11 要求加上，可選）
+### 7. 自動接 [[meta-ad-launch-check]]（2026-09-11 補上，還原 Windows 版本來就有的行為）
 
-execute 完成、也處理完步驟 5（回報）跟步驟 6（走期排程，如果適用）之後，**主動問 Molly 要不要把這批上稿結果推播到「廣告軍團-Meta 上傳素材」這個 Google Chat 空間**，不要預設不推、也不要沒問就推。
+execute 完成、也處理完步驟 6（走期排程）之後，**直接把這次 execute 成功的 ad_id 清單交給 `meta-ad-launch-check` skill 檢查，不用問 Molly、也不用等她確認**——這個 skill 會做上線前巡檢（審核狀態／adset-campaign 狀態／預算欄位），通過的話：非活動廣告直接改 ACTIVE、活動廣告確認走期 routine 已就緒，並推播結果到「廣告軍團-Meta 上傳素材」空間。
 
-**格式**（每支廣告一段，仿照既有 Windows 機器上其他工具推播的格式，這裡改成用你自己在步驟 1-5 蒐集到的資訊組出來，不需要額外查詢）：
+**這一步取代了原本(2026-09-11 稍早)由 meta-ad-copy 自己直接推播文字訊息到 Chat 的做法**——現在統一由 `meta-ad-launch-check` 負責推播（含巡檢結果），meta-ad-copy 自己不用再另外送一次，避免同一批廣告被推播兩次。
 
-```
-廣告內容｜<常態 或 活動>
-<帳號名稱>｜<廣告名稱(ad_name)>
-建立方式：<post id 建立 / 整支複製 / 重用既有creative_id>
+如果 Molly 問起「怎麼沒推播」或「巡檢結果呢」，代表 `meta-ad-launch-check` 那一步應該要有結果，去確認它有沒有正常跑完，不要自己臨時再手動組一份訊息送出。
 
-→ <adset 名稱>
-Campaign：<campaign 名稱>
-狀態：<PAUSED / 已啟動(ACTIVE) / 已啟動(PENDING_REVIEW)>
-ad_id：<ad_id>
-```
-
-多支廣告用一條分隔線（`---`）隔開，整批一次推播成一則訊息，不要每支都分開送。
-
-**兩段式確認流程**（比照 [[feedback_meta_ads_write_safety]] 的「先文字後確認再送」）：
-1. 把組好的訊息文字寫進一個暫存檔（例如 scratchpad 目錄下的 `.txt`）
-2. 執行 `python3 "000_Agent/skills/meta-ad-copy/scripts/send_chat_notification.py" --file <暫存檔路徑>`（不加 `--send`，預設 dry-run，只會印出訊息文字，不會真的送出）
-3. 把 dry-run 印出的內容貼給 Molly看，問她要不要送
-4. 她確認要送之後，才加 `--send` 重新執行同一個指令（`--file <暫存檔路徑> --send`）實際推播
-
-這個腳本預設讀 `.env` 裡的 `GOOGLE_CHAT_WEBHOOK_AD_UPLOAD`（2026-09-11 已確認並設定好，這是「廣告軍團-Meta 上傳素材」空間專屬的 webhook，跟每日廣告日報用的 `GOOGLE_CHAT_WEBHOOK` 是不同變數，不要混用），不用問 Molly 要不要存 `.env`，從不會把 webhook 網址本身印出來。如果 Molly 說之後這個問題不用每次都問（例如她想改成跟走期排程一樣「預設就推、不用每次確認」），要等她真的這樣明確說了才調整成不問直接送，在那之前維持問她。
+推播卡片用 `python3 "000_Agent/skills/meta-ad-copy/scripts/send_chat_notification.py" --file <JSON檔路徑> --send`（這支腳本現在吃 JSON 陣列、送 Google Chat Cards v2 卡片格式，不是純文字，具體欄位格式見腳本檔頭說明或 `meta-ad-launch-check/SKILL.md`），預設讀 `.env` 的 `GOOGLE_CHAT_WEBHOOK_AD_UPLOAD`，從不印出 webhook 網址本身。
 
 ---
 

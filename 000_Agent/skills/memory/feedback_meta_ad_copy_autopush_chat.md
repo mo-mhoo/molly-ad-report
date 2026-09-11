@@ -1,10 +1,12 @@
 ---
 name: feedback-meta-ad-copy-autopush-chat
-description: meta-ad-copy的Google Chat推播已改為預設自動送出,不用每次先問Molly確認
+description: meta-ad-copy的Google Chat推播已改為預設自動送出,不用每次先問Molly確認(推播責任後來又交棒給meta-ad-launch-check,見下方更新)
 metadata:
   node_type: memory
   type: feedback
 ---
+
+**2026-09-11 當天稍晚更新**：這則記錄的「meta-ad-copy 自己直接推播」做法，已經被 [[project_meta_ad_launch_check_skill]] 取代——execute 完現在是交給 `meta-ad-launch-check` 做巡檢+推播，meta-ad-copy 自己不再直接送 Chat 訊息（避免推播兩次）。下面「自動送出不用問」這個原則本身還是對的，只是執行者從 meta-ad-copy 換成 meta-ad-launch-check，細節看新的那則記憶。
 
 `/meta-ad-copy` skill 步驟7(推播上稿結果到「廣告軍團-Meta 上傳素材」Google Chat空間)，Molly 在 2026-09-11 明確要求改成**預設自動推播，不用每次先問她確認**——跟走期開關 routine（步驟6）一樣「自動執行」。SKILL.md 已同步修改。
 
