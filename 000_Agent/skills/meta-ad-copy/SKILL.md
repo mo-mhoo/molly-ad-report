@@ -130,6 +130,8 @@ execute 完成、也處理完步驟 6（走期排程）之後，**直接把這�
 
 推播卡片用 `python3 "000_Agent/skills/meta-ad-copy/scripts/send_chat_notification.py" --file <JSON檔路徑> --send`（這支腳本現在吃 JSON 陣列、送 Google Chat Cards v2 卡片格式，不是純文字，具體欄位格式見腳本檔頭說明或 `meta-ad-launch-check/SKILL.md`），預設讀 `.env` 的 `GOOGLE_CHAT_WEBHOOK_AD_UPLOAD`，從不印出 webhook 網址本身。
 
+**推播單位是「通路/帳號」，不是「這次 execute」**（2026-09-11 Molly 糾正）：同一個帳號（例如御熹堂_官網）當天不管分幾次 execute 建立，最後都要合併成**一則** Chat 訊息（一次 `--send` 呼叫，JSON 陣列裡放這個帳號全部的 placement），不要因為分批 execute 就分批推播。不同帳號/通路（官網 vs momo vs 蝦皮）才分開送成不同訊息。如果同一個帳號當天已經推播過、後來又補上新的一批，才需要另外補推一則。
+
 ---
 
 ## 判斷規則（背景知識，不用自己重推）

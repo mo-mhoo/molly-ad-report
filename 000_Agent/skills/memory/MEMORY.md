@@ -59,4 +59,5 @@
 - [project_yuxitang_momo_adset_pattern.md](project_yuxitang_momo_adset_pattern.md) — 御熹堂CPAS momo帳號adset按再行銷漏斗階段分(非人設角度),CPAS一律整支複製,鋪素材要看訴求對應購買意圖階段
 - [feedback_meta_ad_copy_autopush_chat.md](feedback_meta_ad_copy_autopush_chat.md) — meta-ad-copy的Chat推播已改預設自動送出不用先問,附send_chat_notification.py路徑bug修復記錄(推播責任後交棒給meta-ad-launch-check)
 - [project_meta_ad_launch_check_skill.md](project_meta_ad_launch_check_skill.md) — meta-ad-launch-check skill(上稿前巡檢+自動啟動+卡片推播)已從Drive備份重建進這台Mac,meta-ad-copy execute完自動接它,常態廣告巡檢通過會自動ACTIVE
+- [feedback_chat_card_aggregation_rules.md](feedback_chat_card_aggregation_rules.md) — Chat卡片推播要依素材聚合(同素材多adset合一張卡)+依帳號/通路合併成單一則訊息,不要素材或批次各自分開推播
 - [project_meta_ad_video_img_upload_skill.md](project_meta_ad_video_img_upload_skill.md) — meta-ad-video-img-upload skill：Drive原始素材(影片/動圖/單圖)從零建到Meta廣告(含精選集Canvas)，跟meta-ad-copy互補分工
